@@ -47,7 +47,7 @@ jobs:
           echo "AAB outputs:"
           ls -la app/build/outputs/bundle/release || true
 
-          APK_PATH="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n1)"
+          APK_PATH="app/build/outputs/apk/release/app-release.apk"
           AAB_PATH="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' | head -n1)"
 
           test -n "$APK_PATH" || { echo "No APK found"; exit 1; }
