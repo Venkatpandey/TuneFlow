@@ -1,0 +1,17 @@
+complexity:
+  ComplexCondition:
+    active: false
+  LongParameterList:
+    active: false
+  LongMethod:
+    active: false
+
+naming:
+  FunctionNaming:
+    active: false
+
+style:
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false
