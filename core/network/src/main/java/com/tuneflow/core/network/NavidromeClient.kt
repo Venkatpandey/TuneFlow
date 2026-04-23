@@ -64,6 +64,47 @@ open class NavidromeClient(private val session: SessionData) {
         }
     }
 
+    open suspend fun getArtists(): NetworkResult<List<ArtistDto>> {
+        return safeCall {
+            val response =
+                api.getArtists(
+                    username = session.username,
+                    token = session.token,
+                    salt = session.salt,
+                ).response
+
+            if (response.status != "ok") {
+                NetworkResult.Error(response.error?.message ?: "Failed to load artists.")
+            } else {
+                NetworkResult.Success(
+                    response.artists
+                        ?.index
+                        .orEmpty()
+                        .flatMap { it.artist },
+                )
+            }
+        }
+    }
+
+    open suspend fun getArtist(artistId: String): NetworkResult<ArtistDetailDto> {
+        return safeCall {
+            val response =
+                api.getArtist(
+                    artistId = artistId,
+                    username = session.username,
+                    token = session.token,
+                    salt = session.salt,
+                ).response
+
+            if (response.status != "ok") {
+                NetworkResult.Error(response.error?.message ?: "Failed to load artist.")
+            } else {
+                val artist = response.artist ?: return@safeCall NetworkResult.Error("Artist not found.")
+                NetworkResult.Success(artist)
+            }
+        }
+    }
+
     open suspend fun getPlaylists(): NetworkResult<List<PlaylistDto>> {
         return safeCall {
             val response =
@@ -77,6 +118,23 @@ open class NavidromeClient(private val session: SessionData) {
                 NetworkResult.Error(response.error?.message ?: "Failed to load playlists.")
             } else {
                 NetworkResult.Success(response.playlists?.playlist.orEmpty())
+            }
+        }
+    }
+
+    open suspend fun getStarred2(): NetworkResult<Starred2Dto> {
+        return safeCall {
+            val response =
+                api.getStarred2(
+                    username = session.username,
+                    token = session.token,
+                    salt = session.salt,
+                ).response
+
+            if (response.status != "ok") {
+                NetworkResult.Error(response.error?.message ?: "Failed to load favorites.")
+            } else {
+                NetworkResult.Success(response.starred2 ?: Starred2Dto())
             }
         }
     }

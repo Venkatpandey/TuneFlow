@@ -120,6 +120,48 @@ data class ArtistDto(
     val albumCount: Int? = null,
 )
 
+data class ArtistsResponse(
+    val status: String,
+    val version: String,
+    val error: SubsonicError? = null,
+    val artists: ArtistsContainer? = null,
+)
+
+data class ArtistsContainer(
+    val index: List<ArtistIndexDto> = emptyList(),
+)
+
+data class ArtistIndexDto(
+    val name: String? = null,
+    val artist: List<ArtistDto> = emptyList(),
+)
+
+data class ArtistResponse(
+    val status: String,
+    val version: String,
+    val error: SubsonicError? = null,
+    val artist: ArtistDetailDto? = null,
+)
+
+data class ArtistDetailDto(
+    val id: String,
+    val name: String,
+    val albumCount: Int? = null,
+    val album: List<AlbumDto> = emptyList(),
+)
+
+data class Starred2Response(
+    val status: String,
+    val version: String,
+    val error: SubsonicError? = null,
+    val starred2: Starred2Dto? = null,
+)
+
+data class Starred2Dto(
+    val album: List<AlbumDto> = emptyList(),
+    val song: List<SongDto> = emptyList(),
+)
+
 interface NavidromeApi {
     @GET("rest/ping.view")
     suspend fun ping(
@@ -155,6 +197,27 @@ interface NavidromeApi {
         @Query("f") format: String = FORMAT,
     ): SubsonicEnvelope<AlbumResponse>
 
+    @GET("rest/getArtists.view")
+    suspend fun getArtists(
+        @Query("u") username: String,
+        @Query("t") token: String,
+        @Query("s") salt: String,
+        @Query("v") version: String = API_VERSION,
+        @Query("c") client: String = CLIENT_NAME,
+        @Query("f") format: String = FORMAT,
+    ): SubsonicEnvelope<ArtistsResponse>
+
+    @GET("rest/getArtist.view")
+    suspend fun getArtist(
+        @Query("id") artistId: String,
+        @Query("u") username: String,
+        @Query("t") token: String,
+        @Query("s") salt: String,
+        @Query("v") version: String = API_VERSION,
+        @Query("c") client: String = CLIENT_NAME,
+        @Query("f") format: String = FORMAT,
+    ): SubsonicEnvelope<ArtistResponse>
+
     @GET("rest/getPlaylists.view")
     suspend fun getPlaylists(
         @Query("u") username: String,
@@ -175,6 +238,16 @@ interface NavidromeApi {
         @Query("c") client: String = CLIENT_NAME,
         @Query("f") format: String = FORMAT,
     ): SubsonicEnvelope<PlaylistResponse>
+
+    @GET("rest/getStarred2.view")
+    suspend fun getStarred2(
+        @Query("u") username: String,
+        @Query("t") token: String,
+        @Query("s") salt: String,
+        @Query("v") version: String = API_VERSION,
+        @Query("c") client: String = CLIENT_NAME,
+        @Query("f") format: String = FORMAT,
+    ): SubsonicEnvelope<Starred2Response>
 
     @GET("rest/search3.view")
     suspend fun search3(

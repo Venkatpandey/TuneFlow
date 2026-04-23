@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlayerGraph
@@ -53,6 +54,7 @@ import com.tuneflow.feature.auth.AuthRepository
 import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.AlbumDetailScreen
 import com.tuneflow.feature.browse.AlbumsScreen
+import com.tuneflow.feature.browse.ArtistDetailScreen
 import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.browse.PlaylistsScreen
 import com.tuneflow.feature.browse.SearchScreen
@@ -64,6 +66,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val sessionStore = SessionStore(applicationContext)
+        val searchHistoryStore = SearchHistoryStore(applicationContext)
         val authRepository = AuthRepository(sessionStore)
         val browseRepository = BrowseRepository(sessionStore)
         val playerManager = PlayerGraph.get(applicationContext)
@@ -87,6 +90,11 @@ class MainActivity : ComponentActivity() {
                     TuneFlowShell(
                         browseRepository = browseRepository,
                         playerManager = playerManager,
+                        searchHistoryStore = searchHistoryStore,
+                        onLogout = {
+                            playerManager.stopAndClear()
+                            authViewModel.logout()
+                        },
                     )
                 }
             }
@@ -114,27 +122,35 @@ private const val NOW_PLAYING_SCREEN_KEY = "nowPlaying"
 private fun TuneFlowShell(
     browseRepository: BrowseRepository,
     playerManager: com.tuneflow.core.player.TvPlayerManager,
+    searchHistoryStore: SearchHistoryStore,
+    onLogout: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(browseRepository))
     val albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel = viewModel(factory = AlbumsViewModelFactory(browseRepository))
     val albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel =
         viewModel(factory = AlbumDetailViewModelFactory(browseRepository))
+    val artistDetailViewModel: com.tuneflow.feature.browse.ArtistDetailViewModel =
+        viewModel(factory = ArtistDetailViewModelFactory(browseRepository))
     val playlistsViewModel: com.tuneflow.feature.browse.PlaylistsViewModel =
         viewModel(factory = PlaylistsViewModelFactory(browseRepository))
-    val searchViewModel: com.tuneflow.feature.browse.SearchViewModel = viewModel(factory = SearchViewModelFactory(browseRepository))
+    val searchViewModel: com.tuneflow.feature.browse.SearchViewModel =
+        viewModel(factory = SearchViewModelFactory(browseRepository, searchHistoryStore))
     val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel = viewModel(factory = PlaybackViewModelFactory(playerManager))
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
 
     var currentSection by rememberSaveable { mutableStateOf(NavSection.Home) }
     var selectedAlbumId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedArtistId by rememberSaveable { mutableStateOf<String?>(null) }
     var albumSourceSection by rememberSaveable { mutableStateOf(NavSection.Home) }
+    var artistSourceSection by rememberSaveable { mutableStateOf(NavSection.Home) }
     var preselectedPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
 
     fun openSection(section: NavSection) {
         currentSection = section
         selectedAlbumId = null
+        selectedArtistId = null
         if (section != NavSection.Playlists) {
             preselectedPlaylistId = null
         }
@@ -148,6 +164,18 @@ private fun TuneFlowShell(
         currentSection = source
         albumSourceSection = source
         selectedAlbumId = albumId
+        selectedArtistId = null
+        showNowPlaying = false
+    }
+
+    fun openArtist(
+        artistId: String,
+        source: NavSection,
+    ) {
+        currentSection = source
+        artistSourceSection = source
+        selectedArtistId = artistId
+        selectedAlbumId = null
         showNowPlaying = false
     }
 
@@ -174,11 +202,16 @@ private fun TuneFlowShell(
     ShellBackHandler(
         showNowPlaying = showNowPlaying,
         selectedAlbumId = selectedAlbumId,
+        selectedArtistId = selectedArtistId,
         currentSection = currentSection,
         onCloseNowPlaying = { showNowPlaying = false },
         onCloseAlbum = {
             selectedAlbumId = null
             currentSection = albumSourceSection
+        },
+        onCloseArtist = {
+            selectedArtistId = null
+            currentSection = artistSourceSection
         },
         onGoHome = { currentSection = NavSection.Home },
     )
@@ -218,6 +251,7 @@ private fun TuneFlowShell(
                 onSectionSelected = ::openSection,
                 onNowPlaying = ::openNowPlaying,
                 isNowPlayingActive = showNowPlaying,
+                onLogout = onLogout,
             )
 
             Spacer(Modifier.width(22.dp))
@@ -239,20 +273,25 @@ private fun TuneFlowShell(
                 ShellContent(
                     currentSection = currentSection,
                     selectedAlbumId = selectedAlbumId,
+                    selectedArtistId = selectedArtistId,
                     showNowPlaying = showNowPlaying,
                     preselectedPlaylistId = preselectedPlaylistId,
                     playbackQueue = playbackState.queue,
                     homeViewModel = homeViewModel,
                     albumsViewModel = albumsViewModel,
                     albumDetailViewModel = albumDetailViewModel,
+                    artistDetailViewModel = artistDetailViewModel,
                     playlistsViewModel = playlistsViewModel,
                     searchViewModel = searchViewModel,
                     playbackViewModel = playbackViewModel,
                     onOpenAlbum = ::openAlbum,
+                    onOpenArtist = ::openArtist,
                     onOpenSection = ::openSection,
                     onOpenPlaylist = {
                         currentSection = NavSection.Playlists
                         preselectedPlaylistId = it
+                        selectedAlbumId = null
+                        selectedArtistId = null
                         showNowPlaying = false
                     },
                     onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
@@ -268,15 +307,18 @@ private fun TuneFlowShell(
 private fun ShellBackHandler(
     showNowPlaying: Boolean,
     selectedAlbumId: String?,
+    selectedArtistId: String?,
     currentSection: NavSection,
     onCloseNowPlaying: () -> Unit,
     onCloseAlbum: () -> Unit,
+    onCloseArtist: () -> Unit,
     onGoHome: () -> Unit,
 ) {
-    BackHandler(enabled = showNowPlaying || selectedAlbumId != null || currentSection != NavSection.Home) {
+    BackHandler(enabled = showNowPlaying || selectedAlbumId != null || selectedArtistId != null || currentSection != NavSection.Home) {
         when {
             showNowPlaying -> onCloseNowPlaying()
             selectedAlbumId != null -> onCloseAlbum()
+            selectedArtistId != null -> onCloseArtist()
             currentSection != NavSection.Home -> onGoHome()
         }
     }
@@ -285,11 +327,13 @@ private fun ShellBackHandler(
 private fun shellScreenKey(
     currentSection: NavSection,
     selectedAlbumId: String?,
+    selectedArtistId: String?,
     showNowPlaying: Boolean,
 ): String {
     return when {
         showNowPlaying -> NOW_PLAYING_SCREEN_KEY
         selectedAlbumId != null -> "album:$selectedAlbumId"
+        selectedArtistId != null -> "artist:$selectedArtistId"
         else -> currentSection.name
     }
 }
@@ -298,23 +342,26 @@ private fun shellScreenKey(
 private fun ShellContent(
     currentSection: NavSection,
     selectedAlbumId: String?,
+    selectedArtistId: String?,
     showNowPlaying: Boolean,
     preselectedPlaylistId: String?,
     playbackQueue: PlaybackQueue,
     homeViewModel: HomeViewModel,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
+    artistDetailViewModel: com.tuneflow.feature.browse.ArtistDetailViewModel,
     playlistsViewModel: com.tuneflow.feature.browse.PlaylistsViewModel,
     searchViewModel: com.tuneflow.feature.browse.SearchViewModel,
     playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
     onOpenAlbum: (String, NavSection) -> Unit,
+    onOpenArtist: (String, NavSection) -> Unit,
     onOpenSection: (NavSection) -> Unit,
     onOpenPlaylist: (String?) -> Unit,
     onPreselectedPlaylistConsumed: () -> Unit,
     onOpenNowPlaying: () -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
 ) {
-    val screenKey = shellScreenKey(currentSection, selectedAlbumId, showNowPlaying)
+    val screenKey = shellScreenKey(currentSection, selectedAlbumId, selectedArtistId, showNowPlaying)
 
     Crossfade(targetState = screenKey, label = "shell-content") { targetScreen ->
         when {
@@ -328,15 +375,24 @@ private fun ShellContent(
                     onPlayAlbum = onPlayTracks,
                 )
             }
+            targetScreen.startsWith("artist:") -> {
+                ArtistDetailScreen(
+                    artistId = targetScreen.removePrefix("artist:"),
+                    viewModel = artistDetailViewModel,
+                    onOpenAlbum = { onOpenAlbum(it, currentSection) },
+                )
+            }
             targetScreen == NavSection.Home.name -> {
                 HomeScreen(
                     viewModel = homeViewModel,
                     playbackQueue = playbackQueue,
                     onOpenAlbum = { onOpenAlbum(it, NavSection.Home) },
+                    onOpenArtist = { onOpenArtist(it, NavSection.Home) },
                     onOpenAlbums = { onOpenSection(NavSection.Albums) },
                     onOpenPlaylists = onOpenPlaylist,
                     onOpenSearch = { onOpenSection(NavSection.Search) },
                     onOpenNowPlaying = onOpenNowPlaying,
+                    onPlayTracks = onPlayTracks,
                 )
             }
             targetScreen == NavSection.Albums.name -> {
@@ -356,6 +412,7 @@ private fun ShellContent(
             targetScreen == NavSection.Search.name -> {
                 SearchScreen(
                     viewModel = searchViewModel,
+                    onOpenArtist = { onOpenArtist(it, NavSection.Search) },
                     onOpenAlbum = { onOpenAlbum(it, NavSection.Search) },
                     onPlayTracks = onPlayTracks,
                 )
@@ -370,6 +427,7 @@ private fun NavRail(
     onSectionSelected: (NavSection) -> Unit,
     onNowPlaying: () -> Unit,
     isNowPlayingActive: Boolean,
+    onLogout: () -> Unit,
 ) {
     Column(
         modifier =
@@ -406,7 +464,7 @@ private fun NavRail(
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "Music, tuned for the biggest screen in the room.",
+                text = "Let the music flow",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -439,6 +497,11 @@ private fun NavRail(
             label = "Now Playing",
             selected = isNowPlayingActive,
             onClick = onNowPlaying,
+        )
+        RailItem(
+            label = "Logout",
+            selected = false,
+            onClick = onLogout,
         )
     }
 }

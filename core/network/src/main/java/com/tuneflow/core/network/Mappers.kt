@@ -31,6 +31,7 @@ data class PlaylistSummary(
     val id: String,
     val name: String,
     val songCount: Int,
+    val artUrls: List<String> = emptyList(),
 )
 
 data class PlaylistDetail(
@@ -39,8 +40,28 @@ data class PlaylistDetail(
     val tracks: List<TrackSummary>,
 )
 
+data class ArtistSummary(
+    val id: String,
+    val name: String,
+    val albumCount: Int,
+    val artUrl: String? = null,
+)
+
+data class ArtistDetail(
+    val id: String,
+    val name: String,
+    val albumCount: Int,
+    val albums: List<AlbumSummary>,
+    val artUrl: String? = null,
+)
+
+data class FavoritesBundle(
+    val albums: List<AlbumSummary>,
+    val tracks: List<TrackSummary>,
+)
+
 data class SearchBundle(
-    val artists: List<String>,
+    val artists: List<ArtistSummary>,
     val albums: List<AlbumSummary>,
     val tracks: List<TrackSummary>,
 )
@@ -91,9 +112,34 @@ fun PlaylistDetailDto.toDetail(): PlaylistDetail {
     )
 }
 
+fun ArtistDto.toSummary(): ArtistSummary {
+    return ArtistSummary(
+        id = id,
+        name = name,
+        albumCount = albumCount ?: 0,
+    )
+}
+
+fun ArtistDetailDto.toDetail(): ArtistDetail {
+    val albums = album.map { it.toSummary() }
+    return ArtistDetail(
+        id = id,
+        name = name,
+        albumCount = albumCount ?: albums.size,
+        albums = albums,
+    )
+}
+
+fun Starred2Dto.toFavoritesBundle(): FavoritesBundle {
+    return FavoritesBundle(
+        albums = album.map { it.toSummary() },
+        tracks = song.map { it.toTrack() },
+    )
+}
+
 fun SearchResult3Dto.toBundle(): SearchBundle {
     return SearchBundle(
-        artists = artist.map { it.name },
+        artists = artist.map { it.toSummary() },
         albums = album.map { it.toSummary() },
         tracks = song.map { it.toTrack() },
     )

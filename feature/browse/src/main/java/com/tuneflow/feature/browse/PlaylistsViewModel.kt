@@ -36,6 +36,14 @@ class PlaylistsViewModel(private val repository: BrowseRepository) : ViewModel()
                     it.copy(isLoading = false, error = result.exceptionOrNull()?.message)
                 }
             }
+
+            val playlists = result.getOrNull().orEmpty()
+            if (playlists.isNotEmpty()) {
+                val hydrated = repository.hydratePlaylistArtwork(playlists)
+                if (hydrated.isSuccess) {
+                    _uiState.update { it.copy(playlists = hydrated.getOrNull().orEmpty()) }
+                }
+            }
         }
     }
 

@@ -1,7 +1,8 @@
+@file:Suppress("TooManyFunctions")
+
 package com.tuneflow.feature.browse
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Button
 import coil.compose.AsyncImage
 import com.tuneflow.core.network.AlbumSummary
+import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.core.network.TrackSummary
 
 @Composable
@@ -198,6 +200,77 @@ fun AlbumDetailScreen(
 }
 
 @Composable
+fun ArtistDetailScreen(
+    artistId: String,
+    viewModel: ArtistDetailViewModel,
+    onOpenAlbum: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(artistId) {
+        viewModel.load(artistId)
+    }
+
+    when {
+        state.isLoading -> LoadingState(modifier = modifier, label = "Loading artist...")
+        state.error != null -> ErrorState(modifier = modifier, message = state.error.orEmpty())
+        state.artist == null -> ErrorState(modifier = modifier, message = "No artist data")
+        else -> {
+            val artist = state.artist!!
+            Column(
+                modifier = modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(240.dp)
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f)),
+                ) {
+                    if (artist.artUrl != null) {
+                        AsyncImage(
+                            model = artist.artUrl,
+                            contentDescription = artist.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                            alpha = 0.34f,
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = artist.name,
+                            style = MaterialTheme.typography.displaySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = "${artist.albumCount} albums",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                SectionTitle(
+                    title = "Albums",
+                    subtitle = "Jump from artist overview into album playback quickly.",
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    items(artist.albums, key = { it.id }) { album ->
+                        PremiumAlbumCard(album = album, onClick = { onOpenAlbum(album.id) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun PlaylistsScreen(
     viewModel: PlaylistsViewModel,
     preselectedPlaylistId: String? = null,
@@ -238,11 +311,7 @@ fun PlaylistsScreen(
                     contentPadding = PaddingValues(bottom = 48.dp),
                 ) {
                     items(state.playlists, key = { it.id }) { playlist ->
-                        PremiumListRow(
-                            title = playlist.name,
-                            subtitle = "${playlist.songCount} tracks",
-                            onClick = { viewModel.loadPlaylistDetail(playlist.id) },
-                        )
+                        PremiumPlaylistRow(playlist = playlist, onClick = { viewModel.loadPlaylistDetail(playlist.id) })
                     }
                 }
             }
@@ -306,12 +375,17 @@ fun PlaylistsScreen(
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel,
+    onOpenArtist: (String) -> Unit,
     onOpenAlbum: (String) -> Unit,
     onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf(state.query) }
+
+    LaunchedEffect(state.query) {
+        query = state.query
+    }
 
     Column(
         modifier = modifier.fillMaxSize(),
@@ -360,12 +434,43 @@ fun SearchScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
             contentPadding = PaddingValues(bottom = 48.dp),
         ) {
-            if (state.result.artists.isNotEmpty()) {
-                item { SectionTitle(title = "Artists", subtitle = "Quick text results for artist matches") }
+            if (query.isBlank() && state.recentQueries.isNotEmpty()) {
+                item { SectionTitle(title = "Recent Queries", subtitle = "Jump back into common searches with fewer clicks") }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(state.result.artists, key = { it }) { artist ->
-                            PremiumChip(label = artist)
+                        items(state.recentQueries, key = { it }) { recentQuery ->
+                            PremiumChip(
+                                label = recentQuery,
+                                onClick = { viewModel.applySuggestedQuery(recentQuery) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (query.isNotBlank() && state.suggestions.isNotEmpty()) {
+                item { SectionTitle(title = "Suggestions", subtitle = "Fast fills from live Navidrome results") }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        items(state.suggestions, key = { it }) { suggestion ->
+                            PremiumChip(
+                                label = suggestion,
+                                onClick = { viewModel.applySuggestedQuery(suggestion) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (state.result.artists.isNotEmpty()) {
+                item { SectionTitle(title = "Artists", subtitle = "Open the artist surface directly from search") }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        items(state.result.artists, key = { it.id }) { artist ->
+                            PremiumChip(
+                                label = artist.name,
+                                onClick = { onOpenArtist(artist.id) },
+                            )
                         }
                     }
                 }
@@ -392,6 +497,49 @@ fun SearchScreen(
                         onClick = { onPlayTracks(state.result.tracks, state.result.tracks.indexOf(track)) },
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PremiumPlaylistRow(
+    playlist: PlaylistSummary,
+    onClick: () -> Unit,
+) {
+    FocusScaleCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PlaylistArtworkGrid(
+                artUrls = playlist.artUrls,
+                label = playlist.name,
+                modifier =
+                    Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(16.dp)),
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${playlist.songCount} tracks",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -497,24 +645,76 @@ private fun PremiumListRow(
 }
 
 @Composable
-private fun PremiumChip(label: String) {
-    Box(
+private fun PremiumChip(
+    label: String,
+    onClick: () -> Unit,
+) {
+    FocusScaleCard(
         modifier =
             Modifier
-                .clip(RoundedCornerShape(18.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.76f))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                    shape = RoundedCornerShape(18.dp),
-                )
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .width(220.dp),
+        onClick = onClick,
     ) {
         Text(
             text = label,
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.bodyLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun PlaylistArtworkGrid(
+    artUrls: List<String>,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    val collage =
+        when {
+            artUrls.isEmpty() -> List(4) { null }
+            artUrls.size >= 4 -> artUrls.take(4)
+            else -> List(4) { index -> artUrls[index % artUrls.size] }
+        }
+
+    Column(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        for (rowIndex in 0 until 2) {
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                for (columnIndex in 0 until 2) {
+                    val artUrl = collage[rowIndex * 2 + columnIndex]
+                    Box(
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (artUrl != null) {
+                            AsyncImage(
+                                model = artUrl,
+                                contentDescription = label,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Text(
+                                text = "TF",
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

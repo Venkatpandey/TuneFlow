@@ -96,6 +96,8 @@ private class FakeController(
 
     override fun seekTo(positionMs: Long) = Unit
 
+    override fun stopAndClear() = Unit
+
     override fun currentPositionMs(): Long = queueState.value.currentPositionMs
 
     override fun durationMs(): Long = 10_000L

@@ -110,6 +110,16 @@ class TvPlayerManager(
         persist()
     }
 
+    override fun stopAndClear() {
+        player.stop()
+        player.clearMediaItems()
+        _queue.value = PlaybackQueue()
+        _isPlaying.value = false
+        scope.launch {
+            queueStore.clear()
+        }
+    }
+
     override fun next() {
         player.seekToNextMediaItem()
         _queue.update { it.next(player.currentPosition) }
