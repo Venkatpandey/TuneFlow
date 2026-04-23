@@ -16,6 +16,8 @@ interface PlaybackController {
 
     fun seekTo(positionMs: Long)
 
+    fun stopAndClear()
+
     fun currentPositionMs(): Long
 
     fun durationMs(): Long

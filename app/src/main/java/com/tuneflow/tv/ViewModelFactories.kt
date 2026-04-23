@@ -2,12 +2,14 @@ package com.tuneflow.tv
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
 import com.tuneflow.core.player.TvPlayerManager
 import com.tuneflow.feature.auth.AuthRepository
 import com.tuneflow.feature.auth.AuthViewModel
 import com.tuneflow.feature.browse.AlbumDetailViewModel
 import com.tuneflow.feature.browse.AlbumsViewModel
+import com.tuneflow.feature.browse.ArtistDetailViewModel
 import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.browse.PlaylistsViewModel
 import com.tuneflow.feature.browse.SearchViewModel
@@ -40,15 +42,24 @@ class AlbumDetailViewModelFactory(private val repository: BrowseRepository) : Vi
     }
 }
 
+class ArtistDetailViewModelFactory(private val repository: BrowseRepository) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return ArtistDetailViewModel(repository) as T
+    }
+}
+
 class PlaylistsViewModelFactory(private val repository: BrowseRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return PlaylistsViewModel(repository) as T
     }
 }
 
-class SearchViewModelFactory(private val repository: BrowseRepository) : ViewModelProvider.Factory {
+class SearchViewModelFactory(
+    private val repository: BrowseRepository,
+    private val historyStore: SearchHistoryStore,
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return SearchViewModel(repository) as T
+        return SearchViewModel(repository, historyStore) as T
     }
 }
 
