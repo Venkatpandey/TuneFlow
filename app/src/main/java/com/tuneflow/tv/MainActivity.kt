@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tuneflow.core.network.SessionStore
+import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlayerGraph
 import com.tuneflow.core.player.QueueItem
 import com.tuneflow.core.player.TuneFlowPlaybackService
@@ -299,7 +300,7 @@ private fun ShellContent(
     selectedAlbumId: String?,
     showNowPlaying: Boolean,
     preselectedPlaylistId: String?,
-    playbackQueue: List<QueueItem>,
+    playbackQueue: PlaybackQueue,
     homeViewModel: HomeViewModel,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
@@ -308,7 +309,7 @@ private fun ShellContent(
     playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
     onOpenAlbum: (String, NavSection) -> Unit,
     onOpenSection: (NavSection) -> Unit,
-    onOpenPlaylist: (String) -> Unit,
+    onOpenPlaylist: (String?) -> Unit,
     onPreselectedPlaylistConsumed: () -> Unit,
     onOpenNowPlaying: () -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
