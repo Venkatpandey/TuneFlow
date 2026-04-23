@@ -1,9 +1,10 @@
 package com.tuneflow.core.network
 
 import okhttp3.OkHttpClient
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.net.URI
+import java.net.URISyntaxException
 import java.util.concurrent.TimeUnit
 
 object NetworkFactory {
@@ -18,11 +19,36 @@ object NetworkFactory {
                 "http://$trimmed"
             }
 
-        val normalized =
-            withScheme.toHttpUrlOrNull()
-                ?: throw IllegalArgumentException("Enter a valid server URL.")
+        val normalized = try {
+            URI(withScheme)
+        } catch (_: URISyntaxException) {
+            throw IllegalArgumentException("Enter a valid server URL.")
+        }
 
-        return normalized.toString().trimEnd('/')
+        val scheme = normalized.scheme?.lowercase()
+        require(scheme == "http" || scheme == "https") {
+            "Enter a valid server URL."
+        }
+
+        val authority = normalized.rawAuthority
+        require(!authority.isNullOrBlank()) {
+            "Enter a valid server URL."
+        }
+
+        require(normalized.rawQuery == null && normalized.rawFragment == null) {
+            "Enter a valid server URL."
+        }
+
+        val path = normalized.rawPath?.trimEnd('/').orEmpty()
+
+        return buildString {
+            append(scheme)
+            append("://")
+            append(authority)
+            if (path.isNotEmpty()) {
+                append(path)
+            }
+        }
     }
 
     fun createApi(baseUrl: String): NavidromeApi {
