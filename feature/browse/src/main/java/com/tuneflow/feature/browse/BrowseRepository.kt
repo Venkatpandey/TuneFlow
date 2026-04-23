@@ -13,6 +13,7 @@ import com.tuneflow.core.network.SearchBundle
 import com.tuneflow.core.network.SessionData
 import com.tuneflow.core.network.SessionProvider
 import com.tuneflow.core.network.SessionStore
+import com.tuneflow.core.network.TrackSummary
 import com.tuneflow.core.network.toBundle
 import com.tuneflow.core.network.toDetail
 import com.tuneflow.core.network.toSummary
