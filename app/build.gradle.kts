@@ -5,18 +5,54 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
+val releaseBuildRequested =
+    gradle.startParameter.taskNames.any {
+        it.contains("Release", ignoreCase = true)
+    }
+
 android {
     namespace = "com.tuneflow.tv"
     compileSdk = 35
 
     defaultConfig {
         applicationId = "com.tuneflow.tv"
-        minSdk = 26
+        minSdk = 25
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            val storeFilePath = System.getenv("SIGNING_STORE_FILE")
+            val storePasswordValue = System.getenv("SIGNING_STORE_PASSWORD")
+            val keyAliasValue = System.getenv("SIGNING_KEY_ALIAS")
+            val keyPasswordValue = System.getenv("SIGNING_KEY_PASSWORD")
+
+            if (releaseBuildRequested) {
+                require(!storeFilePath.isNullOrBlank()) {
+                    "SIGNING_STORE_FILE is required for release builds."
+                }
+                require(!storePasswordValue.isNullOrBlank()) {
+                    "SIGNING_STORE_PASSWORD is required for release builds."
+                }
+                require(!keyAliasValue.isNullOrBlank()) {
+                    "SIGNING_KEY_ALIAS is required for release builds."
+                }
+                require(!keyPasswordValue.isNullOrBlank()) {
+                    "SIGNING_KEY_PASSWORD is required for release builds."
+                }
+            }
+
+            if (!storeFilePath.isNullOrBlank()) {
+                storeFile = file(storeFilePath)
+                storePassword = storePasswordValue
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
+            }
+        }
     }
 
     buildTypes {
@@ -29,19 +65,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.findByName("release")
-        }
-    }
-
-    signingConfigs {
-        create("release") {
-            val storeFilePath = System.getenv("SIGNING_STORE_FILE")
-            if (!storeFilePath.isNullOrBlank()) {
-                storeFile = file(storeFilePath)
-                storePassword = System.getenv("SIGNING_STORE_PASSWORD")
-                keyAlias = System.getenv("SIGNING_KEY_ALIAS")
-                keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
