@@ -22,6 +22,13 @@ TuneFlow is a native Android TV / Fire TV Navidrome client built for remote-firs
 - Stable link: [tuneflow-tv.apk](https://github.com/Venkatpandey/TuneFlow/releases/latest/download/tuneflow-tv.apk)
 - All releases: [GitHub Releases](https://github.com/Venkatpandey/TuneFlow/releases)
 
+### Downloader Code
+
+If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
+
+- Downloader short link: [go.aftvnews.com/1578499](https://go.aftvnews.com/1578499)
+- Direct APK: [tuneflow-tv.apk](https://github.com/Venkatpandey/TuneFlow/releases/latest/download/tuneflow-tv.apk)
+
 ### Fire TV / Android TV
 
 1. Download `tuneflow-tv.apk`.
