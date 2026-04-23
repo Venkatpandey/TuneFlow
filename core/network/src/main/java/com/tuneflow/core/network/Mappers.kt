@@ -5,6 +5,7 @@ data class AlbumSummary(
     val title: String,
     val artist: String,
     val coverArtId: String?,
+    val artUrl: String? = null,
 )
 
 data class AlbumDetail(
@@ -12,6 +13,7 @@ data class AlbumDetail(
     val title: String,
     val artist: String,
     val coverArtId: String?,
+    val artUrl: String? = null,
     val tracks: List<TrackSummary>,
 )
 
@@ -22,6 +24,7 @@ data class TrackSummary(
     val album: String,
     val durationSec: Int,
     val coverArtId: String?,
+    val artUrl: String? = null,
 )
 
 data class PlaylistSummary(

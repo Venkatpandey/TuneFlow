@@ -22,6 +22,12 @@ class AuthViewModelFactory(
     }
 }
 
+class HomeViewModelFactory(private val repository: BrowseRepository) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return HomeViewModel(repository) as T
+    }
+}
+
 class AlbumsViewModelFactory(private val repository: BrowseRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return AlbumsViewModel(repository) as T

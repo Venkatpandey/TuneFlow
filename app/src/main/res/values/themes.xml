@@ -1,7 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.TuneFlow" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:windowBackground">#0A0D12</item>
-        <item name="android:statusBarColor">#0A0D12</item>
-        <item name="android:navigationBarColor">#0A0D12</item>
+        <item name="android:windowBackground">#08111B</item>
+        <item name="android:statusBarColor">#08111B</item>
+        <item name="android:navigationBarColor">#08111B</item>
     </style>
 </resources>
