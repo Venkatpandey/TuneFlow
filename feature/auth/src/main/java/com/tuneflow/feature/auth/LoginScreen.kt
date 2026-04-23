@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -74,25 +75,25 @@ fun LoginScreen(
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
-            alpha = 0.36f,
+            alpha = 0.42f,
         )
         Box(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.38f)),
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.30f)),
         )
 
         Row(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 72.dp, vertical = 48.dp),
+                    .padding(horizontal = 60.dp, vertical = 44.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
-                modifier = Modifier.weight(1.15f),
+                modifier = Modifier.weight(1.25f),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Image(
@@ -110,33 +111,27 @@ fun LoginScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.width(64.dp))
+            Spacer(modifier = Modifier.width(72.dp))
 
             Column(
                 modifier =
                     Modifier
-                        .width(484.dp)
+                        .width(452.dp)
                         .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.84f))
                         .border(
                             width = 1.dp,
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
                             shape = RoundedCornerShape(24.dp),
                         )
-                        .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                        .padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
                     text = "Sign in",
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                Text(
-                    text = "Use your Navidrome URL, username, and password.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
                 ScreenInitialFocusAnchor()
 
                 LoginField(
@@ -210,10 +205,12 @@ private fun LoginField(
     val displayFocusRequester = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
     var restoreDisplayFocus by remember { mutableStateOf(false) }
+    var pendingExitDirection by remember { mutableStateOf<FocusDirection?>(null) }
 
-    fun stopEditing() {
+    fun stopEditing(direction: FocusDirection? = null) {
         keyboardController?.hide()
         focusManager.clearFocus(force = true)
+        pendingExitDirection = direction
         restoreDisplayFocus = true
         onEditingChange(false)
     }
@@ -226,6 +223,8 @@ private fun LoginField(
             }
             restoreDisplayFocus -> {
                 displayFocusRequester.requestFocus()
+                pendingExitDirection?.let { focusManager.moveFocus(it) }
+                pendingExitDirection = null
                 restoreDisplayFocus = false
             }
         }
@@ -240,7 +239,7 @@ private fun LoginField(
             visualTransformation = if (obscure) PasswordVisualTransformation() else VisualTransformation.None,
             keyboardType = keyboardType,
             focusRequester = editFocusRequester,
-            onBack = ::stopEditing,
+            onKeyExit = ::stopEditing,
         )
     } else {
         DisplayLoginField(
@@ -265,7 +264,7 @@ private fun EditingLoginField(
     visualTransformation: VisualTransformation,
     keyboardType: KeyboardType,
     focusRequester: FocusRequester,
-    onBack: () -> Unit,
+    onKeyExit: (FocusDirection?) -> Unit,
 ) {
     OutlinedTextField(
         value = value,
@@ -281,15 +280,32 @@ private fun EditingLoginField(
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
                 .onPreviewKeyEvent {
-                    if (it.type == KeyEventType.KeyDown && it.key == Key.Back) {
-                        onBack()
-                        true
-                    } else {
-                        false
+                    if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+                    when {
+                        it.key == Key.Back -> {
+                            onKeyExit(null)
+                            true
+                        }
+                        keyToFocusDirection(it.key) != null -> {
+                            onKeyExit(keyToFocusDirection(it.key))
+                            true
+                        }
+                        else -> false
                     }
                 },
         colors = loginFieldColors(),
     )
+}
+
+private fun keyToFocusDirection(key: Key): FocusDirection? {
+    return when (key) {
+        Key.DirectionUp -> FocusDirection.Up
+        Key.DirectionDown -> FocusDirection.Down
+        Key.DirectionLeft -> FocusDirection.Left
+        Key.DirectionRight -> FocusDirection.Right
+        else -> null
+    }
 }
 
 @Composable
@@ -324,7 +340,7 @@ private fun DisplayLoginField(
                 .onFocusChanged { onFocusedChange(it.hasFocus) }
                 .focusable()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 18.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
@@ -398,8 +414,8 @@ private fun LoginActionButton(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .scale(if (focused && enabled) 1.02f else 1f)
-                .clip(RoundedCornerShape(20.dp))
+                .scale(if (focused && enabled) 1.01f else 1f)
+                .clip(RoundedCornerShape(18.dp))
                 .background(
                     if (enabled) {
                         MaterialTheme.colorScheme.primary
@@ -417,12 +433,12 @@ private fun LoginActionButton(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(18.dp),
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable(enabled = enabled)
                 .clickable(enabled = enabled, onClick = onClick)
-                .padding(horizontal = 18.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.runtime.CompositionLocalProvider(

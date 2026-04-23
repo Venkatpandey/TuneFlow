@@ -70,8 +70,8 @@ fun HomeScreen(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp),
+        contentPadding = PaddingValues(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
             ScreenInitialFocusAnchor()
@@ -185,8 +185,8 @@ private fun HomeHero(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(286.dp)
-                .clip(RoundedCornerShape(28.dp))
+                .height(246.dp)
+                .clip(RoundedCornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)),
     ) {
         if (currentItem?.artUrl != null) {
@@ -218,7 +218,7 @@ private fun HomeHero(
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
                     text = if (currentItem != null) "Continue Listening" else "Welcome to TuneFlow",
@@ -254,13 +254,13 @@ private fun HomeHero(
                 }
             }
 
-            Spacer(Modifier.width(20.dp))
+            Spacer(Modifier.width(18.dp))
 
             Box(
                 modifier =
                     Modifier
-                        .size(196.dp)
-                        .clip(RoundedCornerShape(24.dp))
+                        .size(168.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -290,12 +290,12 @@ private fun HeroActionButton(
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(22.dp)
 
     Box(
         modifier =
             Modifier
-                .scale(if (focused) 1.02f else 1f)
+                .scale(if (focused) 1.01f else 1f)
                 .clip(shape)
                 .background(
                     if (accent) {
@@ -319,8 +319,8 @@ private fun HeroActionButton(
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .width(208.dp)
-                .padding(horizontal = 18.dp, vertical = 14.dp),
+                .width(184.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Text(
             text = label,
@@ -378,7 +378,7 @@ private fun FavoriteTrackCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(216.dp),
+        modifier = Modifier.width(196.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -386,7 +386,7 @@ private fun FavoriteTrackCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(216.dp)
+                        .height(196.dp)
                         .clip(RoundedCornerShape(20.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
@@ -430,7 +430,7 @@ private fun HomeArtistCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(244.dp),
+        modifier = Modifier.width(208.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -438,7 +438,7 @@ private fun HomeArtistCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(188.dp)
+                        .height(172.dp)
                         .clip(RoundedCornerShape(20.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
@@ -533,7 +533,7 @@ private fun HomeAlbumCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(216.dp),
+        modifier = Modifier.width(196.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -541,7 +541,7 @@ private fun HomeAlbumCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(216.dp)
+                        .height(196.dp)
                         .clip(RoundedCornerShape(20.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
@@ -585,14 +585,14 @@ private fun HomePlaylistCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(260.dp),
+        modifier = Modifier.width(236.dp),
         onClick = onClick,
     ) {
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(194.dp),
+                    .height(176.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             PlaylistArtCollage(playlist = playlist)
@@ -627,7 +627,7 @@ private fun PlaylistArtCollage(playlist: PlaylistSummary) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(132.dp)
+                .height(120.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -675,14 +675,14 @@ private fun ActionCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(244.dp),
+        modifier = Modifier.width(208.dp),
         onClick = onClick,
     ) {
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(104.dp),
+                    .height(92.dp),
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
@@ -705,8 +705,8 @@ private fun FocusCard(
     Box(
         modifier =
             modifier
-                .scale(if (focused) 1.02f else 1f)
-                .clip(RoundedCornerShape(22.dp))
+                .scale(if (focused) 1.01f else 1f)
+                .clip(RoundedCornerShape(20.dp))
                 .background(
                     if (focused) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
@@ -722,12 +722,12 @@ private fun FocusCard(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(22.dp),
+                    shape = RoundedCornerShape(20.dp),
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .padding(14.dp),
+                .padding(12.dp),
     ) {
         Column(content = content)
     }

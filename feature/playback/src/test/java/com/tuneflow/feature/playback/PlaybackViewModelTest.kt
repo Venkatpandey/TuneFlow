@@ -2,6 +2,7 @@ package com.tuneflow.feature.playback
 
 import com.tuneflow.core.player.PlaybackController
 import com.tuneflow.core.player.PlaybackQueue
+import com.tuneflow.core.player.PlaybackStatus
 import com.tuneflow.core.player.QueueItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,12 +74,14 @@ private class FakeController(
 ) : PlaybackController {
     private val queueState = MutableStateFlow(queue)
     private val playingState = MutableStateFlow(isPlaying)
+    private val statusState = MutableStateFlow(PlaybackStatus())
 
     var playCalled = false
     var pauseCalled = false
 
     override val queue: StateFlow<PlaybackQueue> = queueState
     override val isPlaying: StateFlow<Boolean> = playingState
+    override val playbackStatus: StateFlow<PlaybackStatus> = statusState
 
     override fun play() {
         playCalled = true
@@ -95,6 +98,10 @@ private class FakeController(
     override fun previous() = Unit
 
     override fun seekTo(positionMs: Long) = Unit
+
+    override fun playFromIndex(index: Int) = Unit
+
+    override fun retryCurrent() = Unit
 
     override fun stopAndClear() = Unit
 
