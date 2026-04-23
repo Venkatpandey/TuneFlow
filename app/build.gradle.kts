@@ -111,6 +111,7 @@ dependencies {
 
     implementation("androidx.compose.ui:ui:1.6.8")
     implementation("androidx.compose.ui:ui-tooling-preview:1.6.8")
+    implementation("androidx.compose.animation:animation:1.6.8")
     implementation("androidx.compose.material3:material3:1.2.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.tv:tv-material:1.0.0")
