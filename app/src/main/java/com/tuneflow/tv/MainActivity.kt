@@ -3,7 +3,10 @@ package com.tuneflow.tv
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,8 +18,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -26,10 +30,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -66,7 +78,11 @@ class MainActivity : ComponentActivity() {
                 val authState by authViewModel.uiState.collectAsStateWithLifecycle()
 
                 if (!authState.isLoggedIn) {
-                    LoginScreen(viewModel = authViewModel)
+                    LoginScreen(
+                        viewModel = authViewModel,
+                        logoResId = R.drawable.ic_tuneflow_brand,
+                        backgroundResId = R.drawable.login_background,
+                    )
                 } else {
                     TuneFlowShell(
                         browseRepository = browseRepository,
@@ -78,10 +94,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun com.tuneflow.core.network.TrackSummary.toQueueItem(
-    streamUrl: String,
-    artUrl: String?,
-): QueueItem {
+private fun com.tuneflow.core.network.TrackSummary.toQueueItem(streamUrl: String): QueueItem {
     return QueueItem(
         id = id,
         title = title,
@@ -93,7 +106,7 @@ private fun com.tuneflow.core.network.TrackSummary.toQueueItem(
     )
 }
 
-private enum class NavSection { Albums, Playlists, Search }
+private enum class NavSection { Home, Albums, Playlists, Search }
 
 @Composable
 private fun TuneFlowShell(
@@ -101,6 +114,7 @@ private fun TuneFlowShell(
     playerManager: com.tuneflow.core.player.TvPlayerManager,
 ) {
     val scope = rememberCoroutineScope()
+    val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(browseRepository))
     val albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel = viewModel(factory = AlbumsViewModelFactory(browseRepository))
     val albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel =
         viewModel(factory = AlbumDetailViewModelFactory(browseRepository))
@@ -108,10 +122,47 @@ private fun TuneFlowShell(
         viewModel(factory = PlaylistsViewModelFactory(browseRepository))
     val searchViewModel: com.tuneflow.feature.browse.SearchViewModel = viewModel(factory = SearchViewModelFactory(browseRepository))
     val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel = viewModel(factory = PlaybackViewModelFactory(playerManager))
+    val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
 
-    var nav by remember { mutableStateOf(NavSection.Albums) }
-    var selectedAlbumId by remember { mutableStateOf<String?>(null) }
-    var showNowPlaying by remember { mutableStateOf(false) }
+    var currentSection by rememberSaveable { mutableStateOf(NavSection.Home) }
+    var selectedAlbumId by rememberSaveable { mutableStateOf<String?>(null) }
+    var albumSourceSection by rememberSaveable { mutableStateOf(NavSection.Home) }
+    var preselectedPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showNowPlaying by rememberSaveable { mutableStateOf(false) }
+
+    fun openSection(section: NavSection) {
+        currentSection = section
+        selectedAlbumId = null
+        if (section != NavSection.Playlists) {
+            preselectedPlaylistId = null
+        }
+        showNowPlaying = false
+    }
+
+    fun openAlbum(
+        albumId: String,
+        source: NavSection,
+    ) {
+        currentSection = source
+        albumSourceSection = source
+        selectedAlbumId = albumId
+        showNowPlaying = false
+    }
+
+    fun openNowPlaying() {
+        showNowPlaying = true
+    }
+
+    BackHandler(enabled = showNowPlaying || selectedAlbumId != null || currentSection != NavSection.Home) {
+        when {
+            showNowPlaying -> showNowPlaying = false
+            selectedAlbumId != null -> {
+                selectedAlbumId = null
+                currentSection = albumSourceSection
+            }
+            currentSection != NavSection.Home -> currentSection = NavSection.Home
+        }
+    }
 
     fun playTracks(
         tracks: List<com.tuneflow.core.network.TrackSummary>,
@@ -122,83 +173,122 @@ private fun TuneFlowShell(
                 tracks.map { track ->
                     track.toQueueItem(
                         streamUrl = browseRepository.streamUrl(track.id),
-                        artUrl = browseRepository.coverArtUrl(track.coverArtId),
                     )
                 }
             playerManager.playQueue(queue, index)
-            showNowPlaying = true
+            openNowPlaying()
         }
     }
 
-    Row(
+    Box(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(20.dp),
+                .background(MaterialTheme.colorScheme.background),
     ) {
-        Column(
-            modifier =
-                Modifier
-                    .width(220.dp)
-                    .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
-                    .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            SidebarItem("Albums", selected = nav == NavSection.Albums) {
-                nav = NavSection.Albums
-                selectedAlbumId = null
-                showNowPlaying = false
-            }
-            SidebarItem("Playlists", selected = nav == NavSection.Playlists) {
-                nav = NavSection.Playlists
-                showNowPlaying = false
-            }
-            SidebarItem("Search", selected = nav == NavSection.Search) {
-                nav = NavSection.Search
-                showNowPlaying = false
-            }
-        }
-
-        Spacer(Modifier.width(20.dp))
-
+        Image(
+            painter = painterResource(id = R.drawable.login_background),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+            alpha = 0.16f,
+        )
         Box(
             modifier =
                 Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
-                    .padding(20.dp),
+                    .fillMaxSize()
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(Color(0x802A4C66), Color(0xF2071019)),
+                        ),
+                    ),
+        )
+
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(26.dp),
         ) {
-            when {
-                showNowPlaying -> {
-                    NowPlayingScreen(viewModel = playbackViewModel)
-                }
-                nav == NavSection.Albums && selectedAlbumId != null -> {
-                    AlbumDetailScreen(
-                        albumId = selectedAlbumId.orEmpty(),
-                        viewModel = albumDetailViewModel,
-                        onPlayAlbum = ::playTracks,
-                    )
-                }
-                nav == NavSection.Albums -> {
-                    AlbumsScreen(
-                        viewModel = albumsViewModel,
-                        onAlbumSelected = { selectedAlbumId = it },
-                    )
-                }
-                nav == NavSection.Playlists -> {
-                    PlaylistsScreen(
-                        viewModel = playlistsViewModel,
-                        onPlayTracks = ::playTracks,
-                    )
-                }
-                nav == NavSection.Search -> {
-                    SearchScreen(
-                        viewModel = searchViewModel,
-                        onPlayTracks = ::playTracks,
-                    )
+            NavRail(
+                currentSection = currentSection,
+                onSectionSelected = ::openSection,
+                onNowPlaying = ::openNowPlaying,
+                isNowPlayingActive = showNowPlaying,
+            )
+
+            Spacer(Modifier.width(22.dp))
+
+            Box(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(34.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(34.dp),
+                        )
+                        .padding(26.dp),
+            ) {
+                val screenKey =
+                    when {
+                        showNowPlaying -> "nowPlaying"
+                        selectedAlbumId != null -> "album:${selectedAlbumId.orEmpty()}"
+                        else -> currentSection.name
+                    }
+
+                Crossfade(targetState = screenKey, label = "shell-content") {
+                    when {
+                        showNowPlaying -> {
+                            NowPlayingScreen(viewModel = playbackViewModel)
+                        }
+                        selectedAlbumId != null -> {
+                            AlbumDetailScreen(
+                                albumId = selectedAlbumId.orEmpty(),
+                                viewModel = albumDetailViewModel,
+                                onPlayAlbum = ::playTracks,
+                            )
+                        }
+                        currentSection == NavSection.Home -> {
+                            HomeScreen(
+                                viewModel = homeViewModel,
+                                playbackQueue = playbackState.queue,
+                                onOpenAlbum = { openAlbum(it, NavSection.Home) },
+                                onOpenAlbums = { openSection(NavSection.Albums) },
+                                onOpenPlaylists = {
+                                    currentSection = NavSection.Playlists
+                                    preselectedPlaylistId = it
+                                    showNowPlaying = false
+                                },
+                                onOpenSearch = { openSection(NavSection.Search) },
+                                onOpenNowPlaying = ::openNowPlaying,
+                            )
+                        }
+                        currentSection == NavSection.Albums -> {
+                            AlbumsScreen(
+                                viewModel = albumsViewModel,
+                                onAlbumSelected = { openAlbum(it, NavSection.Albums) },
+                            )
+                        }
+                        currentSection == NavSection.Playlists -> {
+                            PlaylistsScreen(
+                                viewModel = playlistsViewModel,
+                                preselectedPlaylistId = preselectedPlaylistId,
+                                onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
+                                onPlayTracks = ::playTracks,
+                            )
+                        }
+                        currentSection == NavSection.Search -> {
+                            SearchScreen(
+                                viewModel = searchViewModel,
+                                onOpenAlbum = { openAlbum(it, NavSection.Search) },
+                                onPlayTracks = ::playTracks,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -206,39 +296,131 @@ private fun TuneFlowShell(
 }
 
 @Composable
-private fun SidebarItem(
+private fun NavRail(
+    currentSection: NavSection,
+    onSectionSelected: (NavSection) -> Unit,
+    onNowPlaying: () -> Unit,
+    isNowPlayingActive: Boolean,
+) {
+    Column(
+        modifier =
+            Modifier
+                .width(236.dp)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(30.dp))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
+                    shape = RoundedCornerShape(30.dp),
+                )
+                .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.Start,
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_tuneflow_brand),
+                contentDescription = "TuneFlow",
+                modifier =
+                    Modifier
+                        .size(68.dp)
+                        .clip(RoundedCornerShape(20.dp)),
+            )
+            Text(
+                text = "TuneFlow",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Music, tuned for the biggest screen in the room.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        RailItem(
+            label = "Home",
+            selected = currentSection == NavSection.Home && !isNowPlayingActive,
+            onClick = { onSectionSelected(NavSection.Home) },
+        )
+        RailItem(
+            label = "Albums",
+            selected = currentSection == NavSection.Albums && !isNowPlayingActive,
+            onClick = { onSectionSelected(NavSection.Albums) },
+        )
+        RailItem(
+            label = "Playlists",
+            selected = currentSection == NavSection.Playlists && !isNowPlayingActive,
+            onClick = { onSectionSelected(NavSection.Playlists) },
+        )
+        RailItem(
+            label = "Search",
+            selected = currentSection == NavSection.Search && !isNowPlayingActive,
+            onClick = { onSectionSelected(NavSection.Search) },
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        RailItem(
+            label = "Now Playing",
+            selected = isNowPlayingActive,
+            onClick = onNowPlaying,
+        )
+    }
+}
+
+@Composable
+private fun RailItem(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val active = selected || focused
 
     Row(
         modifier =
             Modifier
-                .fillMaxWidth()
-                .scale(if (focused) 1.04f else 1f)
+                .width(196.dp)
+                .scale(if (focused) 1.03f else 1f)
+                .clip(RoundedCornerShape(20.dp))
                 .background(
-                    color =
-                        if (selected || focused) {
-                            MaterialTheme.colorScheme.primary.copy(
-                                alpha = 0.22f,
-                            )
-                        } else {
-                            MaterialTheme.colorScheme.surface
-                        },
-                    shape = RoundedCornerShape(12.dp),
+                    if (active) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f)
+                    },
                 )
                 .border(
-                    width = if (focused) 2.dp else 0.dp,
-                    color = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(12.dp),
+                    width = if (active) 2.dp else 1.dp,
+                    color =
+                        if (active) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
+                        },
+                    shape = RoundedCornerShape(20.dp),
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleMedium,
+            color =
+                if (active) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+        )
     }
 }
