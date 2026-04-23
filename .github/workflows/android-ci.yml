@@ -2,8 +2,12 @@ name: Android CI
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
   pull_request:
+
+concurrency:
+  group: android-ci-${{ github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   build-test-lint:

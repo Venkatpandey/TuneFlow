@@ -5,9 +5,10 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
-val releaseBuildRequested = gradle.startParameter.taskNames.any {
-    it.contains("Release", ignoreCase = true)
-}
+val releaseBuildRequested =
+    gradle.startParameter.taskNames.any {
+        it.contains("Release", ignoreCase = true)
+    }
 
 android {
     namespace = "com.tuneflow.tv"
