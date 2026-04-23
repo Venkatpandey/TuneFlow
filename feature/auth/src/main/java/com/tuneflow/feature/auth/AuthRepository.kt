@@ -3,6 +3,7 @@ package com.tuneflow.feature.auth
 import com.tuneflow.core.network.AuthUtils
 import com.tuneflow.core.network.DefaultNavidromeClientProvider
 import com.tuneflow.core.network.NavidromeClientProvider
+import com.tuneflow.core.network.NetworkFactory
 import com.tuneflow.core.network.NetworkResult
 import com.tuneflow.core.network.SessionData
 import com.tuneflow.core.network.SessionStore
@@ -30,26 +31,31 @@ class AuthRepository(
             return Result.failure(IllegalArgumentException("All fields are required."))
         }
 
-        val salt = AuthUtils.generateSalt()
-        val token = AuthUtils.buildToken(password, salt)
+        val normalizedUrl =
+            runCatching { NetworkFactory.normalizeBaseUrl(serverUrl) }.getOrElse {
+                return Result.failure(it)
+            }
 
+        val salt = AuthUtils.generateSalt()
         val session =
             SessionData(
-                serverUrl = serverUrl.trim(),
+                serverUrl = normalizedUrl,
                 username = username.trim(),
-                token = token,
+                token = AuthUtils.buildToken(password, salt),
                 salt = salt,
             )
 
-        val client = clientProvider.create(session)
-        return when (val result = client.ping()) {
-            is NetworkResult.Success -> {
-                saveSession(session)
-                Result.success(Unit)
-            }
+        return runCatching {
+            val client = clientProvider.create(session)
+            when (val result = client.ping()) {
+                is NetworkResult.Success -> {
+                    saveSession(session)
+                    Result.success(Unit)
+                }
 
-            is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
-        }
+                is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
+            }
+        }.getOrElse { Result.failure(it) }
     }
 
     suspend fun logout() {

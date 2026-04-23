@@ -30,7 +30,7 @@ class BrowseRepository(
         size: Int,
         offset: Int,
     ): Result<List<AlbumSummary>> {
-        val client = requireClient() ?: return Result.failure(IllegalStateException("Not logged in"))
+        val client = requireClient().getOrElse { return Result.failure(it) }
         return when (val result = client.getAlbums(size, offset)) {
             is NetworkResult.Success -> Result.success(result.data.map { it.toSummary() })
             is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
@@ -38,7 +38,7 @@ class BrowseRepository(
     }
 
     suspend fun getAlbumDetail(albumId: String): Result<AlbumDetail> {
-        val client = requireClient() ?: return Result.failure(IllegalStateException("Not logged in"))
+        val client = requireClient().getOrElse { return Result.failure(it) }
         return when (val result = client.getAlbum(albumId)) {
             is NetworkResult.Success -> Result.success(result.data.toDetail())
             is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
@@ -46,7 +46,7 @@ class BrowseRepository(
     }
 
     suspend fun getPlaylists(): Result<List<PlaylistSummary>> {
-        val client = requireClient() ?: return Result.failure(IllegalStateException("Not logged in"))
+        val client = requireClient().getOrElse { return Result.failure(it) }
         return when (val result = client.getPlaylists()) {
             is NetworkResult.Success -> Result.success(result.data.map { it.toSummary() })
             is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
@@ -54,7 +54,7 @@ class BrowseRepository(
     }
 
     suspend fun getPlaylistDetail(playlistId: String): Result<PlaylistDetail> {
-        val client = requireClient() ?: return Result.failure(IllegalStateException("Not logged in"))
+        val client = requireClient().getOrElse { return Result.failure(it) }
         return when (val result = client.getPlaylist(playlistId)) {
             is NetworkResult.Success -> Result.success(result.data.toDetail())
             is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
@@ -62,7 +62,7 @@ class BrowseRepository(
     }
 
     suspend fun search(query: String): Result<SearchBundle> {
-        val client = requireClient() ?: return Result.failure(IllegalStateException("Not logged in"))
+        val client = requireClient().getOrElse { return Result.failure(it) }
         return when (val result = client.search(query)) {
             is NetworkResult.Success -> Result.success(result.data.toBundle())
             is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
@@ -70,7 +70,7 @@ class BrowseRepository(
     }
 
     suspend fun streamUrl(trackId: String): String {
-        val client = requireClient() ?: return ""
+        val client = requireClient().getOrElse { return "" }
         return client.streamUrl(trackId)
     }
 
@@ -83,9 +83,18 @@ class BrowseRepository(
         }
     }
 
-    private suspend fun requireClient(): NavidromeClient? {
-        val session = requireSession() ?: return null
-        return clientProvider.create(session)
+    private suspend fun requireClient(): Result<NavidromeClient> {
+        val session = requireSession()
+            ?: return Result.failure(IllegalStateException("Not logged in"))
+
+        return runCatching { clientProvider.create(session) }.fold(
+            onSuccess = { Result.success(it) },
+            onFailure = {
+                Result.failure(
+                    IllegalStateException(it.message ?: "Invalid server URL.", it),
+                )
+            },
+        )
     }
 
     private suspend fun requireSession(): SessionData? = sessionProvider.currentSession()
