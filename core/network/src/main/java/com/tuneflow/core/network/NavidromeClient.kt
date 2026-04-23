@@ -3,6 +3,7 @@ package com.tuneflow.core.network
 import retrofit2.HttpException
 import java.io.IOException
 
+@Suppress("TooManyFunctions")
 open class NavidromeClient(private val session: SessionData) {
     private val api: NavidromeApi = NetworkFactory.createApi(session.serverUrl)
 
