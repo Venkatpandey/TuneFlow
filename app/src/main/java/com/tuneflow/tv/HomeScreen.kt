@@ -74,6 +74,9 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
         item {
+            ScreenInitialFocusAnchor()
+        }
+        item {
             HomeHero(
                 playbackQueue = playbackQueue,
                 onPrimaryAction = if (playbackQueue.items.isNotEmpty()) onOpenNowPlaying else onOpenSearch,
@@ -177,11 +180,6 @@ private fun HomeHero(
     onSecondaryAction: () -> Unit,
 ) {
     val currentItem = playbackQueue.currentItem
-    val primaryFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(currentItem?.id) {
-        primaryFocusRequester.requestFocus()
-    }
 
     Box(
         modifier =
@@ -246,7 +244,6 @@ private fun HomeHero(
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     HeroActionButton(
                         label = if (currentItem != null) "Resume Playback" else "Start Searching",
-                        focusedRequester = primaryFocusRequester,
                         accent = true,
                         onClick = onPrimaryAction,
                     )
@@ -289,7 +286,6 @@ private fun HomeHero(
 @Composable
 private fun HeroActionButton(
     label: String,
-    focusedRequester: FocusRequester? = null,
     accent: Boolean = false,
     onClick: () -> Unit,
 ) {
@@ -299,7 +295,6 @@ private fun HeroActionButton(
     Box(
         modifier =
             Modifier
-                .then(if (focusedRequester != null) Modifier.focusRequester(focusedRequester) else Modifier)
                 .scale(if (focused) 1.02f else 1f)
                 .clip(shape)
                 .background(
@@ -339,6 +334,23 @@ private fun HeroActionButton(
             fontWeight = FontWeight.Bold,
         )
     }
+}
+
+@Composable
+private fun ScreenInitialFocusAnchor() {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Box(
+        modifier =
+            Modifier
+                .size(1.dp)
+                .focusRequester(focusRequester)
+                .focusable(),
+    )
 }
 
 @Composable

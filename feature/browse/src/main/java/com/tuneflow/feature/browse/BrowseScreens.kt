@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -43,7 +44,15 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -71,6 +80,7 @@ fun AlbumsScreen(
 
         else -> {
             Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                ScreenInitialFocusAnchor()
                 SectionTitle(title = "Albums")
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 220.dp),
@@ -115,7 +125,6 @@ fun AlbumDetailScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val playButtonFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(albumId) {
         viewModel.load(albumId)
@@ -159,6 +168,7 @@ fun AlbumDetailScreen(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
+                    ScreenInitialFocusAnchor()
                     Text(
                         text = album.title,
                         style = MaterialTheme.typography.headlineLarge,
@@ -173,12 +183,8 @@ fun AlbumDetailScreen(
                     )
                     BrowseActionButton(
                         onClick = { onPlayAlbum(album.tracks, 0) },
-                        modifier = Modifier.focusRequester(playButtonFocusRequester),
                     ) {
                         Text("Play Album")
-                    }
-                    LaunchedEffect(album.id) {
-                        playButtonFocusRequester.requestFocus()
                     }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -223,6 +229,7 @@ fun ArtistDetailScreen(
                 modifier = modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
+                ScreenInitialFocusAnchor()
                 Box(
                     modifier =
                         Modifier
@@ -298,6 +305,7 @@ fun PlaylistsScreen(
                     .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            ScreenInitialFocusAnchor()
             SectionTitle(title = "Playlists")
 
             if (state.isLoading && state.playlists.isEmpty()) {
@@ -379,6 +387,7 @@ fun SearchScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf(state.query) }
+    var editingQuery by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.query) {
         query = state.query
@@ -388,9 +397,10 @@ fun SearchScreen(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
+        ScreenInitialFocusAnchor()
         SectionTitle(title = "Search")
 
-        OutlinedTextField(
+        SearchField(
             value = query,
             onValueChange = {
                 query = it
@@ -398,19 +408,8 @@ fun SearchScreen(
             },
             label = { Text("Search your library") },
             placeholder = { Text("Artist, album, or track") },
-            modifier = Modifier.fillMaxWidth(),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-            colors =
-                OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f),
-                ),
+            editing = editingQuery,
+            onEditingChange = { editingQuery = it },
         )
 
         if (state.isLoading) {
@@ -537,6 +536,139 @@ private fun PremiumPlaylistRow(
             }
         }
     }
+}
+
+@Composable
+private fun SearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: @Composable () -> Unit,
+    placeholder: @Composable () -> Unit,
+    editing: Boolean,
+    onEditingChange: (Boolean) -> Unit,
+) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val editFocusRequester = remember { FocusRequester() }
+    val displayFocusRequester = remember { FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
+    var restoreDisplayFocus by remember { mutableStateOf(false) }
+
+    fun stopEditing() {
+        keyboardController?.hide()
+        focusManager.clearFocus(force = true)
+        restoreDisplayFocus = true
+        onEditingChange(false)
+    }
+
+    LaunchedEffect(editing, restoreDisplayFocus) {
+        when {
+            editing -> {
+                editFocusRequester.requestFocus()
+                keyboardController?.show()
+            }
+            restoreDisplayFocus -> {
+                displayFocusRequester.requestFocus()
+                restoreDisplayFocus = false
+            }
+        }
+    }
+
+    if (editing) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = label,
+            placeholder = placeholder,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+            keyboardOptions = KeyboardOptions.Default,
+            visualTransformation = VisualTransformation.None,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .focusRequester(editFocusRequester)
+                    .onPreviewKeyEvent {
+                        if (it.type == KeyEventType.KeyDown && it.key == Key.Back) {
+                            stopEditing()
+                            true
+                        } else {
+                            false
+                        }
+                    },
+            colors = searchFieldColors(),
+        )
+    } else {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .focusRequester(displayFocusRequester)
+                    .scale(if (focused) 1.01f else 1f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
+                    .border(
+                        width = if (focused) 2.dp else 1.dp,
+                        color =
+                            if (focused) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outline
+                            },
+                        shape = RoundedCornerShape(18.dp),
+                    )
+                    .onFocusChanged { focused = it.hasFocus }
+                    .focusable()
+                    .clickable { onEditingChange(true) }
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box { label() }
+                Text(
+                    text = if (value.isNotBlank()) value else "Artist, album, or track",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color =
+                        if (value.isNotBlank()) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun searchFieldColors() =
+    OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f),
+    )
+
+@Composable
+private fun ScreenInitialFocusAnchor() {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Box(
+        modifier =
+            Modifier
+                .size(1.dp)
+                .focusRequester(focusRequester)
+                .focusable(),
+    )
 }
 
 @Composable
