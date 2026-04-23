@@ -19,11 +19,12 @@ object NetworkFactory {
                 "http://$trimmed"
             }
 
-        val normalized = try {
-            URI(withScheme)
-        } catch (_: URISyntaxException) {
-            throw IllegalArgumentException("Enter a valid server URL.")
-        }
+        val normalized =
+            try {
+                URI(withScheme)
+            } catch (_: URISyntaxException) {
+                throw IllegalArgumentException("Enter a valid server URL.")
+            }
 
         val scheme = normalized.scheme?.lowercase()
         require(scheme == "http" || scheme == "https") {
@@ -50,6 +51,7 @@ object NetworkFactory {
             }
         }
     }
+
     fun createApi(baseUrl: String): NavidromeApi {
         val normalized = "${normalizeBaseUrl(baseUrl)}/"
 

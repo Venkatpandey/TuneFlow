@@ -2,8 +2,6 @@ package com.tuneflow.feature.browse
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -31,17 +28,12 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -580,49 +572,4 @@ private fun ErrorState(
             style = MaterialTheme.typography.titleMedium,
         )
     }
-}
-
-@Composable
-private fun FocusScaleCard(
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    var focused by remember { mutableStateOf(false) }
-    Box(
-        modifier =
-            modifier
-                .scale(if (focused) 1.04f else 1f)
-                .clip(RoundedCornerShape(24.dp))
-                .background(
-                    if (focused) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-                    } else {
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
-                    },
-                )
-                .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = RoundedCornerShape(24.dp),
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
-                .padding(16.dp),
-    ) {
-        content()
-    }
-}
-
-private fun formatTrackDuration(durationSec: Int): String {
-    if (durationSec <= 0) return "--:--"
-    val minutes = durationSec / 60
-    val seconds = durationSec % 60
-    return "%d:%02d".format(minutes, seconds)
 }

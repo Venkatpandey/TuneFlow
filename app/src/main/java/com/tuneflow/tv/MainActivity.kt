@@ -108,6 +108,8 @@ private fun com.tuneflow.core.network.TrackSummary.toQueueItem(streamUrl: String
 
 private enum class NavSection { Home, Albums, Playlists, Search }
 
+private const val NOW_PLAYING_SCREEN_KEY = "nowPlaying"
+
 @Composable
 private fun TuneFlowShell(
     browseRepository: BrowseRepository,
@@ -153,17 +155,6 @@ private fun TuneFlowShell(
         showNowPlaying = true
     }
 
-    BackHandler(enabled = showNowPlaying || selectedAlbumId != null || currentSection != NavSection.Home) {
-        when {
-            showNowPlaying -> showNowPlaying = false
-            selectedAlbumId != null -> {
-                selectedAlbumId = null
-                currentSection = albumSourceSection
-            }
-            currentSection != NavSection.Home -> currentSection = NavSection.Home
-        }
-    }
-
     fun playTracks(
         tracks: List<com.tuneflow.core.network.TrackSummary>,
         index: Int,
@@ -179,6 +170,18 @@ private fun TuneFlowShell(
             openNowPlaying()
         }
     }
+
+    ShellBackHandler(
+        showNowPlaying = showNowPlaying,
+        selectedAlbumId = selectedAlbumId,
+        currentSection = currentSection,
+        onCloseNowPlaying = { showNowPlaying = false },
+        onCloseAlbum = {
+            selectedAlbumId = null
+            currentSection = albumSourceSection
+        },
+        onGoHome = { currentSection = NavSection.Home },
+    )
 
     Box(
         modifier =
@@ -233,63 +236,129 @@ private fun TuneFlowShell(
                         )
                         .padding(26.dp),
             ) {
-                val screenKey =
-                    when {
-                        showNowPlaying -> "nowPlaying"
-                        selectedAlbumId != null -> "album:${selectedAlbumId.orEmpty()}"
-                        else -> currentSection.name
-                    }
+                ShellContent(
+                    currentSection = currentSection,
+                    selectedAlbumId = selectedAlbumId,
+                    showNowPlaying = showNowPlaying,
+                    preselectedPlaylistId = preselectedPlaylistId,
+                    playbackQueue = playbackState.queue,
+                    homeViewModel = homeViewModel,
+                    albumsViewModel = albumsViewModel,
+                    albumDetailViewModel = albumDetailViewModel,
+                    playlistsViewModel = playlistsViewModel,
+                    searchViewModel = searchViewModel,
+                    playbackViewModel = playbackViewModel,
+                    onOpenAlbum = ::openAlbum,
+                    onOpenSection = ::openSection,
+                    onOpenPlaylist = {
+                        currentSection = NavSection.Playlists
+                        preselectedPlaylistId = it
+                        showNowPlaying = false
+                    },
+                    onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
+                    onOpenNowPlaying = ::openNowPlaying,
+                    onPlayTracks = ::playTracks,
+                )
+            }
+        }
+    }
+}
 
-                Crossfade(targetState = screenKey, label = "shell-content") {
-                    when {
-                        showNowPlaying -> {
-                            NowPlayingScreen(viewModel = playbackViewModel)
-                        }
-                        selectedAlbumId != null -> {
-                            AlbumDetailScreen(
-                                albumId = selectedAlbumId.orEmpty(),
-                                viewModel = albumDetailViewModel,
-                                onPlayAlbum = ::playTracks,
-                            )
-                        }
-                        currentSection == NavSection.Home -> {
-                            HomeScreen(
-                                viewModel = homeViewModel,
-                                playbackQueue = playbackState.queue,
-                                onOpenAlbum = { openAlbum(it, NavSection.Home) },
-                                onOpenAlbums = { openSection(NavSection.Albums) },
-                                onOpenPlaylists = {
-                                    currentSection = NavSection.Playlists
-                                    preselectedPlaylistId = it
-                                    showNowPlaying = false
-                                },
-                                onOpenSearch = { openSection(NavSection.Search) },
-                                onOpenNowPlaying = ::openNowPlaying,
-                            )
-                        }
-                        currentSection == NavSection.Albums -> {
-                            AlbumsScreen(
-                                viewModel = albumsViewModel,
-                                onAlbumSelected = { openAlbum(it, NavSection.Albums) },
-                            )
-                        }
-                        currentSection == NavSection.Playlists -> {
-                            PlaylistsScreen(
-                                viewModel = playlistsViewModel,
-                                preselectedPlaylistId = preselectedPlaylistId,
-                                onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
-                                onPlayTracks = ::playTracks,
-                            )
-                        }
-                        currentSection == NavSection.Search -> {
-                            SearchScreen(
-                                viewModel = searchViewModel,
-                                onOpenAlbum = { openAlbum(it, NavSection.Search) },
-                                onPlayTracks = ::playTracks,
-                            )
-                        }
-                    }
-                }
+@Composable
+private fun ShellBackHandler(
+    showNowPlaying: Boolean,
+    selectedAlbumId: String?,
+    currentSection: NavSection,
+    onCloseNowPlaying: () -> Unit,
+    onCloseAlbum: () -> Unit,
+    onGoHome: () -> Unit,
+) {
+    BackHandler(enabled = showNowPlaying || selectedAlbumId != null || currentSection != NavSection.Home) {
+        when {
+            showNowPlaying -> onCloseNowPlaying()
+            selectedAlbumId != null -> onCloseAlbum()
+            currentSection != NavSection.Home -> onGoHome()
+        }
+    }
+}
+
+private fun shellScreenKey(
+    currentSection: NavSection,
+    selectedAlbumId: String?,
+    showNowPlaying: Boolean,
+): String {
+    return when {
+        showNowPlaying -> NOW_PLAYING_SCREEN_KEY
+        selectedAlbumId != null -> "album:$selectedAlbumId"
+        else -> currentSection.name
+    }
+}
+
+@Composable
+private fun ShellContent(
+    currentSection: NavSection,
+    selectedAlbumId: String?,
+    showNowPlaying: Boolean,
+    preselectedPlaylistId: String?,
+    playbackQueue: PlaybackQueue,
+    homeViewModel: HomeViewModel,
+    albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
+    albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
+    playlistsViewModel: com.tuneflow.feature.browse.PlaylistsViewModel,
+    searchViewModel: com.tuneflow.feature.browse.SearchViewModel,
+    playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
+    onOpenAlbum: (String, NavSection) -> Unit,
+    onOpenSection: (NavSection) -> Unit,
+    onOpenPlaylist: (String?) -> Unit,
+    onPreselectedPlaylistConsumed: () -> Unit,
+    onOpenNowPlaying: () -> Unit,
+    onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
+) {
+    val screenKey = shellScreenKey(currentSection, selectedAlbumId, showNowPlaying)
+
+    Crossfade(targetState = screenKey, label = "shell-content") { targetScreen ->
+        when {
+            targetScreen == NOW_PLAYING_SCREEN_KEY -> {
+                NowPlayingScreen(viewModel = playbackViewModel)
+            }
+            targetScreen.startsWith("album:") -> {
+                AlbumDetailScreen(
+                    albumId = targetScreen.removePrefix("album:"),
+                    viewModel = albumDetailViewModel,
+                    onPlayAlbum = onPlayTracks,
+                )
+            }
+            targetScreen == NavSection.Home.name -> {
+                HomeScreen(
+                    viewModel = homeViewModel,
+                    playbackQueue = playbackQueue,
+                    onOpenAlbum = { onOpenAlbum(it, NavSection.Home) },
+                    onOpenAlbums = { onOpenSection(NavSection.Albums) },
+                    onOpenPlaylists = onOpenPlaylist,
+                    onOpenSearch = { onOpenSection(NavSection.Search) },
+                    onOpenNowPlaying = onOpenNowPlaying,
+                )
+            }
+            targetScreen == NavSection.Albums.name -> {
+                AlbumsScreen(
+                    viewModel = albumsViewModel,
+                    onAlbumSelected = { onOpenAlbum(it, NavSection.Albums) },
+                )
+            }
+            targetScreen == NavSection.Playlists.name -> {
+                PlaylistsScreen(
+                    viewModel = playlistsViewModel,
+                    preselectedPlaylistId = preselectedPlaylistId,
+                    onPreselectedPlaylistConsumed = onPreselectedPlaylistConsumed,
+                    onPlayTracks = onPlayTracks,
+                )
+            }
+            targetScreen == NavSection.Search.name -> {
+                SearchScreen(
+                    viewModel = searchViewModel,
+                    onOpenAlbum = { onOpenAlbum(it, NavSection.Search) },
+                    onPlayTracks = onPlayTracks,
+                )
             }
         }
     }
