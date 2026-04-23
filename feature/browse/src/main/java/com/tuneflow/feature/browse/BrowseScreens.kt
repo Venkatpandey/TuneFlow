@@ -3,6 +3,9 @@
 package com.tuneflow.feature.browse
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,13 +39,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.material3.Button
 import coil.compose.AsyncImage
 import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.PlaylistSummary
@@ -67,16 +71,13 @@ fun AlbumsScreen(
 
         else -> {
             Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                SectionTitle(
-                    title = "Albums",
-                    subtitle = "Larger artwork and calmer spacing for distance-friendly browsing.",
-                )
+                SectionTitle(title = "Albums")
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 240.dp),
+                    columns = GridCells.Adaptive(minSize = 220.dp),
                     modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
-                    contentPadding = PaddingValues(bottom = 56.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    contentPadding = PaddingValues(bottom = 48.dp),
                 ) {
                     items(state.items, key = { it.id }) { album ->
                         PremiumAlbumCard(album = album, onClick = { onAlbumSelected(album.id) })
@@ -91,8 +92,8 @@ fun AlbumsScreen(
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
-                                        .height(280.dp)
-                                        .clip(RoundedCornerShape(24.dp))
+                                        .height(240.dp)
+                                        .clip(RoundedCornerShape(20.dp))
                                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -128,16 +129,16 @@ fun AlbumDetailScreen(
             val album = state.album!!
             Row(
                 modifier = modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(26.dp),
+                horizontalArrangement = Arrangement.spacedBy(22.dp),
             ) {
                 Box(
                     modifier =
                         Modifier
-                            .width(360.dp)
+                            .width(320.dp)
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(28.dp))
+                            .clip(RoundedCornerShape(24.dp))
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
-                            .padding(22.dp),
+                            .padding(18.dp),
                 ) {
                     if (album.artUrl != null) {
                         AsyncImage(
@@ -147,8 +148,8 @@ fun AlbumDetailScreen(
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
-                                    .height(316.dp)
-                                    .clip(RoundedCornerShape(26.dp))
+                                    .height(276.dp)
+                                    .clip(RoundedCornerShape(22.dp))
                                     .align(Alignment.TopCenter),
                         )
                     }
@@ -160,7 +161,7 @@ fun AlbumDetailScreen(
                 ) {
                     Text(
                         text = album.title,
-                        style = MaterialTheme.typography.displaySmall,
+                        style = MaterialTheme.typography.headlineLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -170,7 +171,7 @@ fun AlbumDetailScreen(
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Button(
+                    BrowseActionButton(
                         onClick = { onPlayAlbum(album.tracks, 0) },
                         modifier = Modifier.focusRequester(playButtonFocusRequester),
                     ) {
@@ -258,7 +259,6 @@ fun ArtistDetailScreen(
 
                 SectionTitle(
                     title = "Albums",
-                    subtitle = "Jump from artist overview into album playback quickly.",
                 )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     items(artist.albums, key = { it.id }) { album ->
@@ -294,14 +294,11 @@ fun PlaylistsScreen(
         Column(
             modifier =
                 Modifier
-                    .width(380.dp)
+                    .width(348.dp)
                     .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            SectionTitle(
-                title = "Playlists",
-                subtitle = "Curated listening paths with clearer focus and lower density.",
-            )
+            SectionTitle(title = "Playlists")
 
             if (state.isLoading && state.playlists.isEmpty()) {
                 LoadingState(label = "Loading playlists...")
@@ -322,9 +319,9 @@ fun PlaylistsScreen(
                 Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(28.dp))
+                    .clip(RoundedCornerShape(24.dp))
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
-                    .padding(22.dp),
+                    .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             when {
@@ -342,10 +339,10 @@ fun PlaylistsScreen(
                     val selected = state.selected!!
                     Text(
                         text = selected.name,
-                        style = MaterialTheme.typography.displaySmall,
+                        style = MaterialTheme.typography.headlineLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    Button(onClick = { onPlayTracks(selected.tracks, 0) }) {
+                    BrowseActionButton(onClick = { onPlayTracks(selected.tracks, 0) }) {
                         Text("Play Playlist")
                     }
                     LazyColumn(
@@ -391,10 +388,7 @@ fun SearchScreen(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        SectionTitle(
-            title = "Search",
-            subtitle = "Grouped results and calmer layouts to reduce typing fatigue on TV.",
-        )
+        SectionTitle(title = "Search")
 
         OutlinedTextField(
             value = query,
@@ -435,7 +429,7 @@ fun SearchScreen(
             contentPadding = PaddingValues(bottom = 48.dp),
         ) {
             if (query.isBlank() && state.recentQueries.isNotEmpty()) {
-                item { SectionTitle(title = "Recent Queries", subtitle = "Jump back into common searches with fewer clicks") }
+                item { SectionTitle(title = "Recent Queries") }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         items(state.recentQueries, key = { it }) { recentQuery ->
@@ -449,7 +443,7 @@ fun SearchScreen(
             }
 
             if (query.isNotBlank() && state.suggestions.isNotEmpty()) {
-                item { SectionTitle(title = "Suggestions", subtitle = "Fast fills from live Navidrome results") }
+                item { SectionTitle(title = "Suggestions") }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         items(state.suggestions, key = { it }) { suggestion ->
@@ -463,7 +457,7 @@ fun SearchScreen(
             }
 
             if (state.result.artists.isNotEmpty()) {
-                item { SectionTitle(title = "Artists", subtitle = "Open the artist surface directly from search") }
+                item { SectionTitle(title = "Artists") }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         items(state.result.artists, key = { it.id }) { artist ->
@@ -477,7 +471,7 @@ fun SearchScreen(
             }
 
             if (state.result.albums.isNotEmpty()) {
-                item { SectionTitle(title = "Albums", subtitle = "Artwork-forward album matches") }
+                item { SectionTitle(title = "Albums") }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                         items(state.result.albums, key = { it.id }) { album ->
@@ -488,7 +482,7 @@ fun SearchScreen(
             }
 
             if (state.result.tracks.isNotEmpty()) {
-                item { SectionTitle(title = "Tracks", subtitle = "Start playback directly from search results") }
+                item { SectionTitle(title = "Tracks") }
                 items(state.result.tracks, key = { it.id }) { track ->
                     PremiumListRow(
                         title = track.title,
@@ -521,8 +515,8 @@ private fun PremiumPlaylistRow(
                 label = playlist.name,
                 modifier =
                     Modifier
-                        .size(72.dp)
-                        .clip(RoundedCornerShape(16.dp)),
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(14.dp)),
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -551,7 +545,7 @@ private fun PremiumAlbumCard(
     onClick: () -> Unit,
 ) {
     FocusScaleCard(
-        modifier = Modifier.width(244.dp),
+        modifier = Modifier.width(220.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -559,8 +553,8 @@ private fun PremiumAlbumCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(244.dp)
-                        .clip(RoundedCornerShape(22.dp))
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f)),
             ) {
                 if (album.artUrl != null) {
@@ -652,7 +646,7 @@ private fun PremiumChip(
     FocusScaleCard(
         modifier =
             Modifier
-                .width(220.dp),
+                .width(196.dp),
         onClick = onClick,
     ) {
         Text(
@@ -719,21 +713,51 @@ private fun PlaylistArtworkGrid(
 }
 
 @Composable
-private fun SectionTitle(
-    title: String,
-    subtitle: String,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+private fun SectionTitle(title: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    }
+}
+
+@Composable
+private fun BrowseActionButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier =
+            modifier
+                .scale(if (focused) 1.02f else 1f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.86f))
+                .border(
+                    width = if (focused) 3.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                        },
+                    shape = RoundedCornerShape(20.dp),
+                )
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onSurface,
+        ) {
+            content()
+        }
     }
 }
 

@@ -64,6 +64,10 @@ class PlaybackViewModel(
         }
     }
 
+    fun play() = playerManager.play()
+
+    fun pause() = playerManager.pause()
+
     fun next() = playerManager.next()
 
     fun previous() = playerManager.previous()

@@ -70,8 +70,8 @@ fun HomeScreen(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(28.dp),
+        contentPadding = PaddingValues(bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
         item {
             HomeHero(
@@ -98,7 +98,7 @@ fun HomeScreen(
         }
 
         if (state.favorites.albums.isNotEmpty() || state.favorites.tracks.isNotEmpty()) {
-            item { SectionHeading("Favorites", "Read-only starred picks from your Navidrome account") }
+            item { SectionHeading("Favorites") }
             item {
                 FavoriteRail(
                     favorites = state.favorites,
@@ -109,7 +109,7 @@ fun HomeScreen(
         }
 
         if (state.artists.isNotEmpty()) {
-            item { SectionHeading("Artists", "Deeper artist browsing with fast album access") }
+            item { SectionHeading("Artists") }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     items(state.artists, key = { it.id }) { artist ->
@@ -120,7 +120,7 @@ fun HomeScreen(
         }
 
         if (state.recentAlbums.isNotEmpty()) {
-            item { SectionHeading("Recent Albums", "New arrivals from your Navidrome library") }
+            item { SectionHeading("Albums") }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     items(state.recentAlbums, key = { it.id }) { album ->
@@ -131,7 +131,7 @@ fun HomeScreen(
         }
 
         if (state.playlists.isNotEmpty()) {
-            item { SectionHeading("Playlists", "Jump back into curated mixes and saved flows") }
+            item { SectionHeading("Playlists") }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     items(state.playlists, key = { it.id }) { playlist ->
@@ -144,27 +144,24 @@ fun HomeScreen(
             }
         }
 
-        item { SectionHeading("Quick Actions", "Fast paths built for remote-first browsing") }
+        item { SectionHeading("Quick Actions") }
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                 item {
                     ActionCard(
                         title = "Search",
-                        subtitle = "Find artists, albums, tracks, and recent queries faster.",
                         onClick = onOpenSearch,
                     )
                 }
                 item {
                     ActionCard(
                         title = "Browse Albums",
-                        subtitle = "Explore the full album catalog with larger art-led cards.",
                         onClick = onOpenAlbums,
                     )
                 }
                 item {
                     ActionCard(
                         title = "All Playlists",
-                        subtitle = "Open playlist browser and keep playback flow moving.",
                         onClick = { onOpenPlaylists(null) },
                     )
                 }
@@ -190,8 +187,8 @@ private fun HomeHero(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(360.dp)
-                .clip(RoundedCornerShape(34.dp))
+                .height(286.dp)
+                .clip(RoundedCornerShape(28.dp))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)),
     ) {
         if (currentItem?.artUrl != null) {
@@ -223,7 +220,7 @@ private fun HomeHero(
         ) {
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
                     text = if (currentItem != null) "Continue Listening" else "Welcome to TuneFlow",
@@ -241,7 +238,7 @@ private fun HomeHero(
                     text =
                         currentItem?.let { "${it.artist} • ${it.album}" }
                             ?: "Calm dark surfaces, large artwork, and fast access to favorites, artists, and search.",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -260,13 +257,13 @@ private fun HomeHero(
                 }
             }
 
-            Spacer(Modifier.width(24.dp))
+            Spacer(Modifier.width(20.dp))
 
             Box(
                 modifier =
                     Modifier
-                        .size(248.dp)
-                        .clip(RoundedCornerShape(30.dp))
+                        .size(196.dp)
+                        .clip(RoundedCornerShape(24.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -303,7 +300,7 @@ private fun HeroActionButton(
         modifier =
             Modifier
                 .then(if (focusedRequester != null) Modifier.focusRequester(focusedRequester) else Modifier)
-                .scale(if (focused) 1.04f else 1f)
+                .scale(if (focused) 1.02f else 1f)
                 .clip(shape)
                 .background(
                     if (accent) {
@@ -327,8 +324,8 @@ private fun HeroActionButton(
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .width(252.dp)
-                .padding(horizontal = 22.dp, vertical = 18.dp),
+                .width(208.dp)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
         Text(
             text = label,
@@ -369,7 +366,7 @@ private fun FavoriteTrackCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(240.dp),
+        modifier = Modifier.width(216.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -377,8 +374,8 @@ private fun FavoriteTrackCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(240.dp)
-                        .clip(RoundedCornerShape(22.dp))
+                        .height(216.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
                 if (track.artUrl != null) {
@@ -421,7 +418,7 @@ private fun HomeArtistCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(280.dp),
+        modifier = Modifier.width(244.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -429,8 +426,8 @@ private fun HomeArtistCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
-                        .clip(RoundedCornerShape(22.dp))
+                        .height(188.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
                 if (artist.artUrl != null) {
@@ -508,20 +505,12 @@ private fun ErrorBanner(message: String) {
 }
 
 @Composable
-private fun SectionHeading(
-    title: String,
-    subtitle: String,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+private fun SectionHeading(title: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -532,7 +521,7 @@ private fun HomeAlbumCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(240.dp),
+        modifier = Modifier.width(216.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -540,8 +529,8 @@ private fun HomeAlbumCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(240.dp)
-                        .clip(RoundedCornerShape(22.dp))
+                        .height(216.dp)
+                        .clip(RoundedCornerShape(20.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
                 if (album.artUrl != null) {
@@ -584,21 +573,21 @@ private fun HomePlaylistCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(300.dp),
+        modifier = Modifier.width(260.dp),
         onClick = onClick,
     ) {
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(220.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                    .height(194.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             PlaylistArtCollage(playlist = playlist)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = playlist.name,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -626,8 +615,8 @@ private fun PlaylistArtCollage(playlist: PlaylistSummary) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(156.dp)
-                .clip(RoundedCornerShape(22.dp))
+                .height(132.dp)
+                .clip(RoundedCornerShape(18.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -671,29 +660,23 @@ private fun PlaylistArtCollage(playlist: PlaylistSummary) {
 @Composable
 private fun ActionCard(
     title: String,
-    subtitle: String,
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(320.dp),
+        modifier = Modifier.width(244.dp),
         onClick = onClick,
     ) {
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(176.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
+                    .height(104.dp),
+            verticalArrangement = Arrangement.Center,
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -710,8 +693,8 @@ private fun FocusCard(
     Box(
         modifier =
             modifier
-                .scale(if (focused) 1.04f else 1f)
-                .clip(RoundedCornerShape(26.dp))
+                .scale(if (focused) 1.02f else 1f)
+                .clip(RoundedCornerShape(22.dp))
                 .background(
                     if (focused) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
@@ -727,12 +710,12 @@ private fun FocusCard(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(26.dp),
+                    shape = RoundedCornerShape(22.dp),
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .padding(18.dp),
+                .padding(14.dp),
     ) {
         Column(content = content)
     }

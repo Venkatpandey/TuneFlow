@@ -70,6 +70,7 @@ class MainActivity : ComponentActivity() {
         val authRepository = AuthRepository(sessionStore)
         val browseRepository = BrowseRepository(sessionStore)
         val playerManager = PlayerGraph.get(applicationContext)
+        val appVersionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
         startService(Intent(this, TuneFlowPlaybackService::class.java))
 
         setContent {
@@ -90,7 +91,9 @@ class MainActivity : ComponentActivity() {
                     TuneFlowShell(
                         browseRepository = browseRepository,
                         playerManager = playerManager,
+                        sessionStore = sessionStore,
                         searchHistoryStore = searchHistoryStore,
+                        appVersionName = appVersionName,
                         onLogout = {
                             playerManager.stopAndClear()
                             authViewModel.logout()
@@ -122,7 +125,9 @@ private const val NOW_PLAYING_SCREEN_KEY = "nowPlaying"
 private fun TuneFlowShell(
     browseRepository: BrowseRepository,
     playerManager: com.tuneflow.core.player.TvPlayerManager,
+    sessionStore: SessionStore,
     searchHistoryStore: SearchHistoryStore,
+    appVersionName: String,
     onLogout: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -138,6 +143,7 @@ private fun TuneFlowShell(
         viewModel(factory = SearchViewModelFactory(browseRepository, searchHistoryStore))
     val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel = viewModel(factory = PlaybackViewModelFactory(playerManager))
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
+    val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
 
     var currentSection by rememberSaveable { mutableStateOf(NavSection.Home) }
     var selectedAlbumId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -251,6 +257,8 @@ private fun TuneFlowShell(
                 onSectionSelected = ::openSection,
                 onNowPlaying = ::openNowPlaying,
                 isNowPlayingActive = showNowPlaying,
+                username = session?.username.orEmpty(),
+                versionName = appVersionName,
                 onLogout = onLogout,
             )
 
@@ -427,26 +435,30 @@ private fun NavRail(
     onSectionSelected: (NavSection) -> Unit,
     onNowPlaying: () -> Unit,
     isNowPlayingActive: Boolean,
+    username: String,
+    versionName: String,
     onLogout: () -> Unit,
 ) {
+    var accountExpanded by rememberSaveable { mutableStateOf(false) }
+
     Column(
         modifier =
             Modifier
-                .width(236.dp)
+                .width(220.dp)
                 .fillMaxHeight()
-                .clip(RoundedCornerShape(30.dp))
+                .clip(RoundedCornerShape(26.dp))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(30.dp),
+                    shape = RoundedCornerShape(26.dp),
                 )
-                .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(
-            modifier = Modifier.padding(bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.Start,
         ) {
             Image(
@@ -454,8 +466,8 @@ private fun NavRail(
                 contentDescription = "TuneFlow",
                 modifier =
                     Modifier
-                        .size(68.dp)
-                        .clip(RoundedCornerShape(20.dp)),
+                        .size(60.dp)
+                        .clip(RoundedCornerShape(18.dp)),
             )
             Text(
                 text = "TuneFlow",
@@ -473,22 +485,34 @@ private fun NavRail(
         RailItem(
             label = "Home",
             selected = currentSection == NavSection.Home && !isNowPlayingActive,
-            onClick = { onSectionSelected(NavSection.Home) },
+            onClick = {
+                accountExpanded = false
+                onSectionSelected(NavSection.Home)
+            },
         )
         RailItem(
             label = "Albums",
             selected = currentSection == NavSection.Albums && !isNowPlayingActive,
-            onClick = { onSectionSelected(NavSection.Albums) },
+            onClick = {
+                accountExpanded = false
+                onSectionSelected(NavSection.Albums)
+            },
         )
         RailItem(
             label = "Playlists",
             selected = currentSection == NavSection.Playlists && !isNowPlayingActive,
-            onClick = { onSectionSelected(NavSection.Playlists) },
+            onClick = {
+                accountExpanded = false
+                onSectionSelected(NavSection.Playlists)
+            },
         )
         RailItem(
             label = "Search",
             selected = currentSection == NavSection.Search && !isNowPlayingActive,
-            onClick = { onSectionSelected(NavSection.Search) },
+            onClick = {
+                accountExpanded = false
+                onSectionSelected(NavSection.Search)
+            },
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -496,12 +520,19 @@ private fun NavRail(
         RailItem(
             label = "Now Playing",
             selected = isNowPlayingActive,
-            onClick = onNowPlaying,
+            onClick = {
+                accountExpanded = false
+                onNowPlaying()
+            },
         )
-        RailItem(
-            label = "Logout",
-            selected = false,
-            onClick = onLogout,
+
+        AccountRailSection(
+            username = username.ifBlank { "Account" },
+            versionName = versionName,
+            expanded = accountExpanded,
+            onToggleExpanded = { accountExpanded = !accountExpanded },
+            onExpand = { accountExpanded = true },
+            onLogout = onLogout,
         )
     }
 }
@@ -518,9 +549,9 @@ private fun RailItem(
     Row(
         modifier =
             Modifier
-                .width(196.dp)
-                .scale(if (focused) 1.03f else 1f)
-                .clip(RoundedCornerShape(20.dp))
+                .width(182.dp)
+                .scale(if (focused) 1.02f else 1f)
+                .clip(RoundedCornerShape(18.dp))
                 .background(
                     if (active) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
@@ -536,12 +567,12 @@ private fun RailItem(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
                         },
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(18.dp),
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -554,5 +585,91 @@ private fun RailItem(
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
         )
+    }
+}
+
+@Composable
+private fun AccountRailSection(
+    username: String,
+    versionName: String,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onExpand: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier =
+                Modifier
+                    .width(182.dp)
+                    .scale(if (focused) 1.02f else 1f)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(
+                        if (focused || expanded) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f)
+                        },
+                    )
+                    .border(
+                        width = if (focused || expanded) 2.dp else 1.dp,
+                        color =
+                            if (focused || expanded) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
+                            },
+                        shape = RoundedCornerShape(18.dp),
+                    )
+                    .onFocusChanged {
+                        focused = it.hasFocus
+                        if (it.hasFocus) onExpand()
+                    }
+                    .focusable()
+                    .clickable(onClick = onToggleExpanded)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = username,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+
+        if (expanded) {
+            Column(
+                modifier =
+                    Modifier
+                        .width(182.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f))
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(18.dp),
+                        )
+                        .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = "App Info",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = "Version $versionName",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                RailItem(
+                    label = "Logout",
+                    selected = false,
+                    onClick = onLogout,
+                )
+            }
+        }
     }
 }
