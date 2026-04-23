@@ -239,19 +239,19 @@ private fun TuneFlowShell(
                         else -> currentSection.name
                     }
 
-                Crossfade(targetState = screenKey, label = "shell-content") {
+                Crossfade(targetState = screenKey, label = "shell-content") { targetScreen ->
                     when {
-                        showNowPlaying -> {
+                        targetScreen == "nowPlaying" -> {
                             NowPlayingScreen(viewModel = playbackViewModel)
                         }
-                        selectedAlbumId != null -> {
+                        targetScreen.startsWith("album:") -> {
                             AlbumDetailScreen(
-                                albumId = selectedAlbumId.orEmpty(),
+                                albumId = targetScreen.removePrefix("album:"),
                                 viewModel = albumDetailViewModel,
                                 onPlayAlbum = ::playTracks,
                             )
                         }
-                        currentSection == NavSection.Home -> {
+                        targetScreen == NavSection.Home.name -> {
                             HomeScreen(
                                 viewModel = homeViewModel,
                                 playbackQueue = playbackState.queue,
@@ -266,13 +266,13 @@ private fun TuneFlowShell(
                                 onOpenNowPlaying = ::openNowPlaying,
                             )
                         }
-                        currentSection == NavSection.Albums -> {
+                        targetScreen == NavSection.Albums.name -> {
                             AlbumsScreen(
                                 viewModel = albumsViewModel,
                                 onAlbumSelected = { openAlbum(it, NavSection.Albums) },
                             )
                         }
-                        currentSection == NavSection.Playlists -> {
+                        targetScreen == NavSection.Playlists.name -> {
                             PlaylistsScreen(
                                 viewModel = playlistsViewModel,
                                 preselectedPlaylistId = preselectedPlaylistId,
@@ -280,13 +280,14 @@ private fun TuneFlowShell(
                                 onPlayTracks = ::playTracks,
                             )
                         }
-                        currentSection == NavSection.Search -> {
+                        targetScreen == NavSection.Search.name -> {
                             SearchScreen(
                                 viewModel = searchViewModel,
                                 onOpenAlbum = { openAlbum(it, NavSection.Search) },
                                 onPlayTracks = ::playTracks,
                             )
                         }
+                        else -> Unit
                     }
                 }
             }
