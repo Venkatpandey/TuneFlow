@@ -34,6 +34,28 @@ class AuthRepositoryTest {
         }
 
     @Test
+    fun login_normalizesPlainHostOrIp_toHttpUrl() =
+        runTest {
+            var saved: SessionData? = null
+            val repository =
+                AuthRepository(
+                    saveSession = { saved = it },
+                    clearSession = {},
+                    clientProvider = NavidromeClientProvider { FakeClient(it, NetworkResult.Success(Unit)) },
+                )
+
+            val result =
+                repository.login(
+                    serverUrl = "192.168.1.10:4533",
+                    username = "demo",
+                    password = "secret",
+                )
+
+            assertTrue(result.isSuccess)
+            assertEquals("http://192.168.1.10:4533", saved?.serverUrl)
+        }
+
+    @Test
     fun login_returnsFailure_whenPingFails() =
         runTest {
             val repository =
@@ -55,6 +77,27 @@ class AuthRepositoryTest {
 
             assertTrue(result.isFailure)
             assertEquals("Invalid credentials", result.exceptionOrNull()?.message)
+        }
+
+    @Test
+    fun login_returnsFailure_whenUrlIsInvalid() =
+        runTest {
+            val repository =
+                AuthRepository(
+                    saveSession = {},
+                    clearSession = {},
+                    clientProvider = NavidromeClientProvider { FakeClient(it, NetworkResult.Success(Unit)) },
+                )
+
+            val result =
+                repository.login(
+                    serverUrl = "http://bad host",
+                    username = "demo",
+                    password = "secret",
+                )
+
+            assertTrue(result.isFailure)
+            assertEquals("Enter a valid server URL.", result.exceptionOrNull()?.message)
         }
 }
 
