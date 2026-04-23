@@ -46,15 +46,11 @@ class AuthViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             val result =
-                try {
-                    repository.login(
-                        serverUrl = current.serverUrl,
-                        username = current.username,
-                        password = current.password,
-                    )
-                } catch (ex: Exception) {
-                    Result.failure(ex)
-                }
+                repository.login(
+                    serverUrl = current.serverUrl,
+                    username = current.username,
+                    password = current.password,
+                )
 
             _uiState.update {
                 if (result.isSuccess) {

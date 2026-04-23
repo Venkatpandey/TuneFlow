@@ -1,7 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET" />
-
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -16,8 +14,7 @@
         android:icon="@drawable/ic_tuneflow"
         android:label="TuneFlow"
         android:supportsRtl="false"
-        android:theme="@style/Theme.TuneFlow"
-        android:usesCleartextTraffic="true">
+        android:theme="@style/Theme.TuneFlow">
 
         <activity
             android:name=".MainActivity"
