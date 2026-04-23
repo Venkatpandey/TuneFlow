@@ -1,6 +1,5 @@
 package com.tuneflow.feature.playback
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,8 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -29,19 +27,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.tuneflow.feature.playback.R as PlaybackR
+import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
 fun NowPlayingScreen(
@@ -62,27 +58,7 @@ fun NowPlayingScreen(
         modifier =
             modifier
                 .fillMaxSize()
-                .onKeyEvent {
-                    if (it.type != KeyEventType.KeyDown) return@onKeyEvent false
-                    when (it.key) {
-                        Key.DirectionCenter -> {
-                            viewModel.togglePlayPause()
-                            true
-                        }
-
-                        Key.DirectionRight -> {
-                            viewModel.next()
-                            true
-                        }
-
-                        Key.DirectionLeft -> {
-                            viewModel.previous()
-                            true
-                        }
-
-                        else -> false
-                    }
-                },
+                .onPreviewKeyEvent { event -> handlePlaybackKey(event, viewModel) },
     ) {
         if (item?.artUrl != null) {
             AsyncImage(
@@ -109,10 +85,12 @@ fun NowPlayingScreen(
             Box(
                 modifier =
                     Modifier
-                        .size(360.dp)
+                        .padding(horizontal = 12.dp)
+                        .height(320.dp)
+                        .fillMaxWidth(0.34f)
                         .background(
                             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-                            shape = RoundedCornerShape(32.dp),
+                            shape = RoundedCornerShape(28.dp),
                         ),
                 contentAlignment = Alignment.Center,
             ) {
@@ -139,7 +117,7 @@ fun NowPlayingScreen(
 
             Text(
                 text = item?.title ?: "Nothing playing",
-                style = MaterialTheme.typography.displaySmall,
+                style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -188,24 +166,20 @@ fun NowPlayingScreen(
                 }
             }
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                PlaybackIconButton(
-                    iconResId = PlaybackR.drawable.ic_skip_button,
-                    contentDescription = "Previous",
-                    mirrored = true,
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                PlaybackTextButton(
+                    label = "Previous",
                     onClick = viewModel::previous,
                 )
-                PlaybackIconButton(
-                    iconResId = if (state.isPlaying) PlaybackR.drawable.ic_pause_button else PlaybackR.drawable.ic_play_button,
-                    contentDescription = if (state.isPlaying) "Pause" else "Play",
+                PlaybackTextButton(
+                    label = if (state.isPlaying) "Pause" else "Play",
                     accent = true,
                     onClick = viewModel::togglePlayPause,
                 )
-                PlaybackIconButton(
-                    iconResId = PlaybackR.drawable.ic_skip_button,
-                    contentDescription = "Next",
+                PlaybackTextButton(
+                    label = "Next",
                     onClick = viewModel::next,
                 )
             }
@@ -213,11 +187,52 @@ fun NowPlayingScreen(
     }
 }
 
+private fun handlePlaybackKey(
+    event: androidx.compose.ui.input.key.KeyEvent,
+    viewModel: PlaybackViewModel,
+): Boolean {
+    if (event.type != KeyEventType.KeyDown) return false
+
+    return when (event.nativeKeyEvent.keyCode) {
+        AndroidKeyEvent.KEYCODE_DPAD_CENTER,
+        AndroidKeyEvent.KEYCODE_ENTER,
+        AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+        -> {
+            viewModel.togglePlayPause()
+            true
+        }
+
+        AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> {
+            viewModel.play()
+            true
+        }
+
+        AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> {
+            viewModel.pause()
+            true
+        }
+
+        AndroidKeyEvent.KEYCODE_DPAD_RIGHT,
+        AndroidKeyEvent.KEYCODE_MEDIA_NEXT,
+        -> {
+            viewModel.next()
+            true
+        }
+
+        AndroidKeyEvent.KEYCODE_DPAD_LEFT,
+        AndroidKeyEvent.KEYCODE_MEDIA_PREVIOUS,
+        -> {
+            viewModel.previous()
+            true
+        }
+
+        else -> false
+    }
+}
+
 @Composable
-private fun PlaybackIconButton(
-    iconResId: Int,
-    contentDescription: String,
-    mirrored: Boolean = false,
+private fun PlaybackTextButton(
+    label: String,
     accent: Boolean = false,
     onClick: () -> Unit,
 ) {
@@ -226,13 +241,13 @@ private fun PlaybackIconButton(
     Box(
         modifier =
             Modifier
-                .scale(if (focused) 1.06f else 1f)
-                .clip(CircleShape)
+                .scale(if (focused) 1.02f else 1f)
+                .clip(RoundedCornerShape(24.dp))
                 .background(
                     if (accent) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                        MaterialTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.44f)
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.86f)
                     },
                 )
                 .border(
@@ -243,13 +258,19 @@ private fun PlaybackIconButton(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = CircleShape,
+                    shape = RoundedCornerShape(24.dp),
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
                 .onKeyEvent {
-                    if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionCenter) {
+                    if (it.type == KeyEventType.KeyDown &&
+                        it.nativeKeyEvent.keyCode in
+                        listOf(
+                            AndroidKeyEvent.KEYCODE_DPAD_CENTER,
+                            AndroidKeyEvent.KEYCODE_ENTER,
+                        )
+                    ) {
                         onClick()
                         true
                     } else {
@@ -258,14 +279,12 @@ private fun PlaybackIconButton(
                 },
         contentAlignment = Alignment.Center,
     ) {
-        Image(
-            painter = painterResource(id = iconResId),
-            contentDescription = contentDescription,
-            modifier =
-                Modifier
-                    .size(if (accent) 132.dp else 114.dp)
-                    .graphicsLayer { scaleX = if (mirrored) -1f else 1f },
-            contentScale = ContentScale.Fit,
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = if (accent) 34.dp else 24.dp, vertical = 16.dp),
+            color = if (accent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
         )
     }
 }

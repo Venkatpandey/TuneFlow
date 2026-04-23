@@ -3,6 +3,8 @@ package com.tuneflow.feature.auth
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,17 +23,21 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.material3.Button
 
 @Composable
 fun LoginScreen(
@@ -53,65 +59,57 @@ fun LoginScreen(
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
-            alpha = 0.28f,
+            alpha = 0.36f,
         )
         Box(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.50f)),
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.38f)),
         )
 
         Row(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 68.dp, vertical = 54.dp),
+                    .padding(horizontal = 72.dp, vertical = 48.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                modifier = Modifier.weight(1.15f),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Image(
                     painter = painterResource(id = logoResId),
                     contentDescription = "TuneFlow logo",
                     modifier =
                         Modifier
-                            .size(104.dp)
-                            .clip(RoundedCornerShape(28.dp)),
+                            .size(112.dp)
+                            .clip(RoundedCornerShape(24.dp)),
                 )
                 Text(
                     text = "TuneFlow",
                     style = MaterialTheme.typography.displayMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                Text(
-                    text = "A TV-first Navidrome client with smoother focus, richer artwork, and music that feels at home on the big screen.",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.width(640.dp),
-                )
             }
 
-            Spacer(modifier = Modifier.width(52.dp))
+            Spacer(modifier = Modifier.width(64.dp))
 
             Column(
                 modifier =
                     Modifier
-                        .width(560.dp)
-                        .clip(RoundedCornerShape(30.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.90f))
+                        .width(484.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
                         .border(
                             width = 1.dp,
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                            shape = RoundedCornerShape(30.dp),
+                            shape = RoundedCornerShape(24.dp),
                         )
-                        .padding(28.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                        .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Text(
                     text = "Sign in",
@@ -119,7 +117,7 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "Use your Navidrome server URL, username, and password to sync your library.",
+                    text = "Use your Navidrome URL, username, and password.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -155,7 +153,7 @@ fun LoginScreen(
                     )
                 }
 
-                Button(
+                LoginActionButton(
                     onClick = viewModel::login,
                     enabled = !state.isLoading,
                 ) {
@@ -200,4 +198,57 @@ private fun LoginField(
                 unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
     )
+}
+
+@Composable
+private fun LoginActionButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    content: @Composable () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .scale(if (focused && enabled) 1.02f else 1f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(
+                    if (enabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f)
+                    },
+                )
+                .border(
+                    width = if (focused && enabled) 3.dp else 1.dp,
+                    color =
+                        if (focused && enabled) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else if (enabled) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.88f)
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                        },
+                    shape = RoundedCornerShape(20.dp),
+                )
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable(enabled = enabled)
+                .clickable(enabled = enabled, onClick = onClick)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.material3.LocalContentColor provides
+                if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                androidx.compose.material3.ProvideTextStyle(
+                    value = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    content = content,
+                )
+            }
+        }
+    }
 }
