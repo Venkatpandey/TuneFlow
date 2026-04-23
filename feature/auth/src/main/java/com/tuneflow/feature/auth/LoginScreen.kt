@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,14 +31,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
+private enum class LoginFieldKey { ServerUrl, Username, Password }
 
 @Composable
 fun LoginScreen(
@@ -47,6 +61,7 @@ fun LoginScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var editingField by remember { mutableStateOf<LoginFieldKey?>(null) }
 
     Box(
         modifier =
@@ -122,11 +137,17 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
+                ScreenInitialFocusAnchor()
+
                 LoginField(
                     value = state.serverUrl,
                     onValueChange = viewModel::updateServerUrl,
                     label = "Navidrome URL",
                     placeholder = "http://192.168.1.10:4533",
+                    editing = editingField == LoginFieldKey.ServerUrl,
+                    onEditingChange = { isEditing ->
+                        editingField = if (isEditing) LoginFieldKey.ServerUrl else null
+                    },
                 )
 
                 LoginField(
@@ -134,6 +155,10 @@ fun LoginScreen(
                     onValueChange = viewModel::updateUsername,
                     label = "Username",
                     placeholder = "Your Navidrome user",
+                    editing = editingField == LoginFieldKey.Username,
+                    onEditingChange = { isEditing ->
+                        editingField = if (isEditing) LoginFieldKey.Username else null
+                    },
                 )
 
                 LoginField(
@@ -143,6 +168,10 @@ fun LoginScreen(
                     placeholder = "Password",
                     keyboardType = KeyboardType.Password,
                     obscure = true,
+                    editing = editingField == LoginFieldKey.Password,
+                    onEditingChange = { isEditing ->
+                        editingField = if (isEditing) LoginFieldKey.Password else null
+                    },
                 )
 
                 if (state.error != null) {
@@ -172,33 +201,190 @@ private fun LoginField(
     placeholder: String,
     keyboardType: KeyboardType = KeyboardType.Text,
     obscure: Boolean = false,
+    editing: Boolean,
+    onEditingChange: (Boolean) -> Unit,
+) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val editFocusRequester = remember { FocusRequester() }
+    val displayFocusRequester = remember { FocusRequester() }
+    var focused by remember { mutableStateOf(false) }
+    var restoreDisplayFocus by remember { mutableStateOf(false) }
+
+    fun stopEditing() {
+        keyboardController?.hide()
+        focusManager.clearFocus(force = true)
+        restoreDisplayFocus = true
+        onEditingChange(false)
+    }
+
+    LaunchedEffect(editing, restoreDisplayFocus) {
+        when {
+            editing -> {
+                editFocusRequester.requestFocus()
+                keyboardController?.show()
+            }
+            restoreDisplayFocus -> {
+                displayFocusRequester.requestFocus()
+                restoreDisplayFocus = false
+            }
+        }
+    }
+
+    if (editing) {
+        EditingLoginField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            placeholder = { Text(placeholder) },
+            visualTransformation = if (obscure) PasswordVisualTransformation() else VisualTransformation.None,
+            keyboardType = keyboardType,
+            focusRequester = editFocusRequester,
+            onBack = ::stopEditing,
+        )
+    } else {
+        DisplayLoginField(
+            value = value,
+            label = label,
+            placeholder = placeholder,
+            obscure = obscure,
+            focused = focused,
+            focusRequester = displayFocusRequester,
+            onFocusedChange = { focused = it },
+            onClick = { onEditingChange(true) },
+        )
+    }
+}
+
+@Composable
+private fun EditingLoginField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: @Composable () -> Unit,
+    placeholder: @Composable () -> Unit,
+    visualTransformation: VisualTransformation,
+    keyboardType: KeyboardType,
+    focusRequester: FocusRequester,
+    onBack: () -> Unit,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
-        placeholder = { Text(placeholder) },
+        label = label,
+        placeholder = placeholder,
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        visualTransformation = if (obscure) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        modifier = Modifier.fillMaxWidth(),
-        colors =
-            OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                cursorColor = MaterialTheme.colorScheme.primary,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f),
-                focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
+        visualTransformation = visualTransformation,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent {
+                    if (it.type == KeyEventType.KeyDown && it.key == Key.Back) {
+                        onBack()
+                        true
+                    } else {
+                        false
+                    }
+                },
+        colors = loginFieldColors(),
     )
 }
+
+@Composable
+private fun DisplayLoginField(
+    value: String,
+    label: String,
+    placeholder: String,
+    obscure: Boolean,
+    focused: Boolean,
+    focusRequester: FocusRequester,
+    onFocusedChange: (Boolean) -> Unit,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .scale(if (focused) 1.01f else 1f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        },
+                    shape = RoundedCornerShape(18.dp),
+                )
+                .onFocusChanged { onFocusedChange(it.hasFocus) }
+                .focusable()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text =
+                    when {
+                        value.isNotBlank() && obscure -> "•".repeat(value.length.coerceAtMost(16))
+                        value.isNotBlank() -> value
+                        else -> placeholder
+                    },
+                style = MaterialTheme.typography.bodyLarge,
+                color =
+                    if (value.isNotBlank()) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScreenInitialFocusAnchor() {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Box(
+        modifier =
+            Modifier
+                .size(1.dp)
+                .focusRequester(focusRequester)
+                .focusable(),
+    )
+}
+
+@Composable
+private fun loginFieldColors() =
+    OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        cursorColor = MaterialTheme.colorScheme.primary,
+        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f),
+        focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 
 @Composable
 private fun LoginActionButton(
