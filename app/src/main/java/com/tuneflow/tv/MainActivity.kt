@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -70,7 +71,6 @@ class MainActivity : ComponentActivity() {
         val authRepository = AuthRepository(sessionStore)
         val browseRepository = BrowseRepository(sessionStore)
         val playerManager = PlayerGraph.get(applicationContext)
-        val appVersionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
         startService(Intent(this, TuneFlowPlaybackService::class.java))
 
         setContent {
@@ -93,7 +93,6 @@ class MainActivity : ComponentActivity() {
                         playerManager = playerManager,
                         sessionStore = sessionStore,
                         searchHistoryStore = searchHistoryStore,
-                        appVersionName = appVersionName,
                         onLogout = {
                             playerManager.stopAndClear()
                             authViewModel.logout()
@@ -127,7 +126,6 @@ private fun TuneFlowShell(
     playerManager: com.tuneflow.core.player.TvPlayerManager,
     sessionStore: SessionStore,
     searchHistoryStore: SearchHistoryStore,
-    appVersionName: String,
     onLogout: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -152,6 +150,7 @@ private fun TuneFlowShell(
     var artistSourceSection by rememberSaveable { mutableStateOf(NavSection.Home) }
     var preselectedPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
+    var autoFocusNowPlayingTransport by rememberSaveable { mutableStateOf(false) }
 
     fun openSection(section: NavSection) {
         currentSection = section
@@ -161,6 +160,7 @@ private fun TuneFlowShell(
             preselectedPlaylistId = null
         }
         showNowPlaying = false
+        autoFocusNowPlayingTransport = false
     }
 
     fun openAlbum(
@@ -172,6 +172,7 @@ private fun TuneFlowShell(
         selectedAlbumId = albumId
         selectedArtistId = null
         showNowPlaying = false
+        autoFocusNowPlayingTransport = false
     }
 
     fun openArtist(
@@ -183,10 +184,12 @@ private fun TuneFlowShell(
         selectedArtistId = artistId
         selectedAlbumId = null
         showNowPlaying = false
+        autoFocusNowPlayingTransport = false
     }
 
     fun openNowPlaying() {
         showNowPlaying = true
+        autoFocusNowPlayingTransport = false
     }
 
     fun playTracks(
@@ -202,6 +205,7 @@ private fun TuneFlowShell(
                 }
             playerManager.playQueue(queue, index)
             openNowPlaying()
+            autoFocusNowPlayingTransport = true
         }
     }
 
@@ -250,7 +254,7 @@ private fun TuneFlowShell(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(26.dp),
+                    .padding(22.dp),
         ) {
             NavRail(
                 currentSection = currentSection,
@@ -258,7 +262,6 @@ private fun TuneFlowShell(
                 onNowPlaying = ::openNowPlaying,
                 isNowPlayingActive = showNowPlaying,
                 username = session?.username.orEmpty(),
-                versionName = appVersionName,
                 onLogout = onLogout,
             )
 
@@ -276,7 +279,7 @@ private fun TuneFlowShell(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
                             shape = RoundedCornerShape(34.dp),
                         )
-                        .padding(26.dp),
+                        .padding(22.dp),
             ) {
                 ShellContent(
                     currentSection = currentSection,
@@ -292,6 +295,8 @@ private fun TuneFlowShell(
                     playlistsViewModel = playlistsViewModel,
                     searchViewModel = searchViewModel,
                     playbackViewModel = playbackViewModel,
+                    autoFocusNowPlayingTransport = autoFocusNowPlayingTransport,
+                    onNowPlayingAutoFocusConsumed = { autoFocusNowPlayingTransport = false },
                     onOpenAlbum = ::openAlbum,
                     onOpenArtist = ::openArtist,
                     onOpenSection = ::openSection,
@@ -301,6 +306,7 @@ private fun TuneFlowShell(
                         selectedAlbumId = null
                         selectedArtistId = null
                         showNowPlaying = false
+                        autoFocusNowPlayingTransport = false
                     },
                     onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
                     onOpenNowPlaying = ::openNowPlaying,
@@ -361,6 +367,8 @@ private fun ShellContent(
     playlistsViewModel: com.tuneflow.feature.browse.PlaylistsViewModel,
     searchViewModel: com.tuneflow.feature.browse.SearchViewModel,
     playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
+    autoFocusNowPlayingTransport: Boolean,
+    onNowPlayingAutoFocusConsumed: () -> Unit,
     onOpenAlbum: (String, NavSection) -> Unit,
     onOpenArtist: (String, NavSection) -> Unit,
     onOpenSection: (NavSection) -> Unit,
@@ -374,7 +382,11 @@ private fun ShellContent(
     Crossfade(targetState = screenKey, label = "shell-content") { targetScreen ->
         when {
             targetScreen == NOW_PLAYING_SCREEN_KEY -> {
-                NowPlayingScreen(viewModel = playbackViewModel)
+                NowPlayingScreen(
+                    viewModel = playbackViewModel,
+                    autoFocusTransport = autoFocusNowPlayingTransport,
+                    onAutoFocusConsumed = onNowPlayingAutoFocusConsumed,
+                )
             }
             targetScreen.startsWith("album:") -> {
                 AlbumDetailScreen(
@@ -436,7 +448,6 @@ private fun NavRail(
     onNowPlaying: () -> Unit,
     isNowPlayingActive: Boolean,
     username: String,
-    versionName: String,
     onLogout: () -> Unit,
 ) {
     var accountExpanded by rememberSaveable { mutableStateOf(false) }
@@ -444,7 +455,7 @@ private fun NavRail(
     Column(
         modifier =
             Modifier
-                .width(220.dp)
+                .width(236.dp)
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(26.dp))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
@@ -528,7 +539,6 @@ private fun NavRail(
 
         AccountRailSection(
             username = username.ifBlank { "Account" },
-            versionName = versionName,
             expanded = accountExpanded,
             onToggleExpanded = { accountExpanded = !accountExpanded },
             onExpand = { accountExpanded = true },
@@ -549,8 +559,8 @@ private fun RailItem(
     Row(
         modifier =
             Modifier
-                .width(182.dp)
-                .scale(if (focused) 1.02f else 1f)
+                .fillMaxWidth()
+                .scale(if (focused) 1.01f else 1f)
                 .clip(RoundedCornerShape(18.dp))
                 .background(
                     if (active) {
@@ -569,10 +579,10 @@ private fun RailItem(
                         },
                     shape = RoundedCornerShape(18.dp),
                 )
-                .onFocusChanged { focused = it.hasFocus }
+                .onFocusChanged { focusState -> focused = focusState.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -591,7 +601,6 @@ private fun RailItem(
 @Composable
 private fun AccountRailSection(
     username: String,
-    versionName: String,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
     onExpand: () -> Unit,
@@ -603,8 +612,8 @@ private fun AccountRailSection(
         Row(
             modifier =
                 Modifier
-                    .width(182.dp)
-                    .scale(if (focused) 1.02f else 1f)
+                    .fillMaxWidth()
+                    .scale(if (focused) 1.01f else 1f)
                     .clip(RoundedCornerShape(18.dp))
                     .background(
                         if (focused || expanded) {
@@ -623,13 +632,13 @@ private fun AccountRailSection(
                             },
                         shape = RoundedCornerShape(18.dp),
                     )
-                    .onFocusChanged {
-                        focused = it.hasFocus
-                        if (it.hasFocus) onExpand()
+                    .onFocusChanged { focusState ->
+                        focused = focusState.hasFocus
+                        if (focusState.hasFocus) onExpand()
                     }
                     .focusable()
                     .clickable(onClick = onToggleExpanded)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 14.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -643,7 +652,7 @@ private fun AccountRailSection(
             Column(
                 modifier =
                     Modifier
-                        .width(182.dp)
+                        .fillMaxWidth()
                         .clip(RoundedCornerShape(18.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f))
                         .border(
@@ -660,7 +669,7 @@ private fun AccountRailSection(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "Version $versionName",
+                    text = "TuneFlow for TV",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

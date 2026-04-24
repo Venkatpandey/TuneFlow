@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -79,15 +80,15 @@ fun AlbumsScreen(
         }
 
         else -> {
-            Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 ScreenInitialFocusAnchor()
                 SectionTitle(title = "Albums")
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 220.dp),
+                    columns = GridCells.Adaptive(minSize = 196.dp),
                     modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
-                    contentPadding = PaddingValues(bottom = 48.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp),
                 ) {
                     items(state.items, key = { it.id }) { album ->
                         PremiumAlbumCard(album = album, onClick = { onAlbumSelected(album.id) })
@@ -143,11 +144,11 @@ fun AlbumDetailScreen(
                 Box(
                     modifier =
                         Modifier
-                            .width(320.dp)
+                            .width(292.dp)
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(24.dp))
+                            .clip(RoundedCornerShape(22.dp))
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
-                            .padding(18.dp),
+                            .padding(16.dp),
                 ) {
                     if (album.artUrl != null) {
                         AsyncImage(
@@ -157,8 +158,8 @@ fun AlbumDetailScreen(
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
-                                    .height(276.dp)
-                                    .clip(RoundedCornerShape(22.dp))
+                                    .height(248.dp)
+                                    .clip(RoundedCornerShape(20.dp))
                                     .align(Alignment.TopCenter),
                         )
                     }
@@ -166,7 +167,7 @@ fun AlbumDetailScreen(
 
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     ScreenInitialFocusAnchor()
                     Text(
@@ -189,7 +190,7 @@ fun AlbumDetailScreen(
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(bottom = 48.dp),
+                        contentPadding = PaddingValues(bottom = 32.dp),
                     ) {
                         items(album.tracks, key = { it.id }) { track ->
                             PremiumListRow(
@@ -227,15 +228,15 @@ fun ArtistDetailScreen(
             val artist = state.artist!!
             Column(
                 modifier = modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(22.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 ScreenInitialFocusAnchor()
                 Box(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .height(240.dp)
-                            .clip(RoundedCornerShape(28.dp))
+                            .height(208.dp)
+                            .clip(RoundedCornerShape(24.dp))
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f)),
                 ) {
                     if (artist.artUrl != null) {
@@ -248,7 +249,7 @@ fun ArtistDetailScreen(
                         )
                     }
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
@@ -267,7 +268,7 @@ fun ArtistDetailScreen(
                 SectionTitle(
                     title = "Albums",
                 )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(artist.albums, key = { it.id }) { album ->
                         PremiumAlbumCard(album = album, onClick = { onOpenAlbum(album.id) })
                     }
@@ -296,14 +297,14 @@ fun PlaylistsScreen(
 
     Row(
         modifier = modifier.fillMaxSize(),
-        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Column(
             modifier =
                 Modifier
-                    .width(348.dp)
+                    .width(312.dp)
                     .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             ScreenInitialFocusAnchor()
             SectionTitle(title = "Playlists")
@@ -313,7 +314,7 @@ fun PlaylistsScreen(
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 48.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp),
                 ) {
                     items(state.playlists, key = { it.id }) { playlist ->
                         PremiumPlaylistRow(playlist = playlist, onClick = { viewModel.loadPlaylistDetail(playlist.id) })
@@ -327,10 +328,10 @@ fun PlaylistsScreen(
                 Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
-                    .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             when {
                 state.selected == null && state.error != null -> {
@@ -355,7 +356,7 @@ fun PlaylistsScreen(
                     }
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(bottom = 48.dp),
+                        contentPadding = PaddingValues(bottom = 32.dp),
                     ) {
                         items(selected.tracks, key = { it.id }) { track ->
                             PremiumListRow(
@@ -395,7 +396,7 @@ fun SearchScreen(
 
     Column(
         modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         ScreenInitialFocusAnchor()
         SectionTitle(title = "Search")
@@ -430,7 +431,7 @@ fun SearchScreen(
             if (query.isBlank() && state.recentQueries.isNotEmpty()) {
                 item { SectionTitle(title = "Recent Queries") }
                 item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(state.recentQueries, key = { it }) { recentQuery ->
                             PremiumChip(
                                 label = recentQuery,
@@ -444,7 +445,7 @@ fun SearchScreen(
             if (query.isNotBlank() && state.suggestions.isNotEmpty()) {
                 item { SectionTitle(title = "Suggestions") }
                 item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(state.suggestions, key = { it }) { suggestion ->
                             PremiumChip(
                                 label = suggestion,
@@ -458,7 +459,7 @@ fun SearchScreen(
             if (state.result.artists.isNotEmpty()) {
                 item { SectionTitle(title = "Artists") }
                 item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(state.result.artists, key = { it.id }) { artist ->
                             PremiumChip(
                                 label = artist.name,
@@ -472,7 +473,7 @@ fun SearchScreen(
             if (state.result.albums.isNotEmpty()) {
                 item { SectionTitle(title = "Albums") }
                 item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         items(state.result.albums, key = { it.id }) { album ->
                             PremiumAlbumCard(album = album, onClick = { onOpenAlbum(album.id) })
                         }
@@ -514,8 +515,8 @@ private fun PremiumPlaylistRow(
                 label = playlist.name,
                 modifier =
                     Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(14.dp)),
+                        .size(58.dp)
+                        .clip(RoundedCornerShape(12.dp)),
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -553,15 +554,63 @@ private fun SearchField(
     val displayFocusRequester = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
     var restoreDisplayFocus by remember { mutableStateOf(false) }
+    var pendingExitDirection by remember { mutableStateOf<FocusDirection?>(null) }
 
-    fun stopEditing() {
+    fun stopEditing(direction: FocusDirection? = null) {
         keyboardController?.hide()
         focusManager.clearFocus(force = true)
+        pendingExitDirection = direction
         restoreDisplayFocus = true
         onEditingChange(false)
     }
 
-    LaunchedEffect(editing, restoreDisplayFocus) {
+    SearchFieldFocusEffect(
+        editing = editing,
+        restoreDisplayFocus = restoreDisplayFocus,
+        editFocusRequester = editFocusRequester,
+        displayFocusRequester = displayFocusRequester,
+        keyboardController = keyboardController,
+        focusManager = focusManager,
+        pendingExitDirection = pendingExitDirection,
+        onRestoreConsumed = {
+            pendingExitDirection = null
+            restoreDisplayFocus = false
+        },
+    )
+
+    if (editing) {
+        EditingSearchField(
+            value = value,
+            onValueChange = onValueChange,
+            label = label,
+            placeholder = placeholder,
+            focusRequester = editFocusRequester,
+            onKeyExit = ::stopEditing,
+        )
+    } else {
+        SearchDisplayField(
+            value = value,
+            label = label,
+            focused = focused,
+            focusRequester = displayFocusRequester,
+            onFocusedChange = { focused = it },
+            onClick = { onEditingChange(true) },
+        )
+    }
+}
+
+@Composable
+private fun SearchFieldFocusEffect(
+    editing: Boolean,
+    restoreDisplayFocus: Boolean,
+    editFocusRequester: FocusRequester,
+    displayFocusRequester: FocusRequester,
+    keyboardController: androidx.compose.ui.platform.SoftwareKeyboardController?,
+    focusManager: androidx.compose.ui.focus.FocusManager,
+    pendingExitDirection: FocusDirection?,
+    onRestoreConsumed: () -> Unit,
+) {
+    LaunchedEffect(editing, restoreDisplayFocus, pendingExitDirection) {
         when {
             editing -> {
                 editFocusRequester.requestFocus()
@@ -569,75 +618,111 @@ private fun SearchField(
             }
             restoreDisplayFocus -> {
                 displayFocusRequester.requestFocus()
-                restoreDisplayFocus = false
+                pendingExitDirection?.let { focusManager.moveFocus(it) }
+                onRestoreConsumed()
             }
         }
     }
+}
 
-    if (editing) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            label = label,
-            placeholder = placeholder,
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-            keyboardOptions = KeyboardOptions.Default,
-            visualTransformation = VisualTransformation.None,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .focusRequester(editFocusRequester)
-                    .onPreviewKeyEvent {
-                        if (it.type == KeyEventType.KeyDown && it.key == Key.Back) {
-                            stopEditing()
+@Composable
+private fun EditingSearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: @Composable () -> Unit,
+    placeholder: @Composable () -> Unit,
+    focusRequester: FocusRequester,
+    onKeyExit: (FocusDirection?) -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = label,
+        placeholder = placeholder,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+        keyboardOptions = KeyboardOptions.Default,
+        visualTransformation = VisualTransformation.None,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent {
+                    if (it.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+                    when {
+                        it.key == Key.Back -> {
+                            onKeyExit(null)
                             true
-                        } else {
-                            false
                         }
-                    },
-            colors = searchFieldColors(),
-        )
-    } else {
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .focusRequester(displayFocusRequester)
-                    .scale(if (focused) 1.01f else 1f)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
-                    .border(
-                        width = if (focused) 2.dp else 1.dp,
-                        color =
-                            if (focused) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.outline
-                            },
-                        shape = RoundedCornerShape(18.dp),
-                    )
-                    .onFocusChanged { focused = it.hasFocus }
-                    .focusable()
-                    .clickable { onEditingChange(true) }
-                    .padding(horizontal = 18.dp, vertical = 14.dp),
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box { label() }
-                Text(
-                    text = if (value.isNotBlank()) value else "Artist, album, or track",
-                    style = MaterialTheme.typography.bodyLarge,
+                        searchFieldFocusDirection(it.key) != null -> {
+                            onKeyExit(searchFieldFocusDirection(it.key))
+                            true
+                        }
+                        else -> false
+                    }
+                },
+        colors = searchFieldColors(),
+    )
+}
+
+@Composable
+private fun SearchDisplayField(
+    value: String,
+    label: @Composable () -> Unit,
+    focused: Boolean,
+    focusRequester: FocusRequester,
+    onFocusedChange: (Boolean) -> Unit,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .scale(if (focused) 1.005f else 1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
                     color =
-                        if (value.isNotBlank()) {
-                            MaterialTheme.colorScheme.onSurface
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                            MaterialTheme.colorScheme.outline
                         },
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    shape = RoundedCornerShape(16.dp),
                 )
-            }
+                .onFocusChanged { onFocusedChange(it.hasFocus) }
+                .focusable()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box { label() }
+            Text(
+                text = if (value.isNotBlank()) value else "Artist, album, or track",
+                style = MaterialTheme.typography.bodyLarge,
+                color =
+                    if (value.isNotBlank()) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
+    }
+}
+
+private fun searchFieldFocusDirection(key: Key): FocusDirection? {
+    return when (key) {
+        Key.DirectionUp -> FocusDirection.Up
+        Key.DirectionDown -> FocusDirection.Down
+        Key.DirectionLeft -> FocusDirection.Left
+        Key.DirectionRight -> FocusDirection.Right
+        else -> null
     }
 }
 
@@ -677,7 +762,7 @@ private fun PremiumAlbumCard(
     onClick: () -> Unit,
 ) {
     FocusScaleCard(
-        modifier = Modifier.width(220.dp),
+        modifier = Modifier.width(196.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -685,8 +770,8 @@ private fun PremiumAlbumCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
-                        .clip(RoundedCornerShape(20.dp))
+                        .height(196.dp)
+                        .clip(RoundedCornerShape(18.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f)),
             ) {
                 if (album.artUrl != null) {
@@ -776,9 +861,7 @@ private fun PremiumChip(
     onClick: () -> Unit,
 ) {
     FocusScaleCard(
-        modifier =
-            Modifier
-                .width(196.dp),
+        modifier = Modifier.width(172.dp),
         onClick = onClick,
     ) {
         Text(
@@ -846,13 +929,11 @@ private fun PlaylistArtworkGrid(
 
 @Composable
 private fun SectionTitle(title: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
+    Text(
+        text = title,
+        style = MaterialTheme.typography.headlineSmall,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
 }
 
 @Composable
@@ -866,27 +947,27 @@ private fun BrowseActionButton(
     Box(
         modifier =
             modifier
-                .scale(if (focused) 1.02f else 1f)
-                .clip(RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.86f))
+                .scale(if (focused) 1.01f else 1f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = if (focused) 0.94f else 0.84f))
                 .border(
                     width = if (focused) 3.dp else 1.dp,
                     color =
                         if (focused) {
-                            MaterialTheme.colorScheme.primary
+                            MaterialTheme.colorScheme.onSurface
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(18.dp),
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 18.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 11.dp),
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onSurface,
+            androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onPrimary,
         ) {
             content()
         }

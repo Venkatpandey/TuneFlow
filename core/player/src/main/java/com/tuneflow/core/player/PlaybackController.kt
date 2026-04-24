@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 interface PlaybackController {
     val queue: StateFlow<PlaybackQueue>
     val isPlaying: StateFlow<Boolean>
+    val playbackStatus: StateFlow<PlaybackStatus>
 
     fun play()
 
@@ -15,6 +16,10 @@ interface PlaybackController {
     fun previous()
 
     fun seekTo(positionMs: Long)
+
+    fun playFromIndex(index: Int)
+
+    fun retryCurrent()
 
     fun stopAndClear()
 

@@ -3,7 +3,9 @@ package com.tuneflow.feature.playback
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tuneflow.core.player.PlaybackController
+import com.tuneflow.core.player.PlaybackPhase
 import com.tuneflow.core.player.PlaybackQueue
+import com.tuneflow.core.player.PlaybackStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +21,8 @@ data class NowPlayingUiState(
     val isPlaying: Boolean = false,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
+    val playbackStatus: PlaybackStatus = PlaybackStatus(),
+    val statusMessage: String? = null,
 )
 
 class PlaybackViewModel(
@@ -32,12 +36,14 @@ class PlaybackViewModel(
     init {
         val scope = scopeOverride ?: viewModelScope
         scope.launch {
-            combine(playerManager.queue, playerManager.isPlaying) { queue, isPlaying ->
+            combine(playerManager.queue, playerManager.isPlaying, playerManager.playbackStatus) { queue, isPlaying, playbackStatus ->
                 NowPlayingUiState(
                     queue = queue,
                     isPlaying = isPlaying,
                     positionMs = playerManager.currentPositionMs(),
                     durationMs = playerManager.durationMs(),
+                    playbackStatus = playbackStatus,
+                    statusMessage = buildStatusMessage(playbackStatus, isPlaying),
                 )
             }.collect {
                 _uiState.value = it
@@ -73,6 +79,25 @@ class PlaybackViewModel(
     fun previous() = playerManager.previous()
 
     fun seekTo(positionMs: Long) = playerManager.seekTo(positionMs)
+
+    fun playFromIndex(index: Int) = playerManager.playFromIndex(index)
+
+    fun retry() = playerManager.retryCurrent()
+}
+
+private fun buildStatusMessage(
+    playbackStatus: PlaybackStatus,
+    isPlaying: Boolean,
+): String? {
+    playbackStatus.errorMessage?.let { return it }
+
+    return when {
+        playbackStatus.expectedToPlay && !isPlaying && playbackStatus.phase == PlaybackPhase.Buffering ->
+            "Buffering audio stream..."
+        playbackStatus.expectedToPlay && !isPlaying && playbackStatus.phase == PlaybackPhase.Ready ->
+            "Playback is ready but audio has not started."
+        else -> null
+    }
 }
 
 private fun defaultTickerFlow(intervalMs: Long = 1000L): Flow<Unit> =

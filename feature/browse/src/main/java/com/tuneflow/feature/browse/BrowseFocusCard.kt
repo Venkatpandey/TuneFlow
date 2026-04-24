@@ -29,8 +29,8 @@ internal fun FocusScaleCard(
     Box(
         modifier =
             modifier
-                .scale(if (focused) 1.02f else 1f)
-                .clip(RoundedCornerShape(20.dp))
+                .scale(if (focused) 1.01f else 1f)
+                .clip(RoundedCornerShape(18.dp))
                 .background(
                     if (focused) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
@@ -46,12 +46,12 @@ internal fun FocusScaleCard(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(18.dp),
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .padding(14.dp),
+                .padding(12.dp),
     ) {
         content()
     }

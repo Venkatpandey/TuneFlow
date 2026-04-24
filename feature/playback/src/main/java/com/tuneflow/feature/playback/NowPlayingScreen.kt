@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +35,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
@@ -46,6 +48,8 @@ import android.view.KeyEvent as AndroidKeyEvent
 @Composable
 fun NowPlayingScreen(
     viewModel: PlaybackViewModel,
+    autoFocusTransport: Boolean,
+    onAutoFocusConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -62,7 +66,7 @@ fun NowPlayingScreen(
         modifier =
             modifier
                 .fillMaxSize()
-                .onPreviewKeyEvent { event -> handlePlaybackKey(event, viewModel) },
+                .onPreviewKeyEvent { event -> handleTransportMediaKey(event, viewModel) },
     ) {
         if (item?.artUrl != null) {
             AsyncImage(
@@ -70,7 +74,7 @@ fun NowPlayingScreen(
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
-                alpha = 0.22f,
+                alpha = 0.18f,
             )
         }
 
@@ -78,131 +82,152 @@ fun NowPlayingScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.52f)),
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.54f)),
         )
 
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
+        if (!autoFocusTransport) {
             ScreenInitialFocusAnchor()
-            Box(
+        }
+
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(22.dp),
+        ) {
+            Column(
                 modifier =
                     Modifier
-                        .padding(horizontal = 12.dp)
-                        .height(320.dp)
-                        .fillMaxWidth(0.34f)
-                        .background(
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-                            shape = RoundedCornerShape(28.dp),
-                        ),
-                contentAlignment = Alignment.Center,
+                        .weight(1f)
+                        .fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                if (item?.artUrl != null) {
-                    AsyncImage(
-                        model = item.artUrl,
-                        contentDescription = item.title,
-                        contentScale = ContentScale.Crop,
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                    )
-                } else {
-                    Text(
-                        text = "TuneFlow",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(26.dp))
-
-            Text(
-                text = item?.title ?: "Nothing playing",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                text = item?.artist ?: "",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = item?.album ?: "",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            Spacer(Modifier.height(22.dp))
-
-            Column(modifier = Modifier.fillMaxWidth(0.54f)) {
-                LinearProgressIndicator(
-                    progress = { progress.coerceIn(0f, 1f) },
+                Box(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .height(8.dp),
-                )
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                            .height(260.dp)
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
+                            .padding(14.dp),
+                    contentAlignment = Alignment.CenterStart,
                 ) {
-                    Text(
-                        text = formatTime(state.positionMs),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(232.dp)
+                                .clip(RoundedCornerShape(22.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (item?.artUrl != null) {
+                            AsyncImage(
+                                model = item.artUrl,
+                                contentDescription = item.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            Text(
+                                text = "TuneFlow",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    text = item?.title ?: "Nothing playing",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = item?.artist ?: "",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = item?.album ?: "",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                if (state.statusMessage != null) {
+                    PlaybackStatusCard(
+                        message = state.statusMessage.orEmpty(),
+                        onRetry = viewModel::retry,
                     )
-                    Text(
-                        text = formatTime(state.durationMs),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LinearProgressIndicator(
+                        progress = { progress.coerceIn(0f, 1f) },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = formatTime(state.positionMs),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = formatTime(state.durationMs),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    PlaybackTextButton(
+                        label = "Previous",
+                        onClick = viewModel::previous,
+                        modifier = Modifier.weight(1f),
+                    )
+                    PlaybackTextButton(
+                        label = if (state.isPlaying) "Pause" else "Play",
+                        accent = true,
+                        onClick = viewModel::togglePlayPause,
+                        modifier = Modifier.weight(1.1f),
+                        requestFocus = autoFocusTransport,
+                        onRequestedFocusApplied = onAutoFocusConsumed,
+                    )
+                    PlaybackTextButton(
+                        label = "Next",
+                        onClick = viewModel::next,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                PlaybackTextButton(
-                    label = "Previous",
-                    onClick = viewModel::previous,
-                )
-                PlaybackTextButton(
-                    label = if (state.isPlaying) "Pause" else "Play",
-                    accent = true,
-                    onClick = viewModel::togglePlayPause,
-                )
-                PlaybackTextButton(
-                    label = "Next",
-                    onClick = viewModel::next,
-                )
-            }
+            QueuePanel(
+                title = "Up Next",
+                state = state,
+                onSelectTrack = viewModel::playFromIndex,
+            )
         }
     }
 }
 
-private fun handlePlaybackKey(
+private fun handleTransportMediaKey(
     event: androidx.compose.ui.input.key.KeyEvent,
     viewModel: PlaybackViewModel,
 ): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
 
     return when (event.nativeKeyEvent.keyCode) {
-        AndroidKeyEvent.KEYCODE_DPAD_CENTER,
-        AndroidKeyEvent.KEYCODE_ENTER,
-        AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-        -> {
+        AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
             viewModel.togglePlayPause()
             true
         }
@@ -217,16 +242,12 @@ private fun handlePlaybackKey(
             true
         }
 
-        AndroidKeyEvent.KEYCODE_DPAD_RIGHT,
-        AndroidKeyEvent.KEYCODE_MEDIA_NEXT,
-        -> {
+        AndroidKeyEvent.KEYCODE_MEDIA_NEXT -> {
             viewModel.next()
             true
         }
 
-        AndroidKeyEvent.KEYCODE_DPAD_LEFT,
-        AndroidKeyEvent.KEYCODE_MEDIA_PREVIOUS,
-        -> {
+        AndroidKeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
             viewModel.previous()
             true
         }
@@ -236,9 +257,49 @@ private fun handlePlaybackKey(
 }
 
 @Composable
-private fun PlaybackTextButton(
-    label: String,
-    accent: Boolean = false,
+private fun QueuePanel(
+    title: String,
+    state: NowPlayingUiState,
+    onSelectTrack: (Int) -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .width(312.dp)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(26.dp))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.76f))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
+                    shape = RoundedCornerShape(26.dp),
+                )
+                .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            itemsIndexed(state.queue.items, key = { _, track -> track.id }) { index, track ->
+                QueueRow(
+                    title = track.title,
+                    subtitle = track.artist,
+                    isCurrent = index == state.queue.currentIndex,
+                    onClick = { onSelectTrack(index) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueueRow(
+    title: String,
+    subtitle: String,
+    isCurrent: Boolean,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -246,8 +307,107 @@ private fun PlaybackTextButton(
     Box(
         modifier =
             Modifier
-                .scale(if (focused) 1.02f else 1f)
-                .clip(RoundedCornerShape(24.dp))
+                .fillMaxWidth()
+                .scale(if (focused) 1.01f else 1f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    when {
+                        focused -> MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                        isCurrent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f)
+                    },
+                )
+                .border(
+                    width = if (focused || isCurrent) 2.dp else 1.dp,
+                    color =
+                        when {
+                            focused || isCurrent -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
+                        },
+                    shape = RoundedCornerShape(18.dp),
+                )
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaybackStatusCard(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                    shape = RoundedCornerShape(22.dp),
+                )
+                .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        PlaybackTextButton(
+            label = "Retry",
+            accent = true,
+            onClick = onRetry,
+            modifier = Modifier.width(156.dp),
+        )
+    }
+}
+
+@Composable
+private fun PlaybackTextButton(
+    label: String,
+    accent: Boolean = false,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    requestFocus: Boolean = false,
+    onRequestedFocusApplied: () -> Unit = {},
+) {
+    var focused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(requestFocus) {
+        if (requestFocus) {
+            focusRequester.requestFocus()
+            onRequestedFocusApplied()
+        }
+    }
+
+    Box(
+        modifier =
+            modifier
+                .focusRequester(focusRequester)
+                .scale(if (focused) 1.01f else 1f)
+                .clip(RoundedCornerShape(22.dp))
                 .background(
                     if (accent) {
                         MaterialTheme.colorScheme.primary
@@ -263,30 +423,16 @@ private fun PlaybackTextButton(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(22.dp),
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
-                .clickable(onClick = onClick)
-                .onKeyEvent {
-                    if (it.type == KeyEventType.KeyDown &&
-                        it.nativeKeyEvent.keyCode in
-                        listOf(
-                            AndroidKeyEvent.KEYCODE_DPAD_CENTER,
-                            AndroidKeyEvent.KEYCODE_ENTER,
-                        )
-                    ) {
-                        onClick()
-                        true
-                    } else {
-                        false
-                    }
-                },
+                .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
-            modifier = Modifier.padding(horizontal = if (accent) 34.dp else 24.dp, vertical = 16.dp),
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 15.dp),
             color = if (accent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
