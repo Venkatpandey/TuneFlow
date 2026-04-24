@@ -296,38 +296,42 @@ class TvPlayerManager(
 
     private fun tryFallbackForCurrentItem(): Boolean {
         val queue = _queue.value
-        val currentItem = queue.currentItem ?: return false
-        val fallbackUrl = currentItem.fallbackStreamUrl ?: return false
-        if (currentItem.streamUrl == fallbackUrl) return false
+        val currentItem = queue.currentItem
+        val fallbackUrl = currentItem?.fallbackStreamUrl
+        val shouldFallback = currentItem != null && !fallbackUrl.isNullOrBlank() && currentItem.streamUrl != fallbackUrl
 
-        val updatedItems =
-            queue.items.mapIndexed { index, item ->
-                if (index == queue.currentIndex) {
-                    item.copy(
-                        streamUrl = fallbackUrl,
-                        fallbackStreamUrl = null,
-                        streamFormatLabel = "MP3",
-                        streamBitrateLabel = "Max",
-                    )
-                } else {
-                    item
+        if (shouldFallback) {
+            val resolvedFallbackUrl = checkNotNull(fallbackUrl)
+            val updatedItems =
+                queue.items.mapIndexed { index, item ->
+                    if (index == queue.currentIndex) {
+                        item.copy(
+                            streamUrl = resolvedFallbackUrl,
+                            fallbackStreamUrl = null,
+                            streamFormatLabel = "MP3",
+                            streamBitrateLabel = "Max",
+                        )
+                    } else {
+                        item
+                    }
                 }
-            }
 
-        val updatedQueue =
-            queue.copy(
-                items = updatedItems,
-                currentPositionMs = player.currentPosition.coerceAtLeast(0L),
-            )
+            val updatedQueue =
+                queue.copy(
+                    items = updatedItems,
+                    currentPositionMs = player.currentPosition.coerceAtLeast(0L),
+                )
 
-        _queue.value = updatedQueue
-        lastError = null
-        player.setMediaItems(updatedItems.map { it.toMediaItem() }, updatedQueue.currentIndex, updatedQueue.currentPositionMs)
-        player.prepare()
-        player.play()
-        scheduleFallbackMonitor()
-        persist()
-        return true
+            _queue.value = updatedQueue
+            lastError = null
+            player.setMediaItems(updatedItems.map { it.toMediaItem() }, updatedQueue.currentIndex, updatedQueue.currentPositionMs)
+            player.prepare()
+            player.play()
+            scheduleFallbackMonitor()
+            persist()
+        }
+
+        return shouldFallback
     }
 
     private fun updateQueueIndex(index: Int) {

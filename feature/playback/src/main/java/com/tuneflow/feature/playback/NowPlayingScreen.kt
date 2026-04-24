@@ -1,6 +1,5 @@
 package com.tuneflow.feature.playback
 
-import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
 fun NowPlayingScreen(
