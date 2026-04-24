@@ -1,5 +1,6 @@
 package com.tuneflow.feature.playback
 
+import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,7 +44,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
 fun NowPlayingScreen(
@@ -157,6 +157,11 @@ fun NowPlayingScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
 
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StreamBadge(label = item?.streamFormatLabel ?: "--")
+                    StreamBadge(label = item?.streamBitrateLabel ?: "--")
+                }
+
                 if (state.statusMessage != null) {
                     PlaybackStatusCard(
                         message = state.statusMessage.orEmpty(),
@@ -217,6 +222,28 @@ fun NowPlayingScreen(
                 onSelectTrack = viewModel::playFromIndex,
             )
         }
+    }
+}
+
+@Composable
+private fun StreamBadge(label: String) {
+    Box(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                    shape = RoundedCornerShape(14.dp),
+                )
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
