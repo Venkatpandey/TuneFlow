@@ -41,73 +41,73 @@ class TvPlayerManager(
         ExoPlayer.Builder(appContext)
             .setHandleAudioBecomingNoisy(true)
             .build().also { exo ->
-            exo.setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .build(),
-                true,
-            )
-            exo.playWhenReady = true
-            exo.addListener(
-                object : Player.Listener {
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        _isPlaying.value = isPlaying
-                        if (isPlaying) {
-                            lastError = null
+                exo.setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(C.USAGE_MEDIA)
+                        .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                        .build(),
+                    true,
+                )
+                exo.playWhenReady = true
+                exo.addListener(
+                    object : Player.Listener {
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            _isPlaying.value = isPlaying
+                            if (isPlaying) {
+                                lastError = null
+                            }
+                            updatePlaybackStatus()
                         }
-                        updatePlaybackStatus()
-                    }
 
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        if (playbackState == Player.STATE_ENDED) {
-                            expectedToPlay = false
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            if (playbackState == Player.STATE_ENDED) {
+                                expectedToPlay = false
+                            }
+                            if (playbackState == Player.STATE_READY && exo.isPlaying) {
+                                lastError = null
+                            }
+                            updateQueueIndex(exo.currentMediaItemIndex)
+                            updatePlaybackStatus()
                         }
-                        if (playbackState == Player.STATE_READY && exo.isPlaying) {
-                            lastError = null
+
+                        override fun onPlayWhenReadyChanged(
+                            playWhenReady: Boolean,
+                            reason: Int,
+                        ) {
+                            if (!playWhenReady && !exo.isPlaying) {
+                                expectedToPlay = false
+                            }
+                            updatePlaybackStatus()
                         }
-                        updateQueueIndex(exo.currentMediaItemIndex)
-                        updatePlaybackStatus()
-                    }
 
-                    override fun onPlayWhenReadyChanged(
-                        playWhenReady: Boolean,
-                        reason: Int,
-                    ) {
-                        if (!playWhenReady && !exo.isPlaying) {
-                            expectedToPlay = false
+                        override fun onMediaItemTransition(
+                            mediaItem: MediaItem?,
+                            reason: Int,
+                        ) {
+                            updateQueueIndex(exo.currentMediaItemIndex)
+                            updatePlaybackStatus()
+                            persist()
                         }
-                        updatePlaybackStatus()
-                    }
 
-                    override fun onMediaItemTransition(
-                        mediaItem: MediaItem?,
-                        reason: Int,
-                    ) {
-                        updateQueueIndex(exo.currentMediaItemIndex)
-                        updatePlaybackStatus()
-                        persist()
-                    }
+                        override fun onPositionDiscontinuity(
+                            oldPosition: Player.PositionInfo,
+                            newPosition: Player.PositionInfo,
+                            reason: Int,
+                        ) {
+                            _queue.update { it.seek(exo.currentPosition) }
+                            updateQueueIndex(exo.currentMediaItemIndex)
+                            updatePlaybackStatus()
+                        }
 
-                    override fun onPositionDiscontinuity(
-                        oldPosition: Player.PositionInfo,
-                        newPosition: Player.PositionInfo,
-                        reason: Int,
-                    ) {
-                        _queue.update { it.seek(exo.currentPosition) }
-                        updateQueueIndex(exo.currentMediaItemIndex)
-                        updatePlaybackStatus()
-                    }
-
-                    override fun onPlayerError(error: PlaybackException) {
-                        lastError = error
-                        _isPlaying.value = false
-                        updatePlaybackStatus()
-                    }
-                },
-            )
-            updatePlaybackStatus()
-        }
+                        override fun onPlayerError(error: PlaybackException) {
+                            lastError = error
+                            _isPlaying.value = false
+                            updatePlaybackStatus()
+                        }
+                    },
+                )
+                updatePlaybackStatus()
+            }
 
     suspend fun restore() {
         val restored =
