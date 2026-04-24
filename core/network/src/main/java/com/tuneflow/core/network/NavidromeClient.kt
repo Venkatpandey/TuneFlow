@@ -177,9 +177,15 @@ open class NavidromeClient(private val session: SessionData) {
         }
     }
 
-    open fun streamUrl(trackId: String): String {
-        return "${session.serverUrl}/rest/stream.view" +
-            "?id=$trackId&u=${session.username}&t=${session.token}&s=${session.salt}&v=1.16.1&c=TuneFlow&f=json"
+    open fun streamOptions(trackId: String): TrackStreamOptions {
+        val base =
+            "${session.serverUrl}/rest/stream.view" +
+                "?id=$trackId&u=${session.username}&t=${session.token}&s=${session.salt}&v=1.16.1&c=TuneFlow&f=json"
+
+        return TrackStreamOptions(
+            directUrl = "$base&format=raw",
+            fallbackMp3Url = "$base&format=mp3&maxBitRate=0",
+        )
     }
 
     private inline fun <T> safeCall(block: () -> NetworkResult<T>): NetworkResult<T> {

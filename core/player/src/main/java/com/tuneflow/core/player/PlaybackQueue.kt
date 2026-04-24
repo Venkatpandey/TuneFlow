@@ -10,6 +10,9 @@ data class QueueItem(
     val album: String,
     val artUrl: String? = null,
     val streamUrl: String,
+    val fallbackStreamUrl: String? = null,
+    val streamFormatLabel: String = "FLAC",
+    val streamBitrateLabel: String = "Original",
     val durationMs: Long = 0L,
 )
 

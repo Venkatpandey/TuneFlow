@@ -10,7 +10,9 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +29,7 @@ class TvPlayerManager(
     private val appContext = context.applicationContext
     private var lastError: PlaybackException? = null
     private var expectedToPlay = false
+    private var fallbackMonitorJob: Job? = null
 
     private val _queue = MutableStateFlow(PlaybackQueue())
     override val queue: StateFlow<PlaybackQueue> = _queue.asStateFlow()
@@ -55,16 +58,33 @@ class TvPlayerManager(
                             _isPlaying.value = isPlaying
                             if (isPlaying) {
                                 lastError = null
+                                cancelFallbackMonitor()
+                            } else if (expectedToPlay) {
+                                scheduleFallbackMonitor()
                             }
                             updatePlaybackStatus()
                         }
 
                         override fun onPlaybackStateChanged(playbackState: Int) {
-                            if (playbackState == Player.STATE_ENDED) {
-                                expectedToPlay = false
-                            }
-                            if (playbackState == Player.STATE_READY && exo.isPlaying) {
-                                lastError = null
+                            when (playbackState) {
+                                Player.STATE_BUFFERING -> {
+                                    if (expectedToPlay) scheduleFallbackMonitor()
+                                }
+                                Player.STATE_READY -> {
+                                    if (exo.isPlaying) {
+                                        lastError = null
+                                        cancelFallbackMonitor()
+                                    } else if (expectedToPlay) {
+                                        scheduleFallbackMonitor()
+                                    }
+                                }
+                                Player.STATE_ENDED -> {
+                                    expectedToPlay = false
+                                    cancelFallbackMonitor()
+                                }
+                                Player.STATE_IDLE -> {
+                                    if (expectedToPlay) scheduleFallbackMonitor()
+                                }
                             }
                             updateQueueIndex(exo.currentMediaItemIndex)
                             updatePlaybackStatus()
@@ -76,6 +96,7 @@ class TvPlayerManager(
                         ) {
                             if (!playWhenReady && !exo.isPlaying) {
                                 expectedToPlay = false
+                                cancelFallbackMonitor()
                             }
                             updatePlaybackStatus()
                         }
@@ -85,6 +106,9 @@ class TvPlayerManager(
                             reason: Int,
                         ) {
                             updateQueueIndex(exo.currentMediaItemIndex)
+                            if (expectedToPlay) {
+                                scheduleFallbackMonitor()
+                            }
                             updatePlaybackStatus()
                             persist()
                         }
@@ -101,7 +125,10 @@ class TvPlayerManager(
 
                         override fun onPlayerError(error: PlaybackException) {
                             lastError = error
-                            _isPlaying.value = false
+                            if (!tryFallbackForCurrentItem()) {
+                                _isPlaying.value = false
+                                cancelFallbackMonitor()
+                            }
                             updatePlaybackStatus()
                         }
                     },
@@ -138,6 +165,7 @@ class TvPlayerManager(
         player.setMediaItems(mediaItems, queue.currentIndex, 0L)
         player.prepare()
         player.play()
+        scheduleFallbackMonitor()
         updatePlaybackStatus()
         persist()
     }
@@ -147,12 +175,14 @@ class TvPlayerManager(
         lastError = null
         expectedToPlay = true
         player.play()
+        scheduleFallbackMonitor()
         updatePlaybackStatus()
     }
 
     override fun pause() {
         expectedToPlay = false
         player.pause()
+        cancelFallbackMonitor()
         updatePlaybackStatus()
         persist()
     }
@@ -178,6 +208,7 @@ class TvPlayerManager(
         }
         player.play()
         updateQueueIndex(clamped)
+        scheduleFallbackMonitor()
         updatePlaybackStatus()
         persist()
     }
@@ -191,12 +222,14 @@ class TvPlayerManager(
         }
         player.playWhenReady = true
         player.play()
+        scheduleFallbackMonitor()
         updatePlaybackStatus()
     }
 
     override fun stopAndClear() {
         expectedToPlay = false
         lastError = null
+        cancelFallbackMonitor()
         player.stop()
         player.clearMediaItems()
         _queue.value = PlaybackQueue()
@@ -212,6 +245,7 @@ class TvPlayerManager(
         expectedToPlay = player.playWhenReady || _isPlaying.value
         player.seekToNextMediaItem()
         updateQueueIndex(player.currentMediaItemIndex)
+        scheduleFallbackMonitor()
         updatePlaybackStatus()
         persist()
     }
@@ -221,6 +255,7 @@ class TvPlayerManager(
         expectedToPlay = player.playWhenReady || _isPlaying.value
         player.seekToPreviousMediaItem()
         updateQueueIndex(player.currentMediaItemIndex)
+        scheduleFallbackMonitor()
         updatePlaybackStatus()
         persist()
     }
@@ -230,8 +265,73 @@ class TvPlayerManager(
     override fun durationMs(): Long = player.duration.coerceAtLeast(0L)
 
     fun release() {
+        cancelFallbackMonitor()
         persist()
         player.release()
+    }
+
+    private fun scheduleFallbackMonitor() {
+        cancelFallbackMonitor()
+
+        val queueSnapshot = _queue.value
+        val trackIndex = queueSnapshot.currentIndex
+        val track = queueSnapshot.currentItem ?: return
+        if (track.fallbackStreamUrl.isNullOrBlank()) return
+
+        fallbackMonitorJob =
+            scope.launch {
+                delay(5_000L)
+                if (!expectedToPlay) return@launch
+                if (_queue.value.currentIndex != trackIndex) return@launch
+                if (player.isPlaying) return@launch
+                tryFallbackForCurrentItem()
+                updatePlaybackStatus()
+            }
+    }
+
+    private fun cancelFallbackMonitor() {
+        fallbackMonitorJob?.cancel()
+        fallbackMonitorJob = null
+    }
+
+    private fun tryFallbackForCurrentItem(): Boolean {
+        val queue = _queue.value
+        val currentItem = queue.currentItem
+        val fallbackUrl = currentItem?.fallbackStreamUrl
+        val shouldFallback = currentItem != null && !fallbackUrl.isNullOrBlank() && currentItem.streamUrl != fallbackUrl
+
+        if (shouldFallback) {
+            val resolvedFallbackUrl = checkNotNull(fallbackUrl)
+            val updatedItems =
+                queue.items.mapIndexed { index, item ->
+                    if (index == queue.currentIndex) {
+                        item.copy(
+                            streamUrl = resolvedFallbackUrl,
+                            fallbackStreamUrl = null,
+                            streamFormatLabel = "MP3",
+                            streamBitrateLabel = "Max",
+                        )
+                    } else {
+                        item
+                    }
+                }
+
+            val updatedQueue =
+                queue.copy(
+                    items = updatedItems,
+                    currentPositionMs = player.currentPosition.coerceAtLeast(0L),
+                )
+
+            _queue.value = updatedQueue
+            lastError = null
+            player.setMediaItems(updatedItems.map { it.toMediaItem() }, updatedQueue.currentIndex, updatedQueue.currentPositionMs)
+            player.prepare()
+            player.play()
+            scheduleFallbackMonitor()
+            persist()
+        }
+
+        return shouldFallback
     }
 
     private fun updateQueueIndex(index: Int) {

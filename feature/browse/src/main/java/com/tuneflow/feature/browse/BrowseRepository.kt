@@ -18,6 +18,7 @@ import com.tuneflow.core.network.SearchBundle
 import com.tuneflow.core.network.SessionData
 import com.tuneflow.core.network.SessionProvider
 import com.tuneflow.core.network.SessionStore
+import com.tuneflow.core.network.TrackStreamOptions
 import com.tuneflow.core.network.toBundle
 import com.tuneflow.core.network.toDetail
 import com.tuneflow.core.network.toFavoritesBundle
@@ -141,9 +142,15 @@ class BrowseRepository(
         }
     }
 
-    suspend fun streamUrl(trackId: String): String {
-        val sessionClient = requireSessionClient().getOrElse { return "" }
-        return sessionClient.client.streamUrl(trackId)
+    suspend fun streamOptions(trackId: String): TrackStreamOptions {
+        val sessionClient =
+            requireSessionClient().getOrElse {
+                return TrackStreamOptions(
+                    directUrl = "",
+                    fallbackMp3Url = "",
+                )
+            }
+        return sessionClient.client.streamOptions(trackId)
     }
 
     private fun requireClient(session: SessionData): NavidromeClient {

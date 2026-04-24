@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,8 +46,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tuneflow.core.network.PlaybackPreferencesStore
 import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
+import com.tuneflow.core.network.TrackStreamOptions
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlayerGraph
 import com.tuneflow.core.player.QueueItem
@@ -68,6 +71,7 @@ class MainActivity : ComponentActivity() {
 
         val sessionStore = SessionStore(applicationContext)
         val searchHistoryStore = SearchHistoryStore(applicationContext)
+        val playbackPreferencesStore = PlaybackPreferencesStore(applicationContext)
         val authRepository = AuthRepository(sessionStore)
         val browseRepository = BrowseRepository(sessionStore)
         val playerManager = PlayerGraph.get(applicationContext)
@@ -92,6 +96,7 @@ class MainActivity : ComponentActivity() {
                         browseRepository = browseRepository,
                         playerManager = playerManager,
                         sessionStore = sessionStore,
+                        playbackPreferencesStore = playbackPreferencesStore,
                         searchHistoryStore = searchHistoryStore,
                         onLogout = {
                             playerManager.stopAndClear()
@@ -104,14 +109,20 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun com.tuneflow.core.network.TrackSummary.toQueueItem(streamUrl: String): QueueItem {
+private fun com.tuneflow.core.network.TrackSummary.toQueueItem(
+    streamOptions: TrackStreamOptions,
+    preferDirectWithFallback: Boolean,
+): QueueItem {
     return QueueItem(
         id = id,
         title = title,
         artist = artist,
         album = album,
         artUrl = artUrl,
-        streamUrl = streamUrl,
+        streamUrl = if (preferDirectWithFallback) streamOptions.directUrl else streamOptions.fallbackMp3Url,
+        fallbackStreamUrl = if (preferDirectWithFallback) streamOptions.fallbackMp3Url else null,
+        streamFormatLabel = if (preferDirectWithFallback) "FLAC" else "MP3",
+        streamBitrateLabel = if (preferDirectWithFallback) "Original" else "Max",
         durationMs = durationSec * 1000L,
     )
 }
@@ -125,6 +136,7 @@ private fun TuneFlowShell(
     browseRepository: BrowseRepository,
     playerManager: com.tuneflow.core.player.TvPlayerManager,
     sessionStore: SessionStore,
+    playbackPreferencesStore: PlaybackPreferencesStore,
     searchHistoryStore: SearchHistoryStore,
     onLogout: () -> Unit,
 ) {
@@ -142,6 +154,7 @@ private fun TuneFlowShell(
     val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel = viewModel(factory = PlaybackViewModelFactory(playerManager))
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
+    val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = true)
 
     var currentSection by rememberSaveable { mutableStateOf(NavSection.Home) }
     var selectedAlbumId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -200,7 +213,8 @@ private fun TuneFlowShell(
             val queue =
                 tracks.map { track ->
                     track.toQueueItem(
-                        streamUrl = browseRepository.streamUrl(track.id),
+                        streamOptions = browseRepository.streamOptions(track.id),
+                        preferDirectWithFallback = preferDirectWithFallback,
                     )
                 }
             playerManager.playQueue(queue, index)
@@ -262,6 +276,12 @@ private fun TuneFlowShell(
                 onNowPlaying = ::openNowPlaying,
                 isNowPlayingActive = showNowPlaying,
                 username = session?.username.orEmpty(),
+                preferDirectWithFallback = preferDirectWithFallback,
+                onTogglePreferDirectWithFallback = {
+                    scope.launch {
+                        playbackPreferencesStore.setPreferDirectWithFallback(it)
+                    }
+                },
                 onLogout = onLogout,
             )
 
@@ -448,6 +468,8 @@ private fun NavRail(
     onNowPlaying: () -> Unit,
     isNowPlayingActive: Boolean,
     username: String,
+    preferDirectWithFallback: Boolean,
+    onTogglePreferDirectWithFallback: (Boolean) -> Unit,
     onLogout: () -> Unit,
 ) {
     var accountExpanded by rememberSaveable { mutableStateOf(false) }
@@ -539,6 +561,8 @@ private fun NavRail(
 
         AccountRailSection(
             username = username.ifBlank { "Account" },
+            preferDirectWithFallback = preferDirectWithFallback,
+            onTogglePreferDirectWithFallback = onTogglePreferDirectWithFallback,
             expanded = accountExpanded,
             onToggleExpanded = { accountExpanded = !accountExpanded },
             onExpand = { accountExpanded = true },
@@ -601,6 +625,8 @@ private fun RailItem(
 @Composable
 private fun AccountRailSection(
     username: String,
+    preferDirectWithFallback: Boolean,
+    onTogglePreferDirectWithFallback: (Boolean) -> Unit,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
     onExpand: () -> Unit,
@@ -673,6 +699,12 @@ private fun AccountRailSection(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                AccountToggleRow(
+                    title = "FLAC Fallback",
+                    subtitle = if (preferDirectWithFallback) "Try FLAC, fall back to MP3" else "Always use MP3 max bitrate",
+                    checked = preferDirectWithFallback,
+                    onToggle = onTogglePreferDirectWithFallback,
+                )
                 RailItem(
                     label = "Logout",
                     selected = false,
@@ -680,5 +712,57 @@ private fun AccountRailSection(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun AccountToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Row(
+        modifier =
+            Modifier
+                .width(154.dp)
+                .scale(if (focused) 1.01f else 1f)
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.70f))
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
+                        },
+                    shape = RoundedCornerShape(16.dp),
+                )
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable()
+                .clickable { onToggle(!checked) }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+        )
     }
 }
