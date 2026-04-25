@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-    android:gravity="fill"
-    android:src="@drawable/tv_banner_brand" />
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="315"
+        android:endColor="#1E1E1E"
+        android:startColor="#0A84FF"
+        android:type="linear" />
+    <corners android:radius="8dp" />
+</shape>
