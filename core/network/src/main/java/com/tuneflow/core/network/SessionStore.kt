@@ -6,9 +6,15 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.io.IOException
 
 private val Context.sessionDataStore by preferencesDataStore(name = "tuneflow_session")
@@ -21,6 +27,8 @@ data class SessionData(
 )
 
 class SessionStore(private val context: Context) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private object Keys {
         val serverUrl = stringPreferencesKey("server_url")
         val username = stringPreferencesKey("username")
@@ -34,6 +42,13 @@ class SessionStore(private val context: Context) {
                 if (ex is IOException) emit(emptyPreferences()) else throw ex
             }
             .map { prefs -> prefs.toSessionData() }
+
+    val sessionState: StateFlow<SessionData?> =
+        sessionFlow.stateIn(
+            scope = scope,
+            started = SharingStarted.Eagerly,
+            initialValue = null,
+        )
 
     suspend fun save(sessionData: SessionData) {
         context.sessionDataStore.edit { prefs ->
