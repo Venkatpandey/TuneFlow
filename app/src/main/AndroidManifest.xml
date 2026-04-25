@@ -12,8 +12,9 @@
 
     <application
         android:allowBackup="true"
-        android:banner="@drawable/tv_banner_brand"
-        android:icon="@drawable/ic_tuneflow_brand"
+        android:banner="@drawable/tv_banner"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="TuneFlow"
         android:supportsRtl="false"
         android:theme="@style/Theme.TuneFlow"
