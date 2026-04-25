@@ -16,7 +16,9 @@ class PlaybackPreferencesStore(private val context: Context) {
 
     val preferDirectWithFallbackFlow: Flow<Boolean> =
         context.playbackPreferencesDataStore.data.map { preferences ->
-            preferences[Keys.preferDirectWithFallback] ?: true
+            // Default false = always use MP3 max bitrate.
+            // Users can opt into FLAC-first + fallback from the account menu.
+            preferences[Keys.preferDirectWithFallback] ?: false
         }
 
     suspend fun setPreferDirectWithFallback(enabled: Boolean) {
