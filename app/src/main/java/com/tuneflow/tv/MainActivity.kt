@@ -1,8 +1,8 @@
-restick with os verspackage com.tuneflow.tv
+package com.tuneflow.tv
 
 import android.content.Intent
 import android.os.Bundle
-iimport androidx.activity.ComponentActivity
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
