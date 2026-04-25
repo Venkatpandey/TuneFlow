@@ -133,7 +133,10 @@ class TvPlayerManager(
                         }
                     },
                 )
-                updatePlaybackStatus()
+                // NOTE: Do NOT call updatePlaybackStatus() here.
+                // The `player` val is not yet assigned when this .also{} block runs,
+                // so updatePlaybackStatus() would NPE on player.playWhenReady (API 25).
+                // The initial PlaybackStatus() default value is already correct.
             }
 
     suspend fun restore() {
