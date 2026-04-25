@@ -49,6 +49,8 @@ import android.view.KeyEvent as AndroidKeyEvent
 @Composable
 fun NowPlayingScreen(
     viewModel: PlaybackViewModel,
+    streamModeLabel: String,
+    onCycleStreamMode: () -> Unit,
     autoFocusTransport: Boolean,
     onAutoFocusConsumed: () -> Unit,
     modifier: Modifier = Modifier,
@@ -160,7 +162,10 @@ fun NowPlayingScreen(
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StreamBadge(label = item?.streamFormatLabel ?: "--")
+                    StreamModeButton(
+                        label = streamModeLabel,
+                        onClick = onCycleStreamMode,
+                    )
                     StreamBadge(label = item?.streamBitrateLabel ?: "--")
                 }
 
@@ -242,6 +247,48 @@ private fun StreamBadge(label: String) {
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
                     shape = RoundedCornerShape(14.dp),
                 )
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
+private fun StreamModeButton(
+    label: String,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier =
+            Modifier
+                .scale(if (focused) 1.01f else 1f)
+                .clip(RoundedCornerShape(14.dp))
+                .background(
+                    if (focused) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f)
+                    },
+                )
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                        },
+                    shape = RoundedCornerShape(14.dp),
+                )
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable()
+                .clickable(onClick = onClick)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(

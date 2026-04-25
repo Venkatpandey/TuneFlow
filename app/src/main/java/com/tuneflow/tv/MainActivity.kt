@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -127,6 +126,50 @@ private fun com.tuneflow.core.network.TrackSummary.toQueueItem(
     )
 }
 
+private suspend fun buildQueueItems(
+    tracks: List<com.tuneflow.core.network.TrackSummary>,
+    browseRepository: BrowseRepository,
+    preferDirectWithFallback: Boolean,
+): List<QueueItem> {
+    return tracks.map { track ->
+        track.toQueueItem(
+            streamOptions = browseRepository.streamOptions(track.id),
+            preferDirectWithFallback = preferDirectWithFallback,
+        )
+    }
+}
+
+private suspend fun cyclePlaybackStreamMode(
+    queue: PlaybackQueue,
+    browseRepository: BrowseRepository,
+    playerManager: com.tuneflow.core.player.TvPlayerManager,
+    playbackPreferencesStore: PlaybackPreferencesStore,
+    currentPreferDirectWithFallback: Boolean,
+    wasPlaying: Boolean,
+    positionMs: Long,
+) {
+    val nextPreferDirectWithFallback = !currentPreferDirectWithFallback
+    playbackPreferencesStore.setPreferDirectWithFallback(nextPreferDirectWithFallback)
+    if (queue.items.isEmpty()) return
+
+    val updatedItems =
+        queue.items.map { item ->
+            val streamOptions = browseRepository.streamOptions(item.id)
+            item.copy(
+                streamUrl = if (nextPreferDirectWithFallback) streamOptions.directUrl else streamOptions.fallbackMp3Url,
+                fallbackStreamUrl = if (nextPreferDirectWithFallback) streamOptions.fallbackMp3Url else null,
+                streamFormatLabel = if (nextPreferDirectWithFallback) "FLAC" else "MP3",
+                streamBitrateLabel = if (nextPreferDirectWithFallback) "Original" else "Max",
+            )
+        }
+
+    playerManager.playQueue(updatedItems, queue.currentIndex)
+    playerManager.seekTo(positionMs)
+    if (!wasPlaying) {
+        playerManager.pause()
+    }
+}
+
 private enum class NavSection { Home, Albums, Playlists, Search }
 
 private const val NOW_PLAYING_SCREEN_KEY = "nowPlaying"
@@ -210,16 +253,24 @@ private fun TuneFlowShell(
         index: Int,
     ) {
         scope.launch {
-            val queue =
-                tracks.map { track ->
-                    track.toQueueItem(
-                        streamOptions = browseRepository.streamOptions(track.id),
-                        preferDirectWithFallback = preferDirectWithFallback,
-                    )
-                }
+            val queue = buildQueueItems(tracks, browseRepository, preferDirectWithFallback)
             playerManager.playQueue(queue, index)
             openNowPlaying()
             autoFocusNowPlayingTransport = true
+        }
+    }
+
+    fun cycleStreamMode() {
+        scope.launch {
+            cyclePlaybackStreamMode(
+                queue = playbackState.queue,
+                browseRepository = browseRepository,
+                playerManager = playerManager,
+                playbackPreferencesStore = playbackPreferencesStore,
+                currentPreferDirectWithFallback = preferDirectWithFallback,
+                wasPlaying = playbackState.isPlaying,
+                positionMs = playbackState.positionMs,
+            )
         }
     }
 
@@ -276,12 +327,6 @@ private fun TuneFlowShell(
                 onNowPlaying = ::openNowPlaying,
                 isNowPlayingActive = showNowPlaying,
                 username = session?.username.orEmpty(),
-                preferDirectWithFallback = preferDirectWithFallback,
-                onTogglePreferDirectWithFallback = {
-                    scope.launch {
-                        playbackPreferencesStore.setPreferDirectWithFallback(it)
-                    }
-                },
                 onLogout = onLogout,
             )
 
@@ -315,6 +360,8 @@ private fun TuneFlowShell(
                     playlistsViewModel = playlistsViewModel,
                     searchViewModel = searchViewModel,
                     playbackViewModel = playbackViewModel,
+                    streamModeLabel = if (preferDirectWithFallback) "FLAC" else "MP3",
+                    onCycleStreamMode = ::cycleStreamMode,
                     autoFocusNowPlayingTransport = autoFocusNowPlayingTransport,
                     onNowPlayingAutoFocusConsumed = { autoFocusNowPlayingTransport = false },
                     onOpenAlbum = ::openAlbum,
@@ -387,6 +434,8 @@ private fun ShellContent(
     playlistsViewModel: com.tuneflow.feature.browse.PlaylistsViewModel,
     searchViewModel: com.tuneflow.feature.browse.SearchViewModel,
     playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
+    streamModeLabel: String,
+    onCycleStreamMode: () -> Unit,
     autoFocusNowPlayingTransport: Boolean,
     onNowPlayingAutoFocusConsumed: () -> Unit,
     onOpenAlbum: (String, NavSection) -> Unit,
@@ -404,6 +453,8 @@ private fun ShellContent(
             targetScreen == NOW_PLAYING_SCREEN_KEY -> {
                 NowPlayingScreen(
                     viewModel = playbackViewModel,
+                    streamModeLabel = streamModeLabel,
+                    onCycleStreamMode = onCycleStreamMode,
                     autoFocusTransport = autoFocusNowPlayingTransport,
                     onAutoFocusConsumed = onNowPlayingAutoFocusConsumed,
                 )
@@ -468,8 +519,6 @@ private fun NavRail(
     onNowPlaying: () -> Unit,
     isNowPlayingActive: Boolean,
     username: String,
-    preferDirectWithFallback: Boolean,
-    onTogglePreferDirectWithFallback: (Boolean) -> Unit,
     onLogout: () -> Unit,
 ) {
     var accountExpanded by rememberSaveable { mutableStateOf(false) }
@@ -570,8 +619,6 @@ private fun NavRail(
 
             AccountRailSection(
                 username = username.ifBlank { "Account" },
-                preferDirectWithFallback = preferDirectWithFallback,
-                onTogglePreferDirectWithFallback = onTogglePreferDirectWithFallback,
                 expanded = accountExpanded,
                 onToggleExpanded = { accountExpanded = !accountExpanded },
                 onExpand = { accountExpanded = true },
@@ -635,8 +682,6 @@ private fun RailItem(
 @Composable
 private fun AccountRailSection(
     username: String,
-    preferDirectWithFallback: Boolean,
-    onTogglePreferDirectWithFallback: (Boolean) -> Unit,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
     onExpand: () -> Unit,
@@ -709,12 +754,6 @@ private fun AccountRailSection(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                AccountToggleRow(
-                    title = "FLAC Fallback",
-                    subtitle = if (preferDirectWithFallback) "Try FLAC, fall back to MP3" else "Always use MP3 max bitrate",
-                    checked = preferDirectWithFallback,
-                    onToggle = onTogglePreferDirectWithFallback,
-                )
                 RailItem(
                     label = "Logout",
                     selected = false,
@@ -722,57 +761,5 @@ private fun AccountRailSection(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun AccountToggleRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onToggle: (Boolean) -> Unit,
-) {
-    var focused by remember { mutableStateOf(false) }
-
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .scale(if (focused) 1.01f else 1f)
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.70f))
-                .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
-                        },
-                    shape = RoundedCornerShape(16.dp),
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable { onToggle(!checked) }
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-        )
     }
 }
