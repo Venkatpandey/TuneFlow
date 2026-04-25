@@ -98,23 +98,24 @@ fun NowPlayingScreen(
                     Modifier
                         .weight(1f)
                         .fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                // Album art — fixed height, compact enough to leave room for controls
                 Box(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .height(260.dp)
-                            .clip(RoundedCornerShape(28.dp))
+                            .height(200.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
-                            .padding(14.dp),
+                            .padding(10.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Box(
                         modifier =
                             Modifier
-                                .size(232.dp)
-                                .clip(RoundedCornerShape(22.dp))
+                                .size(180.dp)
+                                .clip(RoundedCornerShape(16.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -139,7 +140,7 @@ fun NowPlayingScreen(
                     text = item?.title ?: "Nothing playing",
                     style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
@@ -168,6 +169,9 @@ fun NowPlayingScreen(
                         onRetry = viewModel::retry,
                     )
                 }
+
+                // Push controls to the bottom of the column
+                Spacer(modifier = Modifier.weight(1f))
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     LinearProgressIndicator(

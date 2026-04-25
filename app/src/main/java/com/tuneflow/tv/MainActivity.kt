@@ -1,8 +1,8 @@
-package com.tuneflow.tv
+restick with os verspackage com.tuneflow.tv
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+iimport androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
@@ -727,7 +727,7 @@ private fun AccountToggleRow(
     Row(
         modifier =
             Modifier
-                .width(154.dp)
+                .fillMaxWidth()
                 .scale(if (focused) 1.01f else 1f)
                 .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.70f))
