@@ -65,6 +65,10 @@ import com.tuneflow.feature.playback.NowPlayingScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private lateinit var playerManager: com.tuneflow.core.player.TvPlayerManager
+    private lateinit var playbackServiceIntent: Intent
+    private var isAppExitInProgress = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -73,8 +77,9 @@ class MainActivity : ComponentActivity() {
         val playbackPreferencesStore = PlaybackPreferencesStore(applicationContext)
         val authRepository = AuthRepository(sessionStore)
         val browseRepository = BrowseRepository(sessionStore)
-        val playerManager = PlayerGraph.get(applicationContext)
-        startService(Intent(this, TuneFlowPlaybackService::class.java))
+        playerManager = PlayerGraph.get(applicationContext)
+        playbackServiceIntent = Intent(this, TuneFlowPlaybackService::class.java)
+        startService(playbackServiceIntent)
 
         setContent {
             TuneFlowTheme {
@@ -99,12 +104,26 @@ class MainActivity : ComponentActivity() {
                         searchHistoryStore = searchHistoryStore,
                         onLogout = {
                             playerManager.stopAndClear()
+                            stopService(playbackServiceIntent)
                             authViewModel.logout()
                         },
                     )
                 }
             }
         }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        closeAppToSystem()
+    }
+
+    private fun closeAppToSystem() {
+        if (isAppExitInProgress) return
+        isAppExitInProgress = true
+        playerManager.stopAndClear()
+        stopService(playbackServiceIntent)
+        finishAndRemoveTask()
     }
 }
 
