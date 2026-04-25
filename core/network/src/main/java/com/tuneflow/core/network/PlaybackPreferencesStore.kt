@@ -17,7 +17,7 @@ class PlaybackPreferencesStore(private val context: Context) {
     val preferDirectWithFallbackFlow: Flow<Boolean> =
         context.playbackPreferencesDataStore.data.map { preferences ->
             // Default false = always use MP3 max bitrate.
-            // FLAC (raw) is silent on Fire OS 6.x (API 25) Dolby audio pipeline.
+            // Users can opt into FLAC-first + fallback from the account menu.
             preferences[Keys.preferDirectWithFallback] ?: false
         }
 

@@ -154,7 +154,7 @@ private fun TuneFlowShell(
     val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel = viewModel(factory = PlaybackViewModelFactory(playerManager))
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
-    val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = true)
+    val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)
 
     var currentSection by rememberSaveable { mutableStateOf(NavSection.Home) }
     var selectedAlbumId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -490,84 +490,94 @@ private fun NavRail(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(
-            modifier = Modifier.padding(bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.Start,
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_tuneflow_brand),
-                contentDescription = "TuneFlow",
-                modifier =
-                    Modifier
-                        .size(60.dp)
-                        .clip(RoundedCornerShape(18.dp)),
+            Column(
+                modifier = Modifier.padding(bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.Start,
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_tuneflow_brand),
+                    contentDescription = "TuneFlow",
+                    modifier =
+                        Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(18.dp)),
+                )
+                Text(
+                    text = "TuneFlow",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "Let the music flow",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            RailItem(
+                label = "Home",
+                selected = currentSection == NavSection.Home && !isNowPlayingActive,
+                onClick = {
+                    accountExpanded = false
+                    onSectionSelected(NavSection.Home)
+                },
             )
-            Text(
-                text = "TuneFlow",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
+            RailItem(
+                label = "Albums",
+                selected = currentSection == NavSection.Albums && !isNowPlayingActive,
+                onClick = {
+                    accountExpanded = false
+                    onSectionSelected(NavSection.Albums)
+                },
             )
-            Text(
-                text = "Let the music flow",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            RailItem(
+                label = "Playlists",
+                selected = currentSection == NavSection.Playlists && !isNowPlayingActive,
+                onClick = {
+                    accountExpanded = false
+                    onSectionSelected(NavSection.Playlists)
+                },
+            )
+            RailItem(
+                label = "Search",
+                selected = currentSection == NavSection.Search && !isNowPlayingActive,
+                onClick = {
+                    accountExpanded = false
+                    onSectionSelected(NavSection.Search)
+                },
             )
         }
 
-        RailItem(
-            label = "Home",
-            selected = currentSection == NavSection.Home && !isNowPlayingActive,
-            onClick = {
-                accountExpanded = false
-                onSectionSelected(NavSection.Home)
-            },
-        )
-        RailItem(
-            label = "Albums",
-            selected = currentSection == NavSection.Albums && !isNowPlayingActive,
-            onClick = {
-                accountExpanded = false
-                onSectionSelected(NavSection.Albums)
-            },
-        )
-        RailItem(
-            label = "Playlists",
-            selected = currentSection == NavSection.Playlists && !isNowPlayingActive,
-            onClick = {
-                accountExpanded = false
-                onSectionSelected(NavSection.Playlists)
-            },
-        )
-        RailItem(
-            label = "Search",
-            selected = currentSection == NavSection.Search && !isNowPlayingActive,
-            onClick = {
-                accountExpanded = false
-                onSectionSelected(NavSection.Search)
-            },
-        )
-
         Spacer(modifier = Modifier.weight(1f))
 
-        RailItem(
-            label = "Now Playing",
-            selected = isNowPlayingActive,
-            onClick = {
-                accountExpanded = false
-                onNowPlaying()
-            },
-        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            RailItem(
+                label = "Now Playing",
+                selected = isNowPlayingActive,
+                onClick = {
+                    accountExpanded = false
+                    onNowPlaying()
+                },
+            )
 
-        AccountRailSection(
-            username = username.ifBlank { "Account" },
-            preferDirectWithFallback = preferDirectWithFallback,
-            onTogglePreferDirectWithFallback = onTogglePreferDirectWithFallback,
-            expanded = accountExpanded,
-            onToggleExpanded = { accountExpanded = !accountExpanded },
-            onExpand = { accountExpanded = true },
-            onLogout = onLogout,
-        )
+            AccountRailSection(
+                username = username.ifBlank { "Account" },
+                preferDirectWithFallback = preferDirectWithFallback,
+                onTogglePreferDirectWithFallback = onTogglePreferDirectWithFallback,
+                expanded = accountExpanded,
+                onToggleExpanded = { accountExpanded = !accountExpanded },
+                onExpand = { accountExpanded = true },
+                onLogout = onLogout,
+            )
+        }
     }
 }
 
