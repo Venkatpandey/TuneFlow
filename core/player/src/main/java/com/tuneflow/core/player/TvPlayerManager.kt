@@ -121,6 +121,9 @@ class TvPlayerManager(
                             _queue.update { it.seek(exo.currentPosition) }
                             updateQueueIndex(exo.currentMediaItemIndex)
                             updatePlaybackStatus()
+                            if (shouldPersistOnPositionDiscontinuity(reason)) {
+                                persist()
+                            }
                         }
 
                         override fun onPlayerError(error: PlaybackException) {
@@ -194,7 +197,6 @@ class TvPlayerManager(
         player.seekTo(positionMs)
         _queue.update { it.seek(positionMs) }
         updatePlaybackStatus()
-        persist()
     }
 
     override fun playFromIndex(index: Int) {
@@ -399,4 +401,8 @@ class TvPlayerManager(
 
 private suspend fun kotlinx.coroutines.flow.Flow<PlaybackQueue?>.mapNotNullOnce(): PlaybackQueue? {
     return first()
+}
+
+internal fun shouldPersistOnPositionDiscontinuity(reason: Int): Boolean {
+    return reason == Player.DISCONTINUITY_REASON_SEEK
 }
