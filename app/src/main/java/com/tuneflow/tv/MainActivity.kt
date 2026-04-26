@@ -62,6 +62,7 @@ import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.browse.PlaylistsScreen
 import com.tuneflow.feature.browse.SearchScreen
 import com.tuneflow.feature.playback.NowPlayingScreen
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -107,6 +108,7 @@ class MainActivity : ComponentActivity() {
                             stopService(playbackServiceIntent)
                             authViewModel.logout()
                         },
+                        onExitApp = ::closeAppToSystem,
                     )
                 }
             }
@@ -123,6 +125,8 @@ class MainActivity : ComponentActivity() {
         isAppExitInProgress = true
         playerManager.stopAndClear()
         stopService(playbackServiceIntent)
+        PlayerGraph.release()
+        finishAffinity()
         finishAndRemoveTask()
     }
 }
@@ -192,6 +196,7 @@ private suspend fun cyclePlaybackStreamMode(
 private enum class NavSection { Home, Albums, Playlists, Search }
 
 private const val NOW_PLAYING_SCREEN_KEY = "nowPlaying"
+private const val EXIT_CONFIRM_TIMEOUT_MS = 2000L
 
 @Composable
 private fun TuneFlowShell(
@@ -201,6 +206,7 @@ private fun TuneFlowShell(
     playbackPreferencesStore: PlaybackPreferencesStore,
     searchHistoryStore: SearchHistoryStore,
     onLogout: () -> Unit,
+    onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(browseRepository))
@@ -226,6 +232,8 @@ private fun TuneFlowShell(
     var preselectedPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
     var autoFocusNowPlayingTransport by rememberSaveable { mutableStateOf(false) }
+    var showExitPrompt by rememberSaveable { mutableStateOf(false) }
+    var lastExitPromptAt by rememberSaveable { mutableStateOf(0L) }
 
     fun openSection(section: NavSection) {
         currentSection = section
@@ -236,6 +244,7 @@ private fun TuneFlowShell(
         }
         showNowPlaying = false
         autoFocusNowPlayingTransport = false
+        showExitPrompt = false
     }
 
     fun openAlbum(
@@ -248,6 +257,7 @@ private fun TuneFlowShell(
         selectedArtistId = null
         showNowPlaying = false
         autoFocusNowPlayingTransport = false
+        showExitPrompt = false
     }
 
     fun openArtist(
@@ -260,11 +270,13 @@ private fun TuneFlowShell(
         selectedAlbumId = null
         showNowPlaying = false
         autoFocusNowPlayingTransport = false
+        showExitPrompt = false
     }
 
     fun openNowPlaying() {
         showNowPlaying = true
         autoFocusNowPlayingTransport = false
+        showExitPrompt = false
     }
 
     fun playTracks(
@@ -293,6 +305,25 @@ private fun TuneFlowShell(
         }
     }
 
+    fun requestAppExit() {
+        val now = System.currentTimeMillis()
+        val confirmed = showExitPrompt && now - lastExitPromptAt <= EXIT_CONFIRM_TIMEOUT_MS
+        if (confirmed) {
+            onExitApp()
+            return
+        }
+        lastExitPromptAt = now
+        showExitPrompt = true
+    }
+
+    androidx.compose.runtime.LaunchedEffect(showExitPrompt, lastExitPromptAt) {
+        if (!showExitPrompt) return@LaunchedEffect
+        delay(EXIT_CONFIRM_TIMEOUT_MS)
+        if (System.currentTimeMillis() - lastExitPromptAt >= EXIT_CONFIRM_TIMEOUT_MS) {
+            showExitPrompt = false
+        }
+    }
+
     ShellBackHandler(
         showNowPlaying = showNowPlaying,
         selectedAlbumId = selectedAlbumId,
@@ -308,6 +339,7 @@ private fun TuneFlowShell(
             currentSection = artistSourceSection
         },
         onGoHome = { currentSection = NavSection.Home },
+        onRequestExit = ::requestAppExit,
     )
 
     Box(
@@ -393,6 +425,7 @@ private fun TuneFlowShell(
                         selectedArtistId = null
                         showNowPlaying = false
                         autoFocusNowPlayingTransport = false
+                        showExitPrompt = false
                     },
                     onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
                     onOpenNowPlaying = ::openNowPlaying,
@@ -400,6 +433,14 @@ private fun TuneFlowShell(
                 )
             }
         }
+
+        ExitPromptBanner(
+            visible = showExitPrompt,
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 28.dp),
+        )
     }
 }
 
@@ -413,13 +454,15 @@ private fun ShellBackHandler(
     onCloseAlbum: () -> Unit,
     onCloseArtist: () -> Unit,
     onGoHome: () -> Unit,
+    onRequestExit: () -> Unit,
 ) {
-    BackHandler(enabled = showNowPlaying || selectedAlbumId != null || selectedArtistId != null || currentSection != NavSection.Home) {
+    BackHandler {
         when {
             showNowPlaying -> onCloseNowPlaying()
             selectedAlbumId != null -> onCloseAlbum()
             selectedArtistId != null -> onCloseArtist()
             currentSection != NavSection.Home -> onGoHome()
+            else -> onRequestExit()
         }
     }
 }
