@@ -1,7 +1,11 @@
 package com.tuneflow.feature.playback
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -388,6 +392,15 @@ internal fun PlaybackTextButton(
 ) {
     var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    val scale by animateFloatAsState(
+        targetValue = if (focused) 1.08f else 1f,
+        animationSpec =
+            tween(
+                durationMillis = if (focused) 150 else 100,
+                easing = if (focused) FastOutSlowInEasing else LinearOutSlowInEasing,
+            ),
+        label = "focusScale",
+    )
 
     LaunchedEffect(requestFocus) {
         if (requestFocus) {
@@ -400,7 +413,7 @@ internal fun PlaybackTextButton(
         modifier =
             modifier
                 .focusRequester(focusRequester)
-                .scale(if (focused) 1.01f else 1f)
+                .scale(scale)
                 .clip(RoundedCornerShape(22.dp))
                 .background(
                     if (accent) {

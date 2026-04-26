@@ -1,5 +1,9 @@
 package com.tuneflow.feature.auth
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -420,12 +424,21 @@ private fun LoginActionButton(
     content: @Composable () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (focused && enabled) 1.08f else 1f,
+        animationSpec =
+            tween(
+                durationMillis = if (focused && enabled) 150 else 100,
+                easing = if (focused && enabled) FastOutSlowInEasing else LinearOutSlowInEasing,
+            ),
+        label = "focusScale",
+    )
 
     Box(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .scale(if (focused && enabled) 1.01f else 1f)
+                .scale(scale)
                 .clip(RoundedCornerShape(18.dp))
                 .background(
                     if (enabled) {

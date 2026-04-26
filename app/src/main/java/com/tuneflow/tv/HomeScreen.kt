@@ -2,6 +2,10 @@
 
 package com.tuneflow.tv
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -291,11 +295,12 @@ private fun HeroActionButton(
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(22.dp)
+    val scale by animateTvFocusScale(focused)
 
     Box(
         modifier =
             Modifier
-                .scale(if (focused) 1.01f else 1f)
+                .scale(scale)
                 .clip(shape)
                 .background(
                     if (accent) {
@@ -701,11 +706,12 @@ private fun FocusCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val scale by animateTvFocusScale(focused)
 
     Box(
         modifier =
             modifier
-                .scale(if (focused) 1.01f else 1f)
+                .scale(scale)
                 .clip(RoundedCornerShape(20.dp))
                 .background(
                     if (focused) {
@@ -732,3 +738,15 @@ private fun FocusCard(
         Column(content = content)
     }
 }
+
+@Composable
+private fun animateTvFocusScale(focused: Boolean) =
+    animateFloatAsState(
+        targetValue = if (focused) 1.08f else 1f,
+        animationSpec =
+            tween(
+                durationMillis = if (focused) 150 else 100,
+                easing = if (focused) FastOutSlowInEasing else LinearOutSlowInEasing,
+            ),
+        label = "focusScale",
+    )

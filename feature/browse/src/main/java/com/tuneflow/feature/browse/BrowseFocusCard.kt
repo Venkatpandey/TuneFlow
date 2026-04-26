@@ -1,5 +1,9 @@
 package com.tuneflow.feature.browse
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,10 +30,19 @@ internal fun FocusScaleCard(
     content: @Composable () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (focused) 1.08f else 1f,
+        animationSpec =
+            tween(
+                durationMillis = if (focused) 150 else 100,
+                easing = if (focused) FastOutSlowInEasing else LinearOutSlowInEasing,
+            ),
+        label = "focusScale",
+    )
     Box(
         modifier =
             modifier
-                .scale(if (focused) 1.01f else 1f)
+                .scale(scale)
                 .clip(RoundedCornerShape(18.dp))
                 .background(
                     if (focused) {

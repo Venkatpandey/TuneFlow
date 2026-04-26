@@ -700,12 +700,13 @@ private fun RailItem(
 ) {
     var focused by remember { mutableStateOf(false) }
     val active = selected || focused
+    val scale by animateTvFocusScale(focused)
 
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .scale(if (focused) 1.01f else 1f)
+                .scale(scale)
                 .clip(RoundedCornerShape(18.dp))
                 .background(
                     if (active) {
@@ -752,13 +753,14 @@ private fun AccountRailSection(
     onLogout: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val scale by animateTvFocusScale(focused)
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .scale(if (focused) 1.01f else 1f)
+                    .scale(scale)
                     .clip(RoundedCornerShape(18.dp))
                     .background(
                         if (focused || expanded) {
