@@ -38,7 +38,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -361,76 +360,79 @@ private fun TuneFlowShell(
                     .fillMaxSize()
                     .background(
                         Brush.radialGradient(
-                            colors = listOf(Color(0x802A4C66), Color(0xF2071019)),
+                            colors =
+                                listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.96f),
+                                ),
                         ),
                     ),
         )
 
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(22.dp),
-        ) {
-            NavRail(
-                currentSection = currentSection,
-                onSectionSelected = ::openSection,
-                onNowPlaying = ::openNowPlaying,
-                isNowPlayingActive = showNowPlaying,
-                username = session?.username.orEmpty(),
-                onLogout = onLogout,
-            )
-
-            Spacer(Modifier.width(22.dp))
-
-            Box(
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(34.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                            shape = RoundedCornerShape(34.dp),
-                        )
-                        .padding(22.dp),
+        TuneFlowSafeArea {
+            Row(
+                modifier = Modifier.fillMaxSize(),
             ) {
-                ShellContent(
+                NavRail(
                     currentSection = currentSection,
-                    selectedAlbumId = selectedAlbumId,
-                    selectedArtistId = selectedArtistId,
-                    showNowPlaying = showNowPlaying,
-                    preselectedPlaylistId = preselectedPlaylistId,
-                    playbackQueue = playbackState.queue,
-                    homeViewModel = homeViewModel,
-                    albumsViewModel = albumsViewModel,
-                    albumDetailViewModel = albumDetailViewModel,
-                    artistDetailViewModel = artistDetailViewModel,
-                    playlistsViewModel = playlistsViewModel,
-                    searchViewModel = searchViewModel,
-                    playbackViewModel = playbackViewModel,
-                    streamModeLabel = if (preferDirectWithFallback) "FLAC" else "MP3",
-                    onCycleStreamMode = ::cycleStreamMode,
-                    autoFocusNowPlayingTransport = autoFocusNowPlayingTransport,
-                    onNowPlayingAutoFocusConsumed = { autoFocusNowPlayingTransport = false },
-                    onOpenAlbum = ::openAlbum,
-                    onOpenArtist = ::openArtist,
-                    onOpenSection = ::openSection,
-                    onOpenPlaylist = {
-                        currentSection = NavSection.Playlists
-                        preselectedPlaylistId = it
-                        selectedAlbumId = null
-                        selectedArtistId = null
-                        showNowPlaying = false
-                        autoFocusNowPlayingTransport = false
-                        showExitPrompt = false
-                    },
-                    onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
-                    onOpenNowPlaying = ::openNowPlaying,
-                    onPlayTracks = ::playTracks,
+                    onSectionSelected = ::openSection,
+                    onNowPlaying = ::openNowPlaying,
+                    isNowPlayingActive = showNowPlaying,
+                    username = session?.username.orEmpty(),
+                    onLogout = onLogout,
                 )
+
+                Spacer(Modifier.width(22.dp))
+
+                Box(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(34.dp))
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                                shape = RoundedCornerShape(34.dp),
+                            )
+                            .padding(22.dp),
+                ) {
+                    ShellContent(
+                        currentSection = currentSection,
+                        selectedAlbumId = selectedAlbumId,
+                        selectedArtistId = selectedArtistId,
+                        showNowPlaying = showNowPlaying,
+                        preselectedPlaylistId = preselectedPlaylistId,
+                        playbackQueue = playbackState.queue,
+                        homeViewModel = homeViewModel,
+                        albumsViewModel = albumsViewModel,
+                        albumDetailViewModel = albumDetailViewModel,
+                        artistDetailViewModel = artistDetailViewModel,
+                        playlistsViewModel = playlistsViewModel,
+                        searchViewModel = searchViewModel,
+                        playbackViewModel = playbackViewModel,
+                        streamModeLabel = if (preferDirectWithFallback) "FLAC" else "MP3",
+                        onCycleStreamMode = ::cycleStreamMode,
+                        autoFocusNowPlayingTransport = autoFocusNowPlayingTransport,
+                        onNowPlayingAutoFocusConsumed = { autoFocusNowPlayingTransport = false },
+                        onOpenAlbum = ::openAlbum,
+                        onOpenArtist = ::openArtist,
+                        onOpenSection = ::openSection,
+                        onOpenPlaylist = {
+                            currentSection = NavSection.Playlists
+                            preselectedPlaylistId = it
+                            selectedAlbumId = null
+                            selectedArtistId = null
+                            showNowPlaying = false
+                            autoFocusNowPlayingTransport = false
+                            showExitPrompt = false
+                        },
+                        onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
+                        onOpenNowPlaying = ::openNowPlaying,
+                        onPlayTracks = ::playTracks,
+                    )
+                }
             }
         }
 
