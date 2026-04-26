@@ -1,5 +1,11 @@
 package com.tuneflow.feature.playback
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,18 +14,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,19 +61,15 @@ fun NowPlayingScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val item = state.queue.currentItem
-
-    val progress =
-        if (state.durationMs > 0) {
-            state.positionMs.toFloat() / state.durationMs.toFloat()
-        } else {
-            0f
-        }
+    var showQueue by rememberSaveable { mutableStateOf(false) }
+    val artSize by animateDpAsState(targetValue = if (showQueue) 152.dp else 180.dp, label = "now-playing-art-size")
+    val artFrameHeight by animateDpAsState(targetValue = if (showQueue) 176.dp else 200.dp, label = "now-playing-art-frame-height")
 
     Box(
         modifier =
             modifier
                 .fillMaxSize()
-                .onPreviewKeyEvent { event -> handleTransportMediaKey(event, viewModel) },
+                .onPreviewKeyEvent { event -> handleNowPlayingKeyEvent(event, showQueue, { showQueue = false }, viewModel) },
     ) {
         if (item?.artUrl != null) {
             AsyncImage(
@@ -96,147 +96,44 @@ fun NowPlayingScreen(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(22.dp),
         ) {
-            Column(
+            NowPlayingPrimaryColumn(
                 modifier =
                     Modifier
                         .weight(1f)
                         .fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // Album art — fixed height, compact enough to leave room for controls
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
-                            .padding(10.dp),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(180.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (item?.artUrl != null) {
-                            AsyncImage(
-                                model = item.artUrl,
-                                contentDescription = item.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        } else {
-                            Text(
-                                text = "TuneFlow",
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-                }
-
-                Text(
-                    text = item?.title ?: "Nothing playing",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = item?.artist ?: "",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = item?.album ?: "",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StreamModeButton(
-                        label = streamModeLabel,
-                        onClick = onCycleStreamMode,
-                    )
-                    StreamBadge(label = item?.streamBitrateLabel ?: "--")
-                }
-
-                if (state.statusMessage != null) {
-                    PlaybackStatusCard(
-                        message = state.statusMessage.orEmpty(),
-                        onRetry = viewModel::retry,
-                    )
-                }
-
-                // Push controls to the bottom of the column
-                Spacer(modifier = Modifier.weight(1f))
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LinearProgressIndicator(
-                        progress = { progress.coerceIn(0f, 1f) },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .height(8.dp),
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = formatTime(state.positionMs),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = formatTime(state.durationMs),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    PlaybackTextButton(
-                        label = "Previous",
-                        onClick = viewModel::previous,
-                        modifier = Modifier.weight(1f),
-                    )
-                    PlaybackTextButton(
-                        label = if (state.isPlaying) "Pause" else "Play",
-                        accent = true,
-                        onClick = viewModel::togglePlayPause,
-                        modifier = Modifier.weight(1.1f),
-                        requestFocus = autoFocusTransport,
-                        onRequestedFocusApplied = onAutoFocusConsumed,
-                    )
-                    PlaybackTextButton(
-                        label = "Next",
-                        onClick = viewModel::next,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-
-            QueuePanel(
-                title = "Up Next",
+                item = item,
                 state = state,
-                onSelectTrack = viewModel::playFromIndex,
+                artSize = artSize,
+                artFrameHeight = artFrameHeight,
+                streamModeLabel = streamModeLabel,
+                showQueue = showQueue,
+                onCycleStreamMode = onCycleStreamMode,
+                onToggleQueue = { showQueue = !showQueue },
+                onRetry = viewModel::retry,
+                onPrevious = viewModel::previous,
+                onTogglePlayPause = viewModel::togglePlayPause,
+                onNext = viewModel::next,
+                autoFocusTransport = autoFocusTransport,
+                onAutoFocusConsumed = onAutoFocusConsumed,
             )
+
+            AnimatedVisibility(
+                visible = showQueue,
+                enter = fadeIn() + slideInHorizontally(initialOffsetX = { it / 4 }),
+                exit = fadeOut() + slideOutHorizontally(targetOffsetX = { it / 4 }),
+            ) {
+                QueuePanel(
+                    title = "Track List",
+                    state = state,
+                    onSelectTrack = viewModel::playFromIndex,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun StreamBadge(label: String) {
+internal fun StreamBadge(label: String) {
     Box(
         modifier =
             Modifier
@@ -258,7 +155,7 @@ private fun StreamBadge(label: String) {
 }
 
 @Composable
-private fun StreamModeButton(
+internal fun StreamModeButton(
     label: String,
     onClick: () -> Unit,
 ) {
@@ -333,6 +230,24 @@ private fun handleTransportMediaKey(
 
         else -> false
     }
+}
+
+private fun handleNowPlayingKeyEvent(
+    event: androidx.compose.ui.input.key.KeyEvent,
+    showQueue: Boolean,
+    onCloseQueue: () -> Unit,
+    viewModel: PlaybackViewModel,
+): Boolean {
+    if (
+        showQueue &&
+        event.type == KeyEventType.KeyDown &&
+        event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_BACK
+    ) {
+        onCloseQueue()
+        return true
+    }
+
+    return handleTransportMediaKey(event, viewModel)
 }
 
 @Composable
@@ -430,7 +345,7 @@ private fun QueueRow(
 }
 
 @Composable
-private fun PlaybackStatusCard(
+internal fun PlaybackStatusCard(
     message: String,
     onRetry: () -> Unit,
 ) {
@@ -463,7 +378,7 @@ private fun PlaybackStatusCard(
 }
 
 @Composable
-private fun PlaybackTextButton(
+internal fun PlaybackTextButton(
     label: String,
     accent: Boolean = false,
     onClick: () -> Unit,
@@ -534,17 +449,4 @@ private fun ScreenInitialFocusAnchor() {
                 .focusRequester(focusRequester)
                 .focusable(),
     )
-}
-
-private fun formatTime(ms: Long): String {
-    if (ms <= 0L) return "00:00"
-    val totalSec = ms / 1000
-    val hours = totalSec / 3600
-    val minutes = (totalSec % 3600) / 60
-    val seconds = totalSec % 60
-    return if (hours > 0) {
-        "%d:%02d:%02d".format(hours, minutes, seconds)
-    } else {
-        "%02d:%02d".format(minutes, seconds)
-    }
 }
