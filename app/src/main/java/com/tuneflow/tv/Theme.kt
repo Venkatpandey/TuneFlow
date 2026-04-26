@@ -11,20 +11,20 @@ import androidx.compose.ui.unit.sp
 
 private val TuneFlowDarkScheme =
     darkColorScheme(
-        primary = Color(0xFF34E2D3),
-        onPrimary = Color(0xFF041513),
-        secondary = Color(0xFF65B5FF),
-        onSecondary = Color(0xFF05131E),
-        tertiary = Color(0xFF7B6DFF),
-        onTertiary = Color(0xFFF5F4FF),
-        background = Color(0xFF08111B),
-        onBackground = Color(0xFFF1F5FF),
-        surface = Color(0xFF0F1B2A),
-        onSurface = Color(0xFFF1F5FF),
-        surfaceVariant = Color(0xFF152336),
-        onSurfaceVariant = Color(0xFFB7C5DA),
-        outline = Color(0xFF2F4761),
-        error = Color(0xFFFF7D87),
+        primary = Color(0xFF6C63FF),
+        onPrimary = Color(0xFFFFFFFF),
+        secondary = Color(0xFFFF6584),
+        onSecondary = Color(0xFFFFFFFF),
+        tertiary = Color(0xFF43E97B),
+        onTertiary = Color(0xFFFFFFFF),
+        background = Color(0xFF0A0A0F),
+        onBackground = Color(0xFFFFFFFF),
+        surface = Color(0xFF141420),
+        onSurface = Color(0xFFF0F0FF),
+        surfaceVariant = Color(0xFF1E1E2E),
+        onSurfaceVariant = Color(0xFFA0A0C0),
+        outline = Color(0x14FFFFFF),
+        error = Color(0xFFFF6584),
     )
 
 private val TuneFlowTypography =
