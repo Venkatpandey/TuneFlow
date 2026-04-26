@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -84,108 +85,118 @@ fun LoginScreen(
                     .background(MaterialTheme.colorScheme.background.copy(alpha = 0.30f)),
         )
 
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 60.dp, vertical = 44.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(
-                modifier = Modifier.weight(1.25f),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+        LoginSafeArea {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Image(
-                    painter = painterResource(id = logoResId),
-                    contentDescription = "TuneFlow logo",
-                    modifier =
-                        Modifier
-                            .size(112.dp)
-                            .clip(RoundedCornerShape(24.dp)),
-                )
-                Text(
-                    text = "TuneFlow",
-                    style = MaterialTheme.typography.displayMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-
-            Spacer(modifier = Modifier.width(72.dp))
-
-            Column(
-                modifier =
-                    Modifier
-                        .width(452.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.84f))
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                            shape = RoundedCornerShape(24.dp),
-                        )
-                        .padding(22.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = "Sign in",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                ScreenInitialFocusAnchor()
-
-                LoginField(
-                    value = state.serverUrl,
-                    onValueChange = viewModel::updateServerUrl,
-                    label = "Navidrome URL",
-                    placeholder = "http://192.168.1.10:4533",
-                    editing = editingField == LoginFieldKey.ServerUrl,
-                    onEditingChange = { isEditing ->
-                        editingField = if (isEditing) LoginFieldKey.ServerUrl else null
-                    },
-                )
-
-                LoginField(
-                    value = state.username,
-                    onValueChange = viewModel::updateUsername,
-                    label = "Username",
-                    placeholder = "Your Navidrome user",
-                    editing = editingField == LoginFieldKey.Username,
-                    onEditingChange = { isEditing ->
-                        editingField = if (isEditing) LoginFieldKey.Username else null
-                    },
-                )
-
-                LoginField(
-                    value = state.password,
-                    onValueChange = viewModel::updatePassword,
-                    label = "Password",
-                    placeholder = "Password",
-                    keyboardType = KeyboardType.Password,
-                    obscure = true,
-                    editing = editingField == LoginFieldKey.Password,
-                    onEditingChange = { isEditing ->
-                        editingField = if (isEditing) LoginFieldKey.Password else null
-                    },
-                )
-
-                if (state.error != null) {
+                Column(
+                    modifier = Modifier.weight(1.25f),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Image(
+                        painter = painterResource(id = logoResId),
+                        contentDescription = "TuneFlow logo",
+                        modifier =
+                            Modifier
+                                .size(112.dp)
+                                .clip(RoundedCornerShape(24.dp)),
+                    )
                     Text(
-                        text = state.error.orEmpty(),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = "TuneFlow",
+                        style = MaterialTheme.typography.displayMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
 
-                LoginActionButton(
-                    onClick = viewModel::login,
-                    enabled = !state.isLoading,
+                Spacer(modifier = Modifier.width(72.dp))
+
+                Column(
+                    modifier =
+                        Modifier
+                            .width(452.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.84f))
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
+                                shape = RoundedCornerShape(24.dp),
+                            )
+                            .padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(if (state.isLoading) "Signing in..." else "Login")
+                    Text(
+                        text = "Sign in",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    ScreenInitialFocusAnchor()
+
+                    LoginField(
+                        value = state.serverUrl,
+                        onValueChange = viewModel::updateServerUrl,
+                        label = "Navidrome URL",
+                        placeholder = "http://192.168.1.10:4533",
+                        editing = editingField == LoginFieldKey.ServerUrl,
+                        onEditingChange = { isEditing ->
+                            editingField = if (isEditing) LoginFieldKey.ServerUrl else null
+                        },
+                    )
+
+                    LoginField(
+                        value = state.username,
+                        onValueChange = viewModel::updateUsername,
+                        label = "Username",
+                        placeholder = "Your Navidrome user",
+                        editing = editingField == LoginFieldKey.Username,
+                        onEditingChange = { isEditing ->
+                            editingField = if (isEditing) LoginFieldKey.Username else null
+                        },
+                    )
+
+                    LoginField(
+                        value = state.password,
+                        onValueChange = viewModel::updatePassword,
+                        label = "Password",
+                        placeholder = "Password",
+                        keyboardType = KeyboardType.Password,
+                        obscure = true,
+                        editing = editingField == LoginFieldKey.Password,
+                        onEditingChange = { isEditing ->
+                            editingField = if (isEditing) LoginFieldKey.Password else null
+                        },
+                    )
+
+                    if (state.error != null) {
+                        Text(
+                            text = state.error.orEmpty(),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+
+                    LoginActionButton(
+                        onClick = viewModel::login,
+                        enabled = !state.isLoading,
+                    ) {
+                        Text(if (state.isLoading) "Signing in..." else "Login")
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun LoginSafeArea(content: @Composable BoxScope.() -> Unit) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 48.dp, vertical = 27.dp),
+        content = content,
+    )
 }
 
 @Composable
