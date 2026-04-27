@@ -8,6 +8,13 @@ import java.net.URISyntaxException
 import java.util.concurrent.TimeUnit
 
 object NetworkFactory {
+    private val sharedClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build()
+    }
+
     fun normalizeBaseUrl(baseUrl: String): String {
         val trimmed = baseUrl.trim()
         require(trimmed.isNotBlank()) { "Server URL is required." }
@@ -55,15 +62,9 @@ object NetworkFactory {
     fun createApi(baseUrl: String): NavidromeApi {
         val normalized = "${normalizeBaseUrl(baseUrl)}/"
 
-        val client =
-            OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(20, TimeUnit.SECONDS)
-                .build()
-
         return Retrofit.Builder()
             .baseUrl(normalized)
-            .client(client)
+            .client(sharedClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(NavidromeApi::class.java)
