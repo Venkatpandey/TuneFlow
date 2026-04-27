@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
             TuneFlowTheme {
                 val authViewModel: com.tuneflow.feature.auth.AuthViewModel =
                     viewModel(
-                        factory = AuthViewModelFactory(authRepository, sessionStore),
+                        factory = authViewModelFactory(authRepository, sessionStore),
                     )
                 val authState by authViewModel.uiState.collectAsStateWithLifecycle()
                 val screenScaleOption by
@@ -210,17 +210,17 @@ private fun TuneFlowShell(
     onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModelFactory(browseRepository))
-    val albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel = viewModel(factory = AlbumsViewModelFactory(browseRepository))
+    val homeViewModel: HomeViewModel = viewModel(factory = homeViewModelFactory(browseRepository))
+    val albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel = viewModel(factory = albumsViewModelFactory(browseRepository))
     val albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel =
-        viewModel(factory = AlbumDetailViewModelFactory(browseRepository))
+        viewModel(factory = albumDetailViewModelFactory(browseRepository))
     val artistDetailViewModel: com.tuneflow.feature.browse.ArtistDetailViewModel =
-        viewModel(factory = ArtistDetailViewModelFactory(browseRepository))
+        viewModel(factory = artistDetailViewModelFactory(browseRepository))
     val playlistsViewModel: com.tuneflow.feature.browse.PlaylistsViewModel =
-        viewModel(factory = PlaylistsViewModelFactory(browseRepository))
+        viewModel(factory = playlistsViewModelFactory(browseRepository))
     val searchViewModel: com.tuneflow.feature.browse.SearchViewModel =
-        viewModel(factory = SearchViewModelFactory(browseRepository, searchHistoryStore))
-    val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel = viewModel(factory = PlaybackViewModelFactory(playerManager))
+        viewModel(factory = searchViewModelFactory(browseRepository, searchHistoryStore))
+    val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel = viewModel(factory = playbackViewModelFactory(playerManager))
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
     val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)

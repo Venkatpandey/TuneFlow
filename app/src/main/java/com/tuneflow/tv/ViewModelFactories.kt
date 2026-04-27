@@ -1,7 +1,7 @@
 package com.tuneflow.tv
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
 import com.tuneflow.core.player.TvPlayerManager
@@ -15,56 +15,40 @@ import com.tuneflow.feature.browse.PlaylistsViewModel
 import com.tuneflow.feature.browse.SearchViewModel
 import com.tuneflow.feature.playback.PlaybackViewModel
 
-class AuthViewModelFactory(
-    private val repository: AuthRepository,
-    private val sessionStore: SessionStore,
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return AuthViewModel(repository, sessionStore) as T
-    }
+fun authViewModelFactory(
+    repository: AuthRepository,
+    sessionStore: SessionStore,
+) = viewModelFactory {
+    initializer { AuthViewModel(repository, sessionStore) }
 }
 
-class HomeViewModelFactory(private val repository: BrowseRepository) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return HomeViewModel(repository) as T
-    }
+fun homeViewModelFactory(repository: BrowseRepository) = viewModelFactory {
+    initializer { HomeViewModel(repository) }
 }
 
-class AlbumsViewModelFactory(private val repository: BrowseRepository) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return AlbumsViewModel(repository) as T
-    }
+fun albumsViewModelFactory(repository: BrowseRepository) = viewModelFactory {
+    initializer { AlbumsViewModel(repository) }
 }
 
-class AlbumDetailViewModelFactory(private val repository: BrowseRepository) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return AlbumDetailViewModel(repository) as T
-    }
+fun albumDetailViewModelFactory(repository: BrowseRepository) = viewModelFactory {
+    initializer { AlbumDetailViewModel(repository) }
 }
 
-class ArtistDetailViewModelFactory(private val repository: BrowseRepository) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return ArtistDetailViewModel(repository) as T
-    }
+fun artistDetailViewModelFactory(repository: BrowseRepository) = viewModelFactory {
+    initializer { ArtistDetailViewModel(repository) }
 }
 
-class PlaylistsViewModelFactory(private val repository: BrowseRepository) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return PlaylistsViewModel(repository) as T
-    }
+fun playlistsViewModelFactory(repository: BrowseRepository) = viewModelFactory {
+    initializer { PlaylistsViewModel(repository) }
 }
 
-class SearchViewModelFactory(
-    private val repository: BrowseRepository,
-    private val historyStore: SearchHistoryStore,
-) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return SearchViewModel(repository, historyStore) as T
-    }
+fun searchViewModelFactory(
+    repository: BrowseRepository,
+    historyStore: SearchHistoryStore,
+) = viewModelFactory {
+    initializer { SearchViewModel(repository, historyStore) }
 }
 
-class PlaybackViewModelFactory(private val manager: TvPlayerManager) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return PlaybackViewModel(manager) as T
-    }
+fun playbackViewModelFactory(manager: TvPlayerManager) = viewModelFactory {
+    initializer { PlaybackViewModel(manager) }
 }
