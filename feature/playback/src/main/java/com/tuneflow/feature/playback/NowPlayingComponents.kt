@@ -1,9 +1,18 @@
 package com.tuneflow.feature.playback
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,15 +22,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -226,30 +246,129 @@ internal fun TransportControls(
     autoFocusTransport: Boolean,
     onAutoFocusConsumed: () -> Unit,
 ) {
-    val sideButtonWidth = if (compact) 124.dp else 148.dp
-    val centerButtonWidth = if (compact) 144.dp else 172.dp
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val gap = if (compact) 10.dp else 16.dp
+        val desiredSideSize = if (compact) 74.dp else 82.dp
+        val desiredCenterSize = if (compact) 88.dp else 98.dp
+        val desiredTotal = (desiredSideSize * 2) + desiredCenterSize
+        val availableButtonWidth = (maxWidth - (gap * 2)).coerceAtLeast(0.dp)
+        val fitScale =
+            if (desiredTotal > 0.dp) {
+                minOf(1f, availableButtonWidth / desiredTotal)
+            } else {
+                1f
+            }
+        val focusReserve = 1.08f
+        val sideButtonSize = desiredSideSize * fitScale
+        val centerButtonSize = desiredCenterSize * fitScale
+        val sideSlotWidth = sideButtonSize * focusReserve
+        val centerSlotWidth = centerButtonSize * focusReserve
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 14.dp, Alignment.Start),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.width(sideSlotWidth),
+                contentAlignment = Alignment.Center,
+            ) {
+                PlaybackIconButton(
+                    iconResId = R.drawable.playback_control_prev,
+                    contentDescription = "Previous",
+                    onClick = onPrevious,
+                    buttonSize = sideButtonSize,
+                )
+            }
+            Box(
+                modifier = Modifier.width(centerSlotWidth),
+                contentAlignment = Alignment.Center,
+            ) {
+                PlaybackIconButton(
+                    iconResId = if (isPlaying) R.drawable.playback_control_pause else R.drawable.playback_control_play,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    onClick = onTogglePlayPause,
+                    buttonSize = centerButtonSize,
+                    requestFocus = autoFocusTransport,
+                    onRequestedFocusApplied = onAutoFocusConsumed,
+                )
+            }
+            Box(
+                modifier = Modifier.width(sideSlotWidth),
+                contentAlignment = Alignment.Center,
+            ) {
+                PlaybackIconButton(
+                    iconResId = R.drawable.playback_control_next,
+                    contentDescription = "Next",
+                    onClick = onNext,
+                    buttonSize = sideButtonSize,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun PlaybackIconButton(
+    iconResId: Int,
+    contentDescription: String,
+    onClick: () -> Unit,
+    buttonSize: Dp,
+    modifier: Modifier = Modifier,
+    requestFocus: Boolean = false,
+    onRequestedFocusApplied: () -> Unit = {},
+) {
+    var focused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val scale by animateFloatAsState(
+        targetValue = if (focused) 1.08f else 1f,
+        animationSpec =
+            tween(
+                durationMillis = if (focused) 150 else 100,
+                easing = if (focused) FastOutSlowInEasing else LinearOutSlowInEasing,
+            ),
+        label = "playbackIconScale",
+    )
+
+    LaunchedEffect(requestFocus) {
+        if (requestFocus) {
+            focusRequester.requestFocus()
+            onRequestedFocusApplied()
+        }
+    }
+
+    Box(
+        modifier =
+            modifier
+                .size(buttonSize)
+                .focusRequester(focusRequester)
+                .scale(scale)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = if (focused) 0.22f else 0.08f))
+                .border(
+                    width = if (focused) 3.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)
+                        },
+                    shape = CircleShape,
+                )
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable()
+                .clickable(onClick = onClick)
+                .padding(4.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        PlaybackTextButton(
-            label = "Previous",
-            onClick = onPrevious,
-            modifier = Modifier.width(sideButtonWidth),
-        )
-        PlaybackTextButton(
-            label = if (isPlaying) "Pause" else "Play",
-            accent = true,
-            onClick = onTogglePlayPause,
-            modifier = Modifier.width(centerButtonWidth),
-            requestFocus = autoFocusTransport,
-            onRequestedFocusApplied = onAutoFocusConsumed,
-        )
-        PlaybackTextButton(
-            label = "Next",
-            onClick = onNext,
-            modifier = Modifier.width(sideButtonWidth),
+        Image(
+            painter = painterResource(iconResId),
+            contentDescription = contentDescription,
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+            contentScale = ContentScale.Fit,
         )
     }
 }
