@@ -7,6 +7,8 @@ import com.tuneflow.core.network.ArtistSummary
 import com.tuneflow.core.network.FavoritesBundle
 import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.feature.browse.BrowseRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,28 +35,35 @@ class HomeViewModel(private val repository: BrowseRepository) : ViewModel() {
     fun refresh() {
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            val albumsResult = repository.getAlbums(size = 12, offset = 0)
-            val playlistsResult = repository.getPlaylists()
-            val favoritesResult = repository.getFavorites()
-            val artistsResult = repository.getArtists()
+            coroutineScope {
+                val albumsDeferred = async { repository.getAlbums(size = 12, offset = 0) }
+                val playlistsDeferred = async { repository.getPlaylists() }
+                val favoritesDeferred = async { repository.getFavorites() }
+                val artistsDeferred = async { repository.getArtists() }
 
-            val errors =
-                listOfNotNull(
-                    albumsResult.exceptionOrNull()?.message,
-                    playlistsResult.exceptionOrNull()?.message,
-                    favoritesResult.exceptionOrNull()?.message,
-                    artistsResult.exceptionOrNull()?.message,
-                )
+                val albumsResult = albumsDeferred.await()
+                val playlistsResult = playlistsDeferred.await()
+                val favoritesResult = favoritesDeferred.await()
+                val artistsResult = artistsDeferred.await()
 
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    recentAlbums = albumsResult.getOrNull().orEmpty(),
-                    playlists = playlistsResult.getOrNull().orEmpty(),
-                    favorites = favoritesResult.getOrNull() ?: FavoritesBundle(emptyList(), emptyList()),
-                    artists = artistsResult.getOrNull().orEmpty(),
-                    error = errors.firstOrNull(),
-                )
+                val errors =
+                    listOfNotNull(
+                        albumsResult.exceptionOrNull()?.message,
+                        playlistsResult.exceptionOrNull()?.message,
+                        favoritesResult.exceptionOrNull()?.message,
+                        artistsResult.exceptionOrNull()?.message,
+                    )
+
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        recentAlbums = albumsResult.getOrNull().orEmpty(),
+                        playlists = playlistsResult.getOrNull().orEmpty(),
+                        favorites = favoritesResult.getOrNull() ?: FavoritesBundle(emptyList(), emptyList()),
+                        artists = artistsResult.getOrNull().orEmpty(),
+                        error = errors.firstOrNull(),
+                    )
+                }
             }
 
             val hydratedPlaylists = repository.hydratePlaylistArtwork(_uiState.value.playlists)
