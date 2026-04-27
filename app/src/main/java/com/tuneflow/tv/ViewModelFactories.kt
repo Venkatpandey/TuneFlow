@@ -22,25 +22,30 @@ fun authViewModelFactory(
     initializer { AuthViewModel(repository, sessionStore) }
 }
 
-fun homeViewModelFactory(repository: BrowseRepository) = viewModelFactory {
-    initializer { HomeViewModel(repository) }
-}
+fun homeViewModelFactory(repository: BrowseRepository) =
+    viewModelFactory {
+        initializer { HomeViewModel(repository) }
+    }
 
-fun albumsViewModelFactory(repository: BrowseRepository) = viewModelFactory {
-    initializer { AlbumsViewModel(repository) }
-}
+fun albumsViewModelFactory(repository: BrowseRepository) =
+    viewModelFactory {
+        initializer { AlbumsViewModel(repository) }
+    }
 
-fun albumDetailViewModelFactory(repository: BrowseRepository) = viewModelFactory {
-    initializer { AlbumDetailViewModel(repository) }
-}
+fun albumDetailViewModelFactory(repository: BrowseRepository) =
+    viewModelFactory {
+        initializer { AlbumDetailViewModel(repository) }
+    }
 
-fun artistDetailViewModelFactory(repository: BrowseRepository) = viewModelFactory {
-    initializer { ArtistDetailViewModel(repository) }
-}
+fun artistDetailViewModelFactory(repository: BrowseRepository) =
+    viewModelFactory {
+        initializer { ArtistDetailViewModel(repository) }
+    }
 
-fun playlistsViewModelFactory(repository: BrowseRepository) = viewModelFactory {
-    initializer { PlaylistsViewModel(repository) }
-}
+fun playlistsViewModelFactory(repository: BrowseRepository) =
+    viewModelFactory {
+        initializer { PlaylistsViewModel(repository) }
+    }
 
 fun searchViewModelFactory(
     repository: BrowseRepository,
@@ -49,6 +54,7 @@ fun searchViewModelFactory(
     initializer { SearchViewModel(repository, historyStore) }
 }
 
-fun playbackViewModelFactory(manager: TvPlayerManager) = viewModelFactory {
-    initializer { PlaybackViewModel(manager) }
-}
+fun playbackViewModelFactory(manager: TvPlayerManager) =
+    viewModelFactory {
+        initializer { PlaybackViewModel(manager) }
+    }
