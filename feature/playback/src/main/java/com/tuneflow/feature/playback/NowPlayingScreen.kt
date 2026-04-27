@@ -113,6 +113,7 @@ fun NowPlayingScreen(
                 onPrevious = viewModel::previous,
                 onTogglePlayPause = viewModel::togglePlayPause,
                 onNext = viewModel::next,
+                compactTransport = showQueue,
                 autoFocusTransport = autoFocusTransport,
                 onAutoFocusConsumed = onAutoFocusConsumed,
             )

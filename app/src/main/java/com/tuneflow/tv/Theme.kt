@@ -8,10 +8,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -59,6 +62,23 @@ fun TuneFlowSafeArea(content: @Composable BoxScope.() -> Unit) {
                 .padding(horizontal = 48.dp, vertical = 27.dp),
         content = content,
     )
+}
+
+@Composable
+fun TuneFlowScaledContent(
+    scaleFactor: Float,
+    content: @Composable () -> Unit,
+) {
+    val density = LocalDensity.current
+    val scaledDensity =
+        Density(
+            density = density.density * scaleFactor,
+            fontScale = density.fontScale * scaleFactor,
+        )
+
+    CompositionLocalProvider(LocalDensity provides scaledDensity) {
+        content()
+    }
 }
 
 @Composable

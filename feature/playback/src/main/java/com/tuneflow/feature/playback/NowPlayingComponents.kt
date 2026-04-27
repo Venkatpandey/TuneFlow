@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +42,7 @@ internal fun NowPlayingPrimaryColumn(
     onPrevious: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
+    compactTransport: Boolean,
     autoFocusTransport: Boolean,
     onAutoFocusConsumed: () -> Unit,
     modifier: Modifier = Modifier,
@@ -80,6 +82,7 @@ internal fun NowPlayingPrimaryColumn(
             onPrevious = onPrevious,
             onTogglePlayPause = onTogglePlayPause,
             onNext = onNext,
+            compact = compactTransport,
             autoFocusTransport = autoFocusTransport,
             onAutoFocusConsumed = onAutoFocusConsumed,
         )
@@ -219,27 +222,34 @@ internal fun TransportControls(
     onPrevious: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
+    compact: Boolean,
     autoFocusTransport: Boolean,
     onAutoFocusConsumed: () -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    val sideButtonWidth = if (compact) 124.dp else 148.dp
+    val centerButtonWidth = if (compact) 144.dp else 172.dp
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 14.dp, Alignment.Start),
+    ) {
         PlaybackTextButton(
             label = "Previous",
             onClick = onPrevious,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(sideButtonWidth),
         )
         PlaybackTextButton(
             label = if (isPlaying) "Pause" else "Play",
             accent = true,
             onClick = onTogglePlayPause,
-            modifier = Modifier.weight(1.1f),
+            modifier = Modifier.width(centerButtonWidth),
             requestFocus = autoFocusTransport,
             onRequestedFocusApplied = onAutoFocusConsumed,
         )
         PlaybackTextButton(
             label = "Next",
             onClick = onNext,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(sideButtonWidth),
         )
     }
 }

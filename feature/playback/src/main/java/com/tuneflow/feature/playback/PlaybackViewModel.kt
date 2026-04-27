@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 
 data class NowPlayingUiState(
@@ -36,7 +37,12 @@ class PlaybackViewModel(
     init {
         val scope = scopeOverride ?: viewModelScope
         scope.launch {
-            combine(playerManager.queue, playerManager.isPlaying, playerManager.playbackStatus) { queue, isPlaying, playbackStatus ->
+            combine(
+                playerManager.queue,
+                playerManager.isPlaying,
+                playerManager.playbackStatus,
+                positionTicker.onStart { emit(Unit) },
+            ) { queue, isPlaying, playbackStatus, _ ->
                 NowPlayingUiState(
                     queue = queue,
                     isPlaying = isPlaying,
@@ -47,17 +53,6 @@ class PlaybackViewModel(
                 )
             }.collect {
                 _uiState.value = it
-            }
-        }
-
-        scope.launch {
-            positionTicker.collect {
-                val current = _uiState.value
-                _uiState.value =
-                    current.copy(
-                        positionMs = playerManager.currentPositionMs(),
-                        durationMs = playerManager.durationMs(),
-                    )
             }
         }
     }
