@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tuneflow.core.network.PlaybackPreferencesStore
+import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
 import com.tuneflow.core.network.TrackStreamOptions
@@ -88,12 +89,17 @@ class MainActivity : ComponentActivity() {
                         factory = AuthViewModelFactory(authRepository, sessionStore),
                     )
                 val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+                val screenScaleOption by
+                    playbackPreferencesStore.screenScaleOptionFlow.collectAsStateWithLifecycle(
+                        initialValue = ScreenScaleOption.Compact,
+                    )
 
                 if (!authState.isLoggedIn) {
                     LoginScreen(
                         viewModel = authViewModel,
                         logoResId = R.drawable.ic_tuneflow_brand,
                         backgroundResId = R.drawable.login_background,
+                        screenScaleFactor = screenScaleOption.factor,
                     )
                 } else {
                     TuneFlowShell(
@@ -102,11 +108,7 @@ class MainActivity : ComponentActivity() {
                         sessionStore = sessionStore,
                         playbackPreferencesStore = playbackPreferencesStore,
                         searchHistoryStore = searchHistoryStore,
-                        onLogout = {
-                            playerManager.stopAndClear()
-                            stopService(playbackServiceIntent)
-                            authViewModel.logout()
-                        },
+                        screenScaleOption = screenScaleOption,
                         onExitApp = ::closeAppToSystem,
                     )
                 }
@@ -204,7 +206,7 @@ private fun TuneFlowShell(
     sessionStore: SessionStore,
     playbackPreferencesStore: PlaybackPreferencesStore,
     searchHistoryStore: SearchHistoryStore,
-    onLogout: () -> Unit,
+    screenScaleOption: ScreenScaleOption,
     onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -370,68 +372,76 @@ private fun TuneFlowShell(
         )
 
         TuneFlowSafeArea {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                NavRail(
-                    currentSection = currentSection,
-                    onSectionSelected = ::openSection,
-                    onNowPlaying = ::openNowPlaying,
-                    isNowPlayingActive = showNowPlaying,
-                    username = session?.username.orEmpty(),
-                    onLogout = onLogout,
-                )
-
-                Spacer(Modifier.width(22.dp))
-
-                Box(
-                    modifier =
-                        Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(34.dp))
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                                shape = RoundedCornerShape(34.dp),
-                            )
-                            .padding(22.dp),
+            TuneFlowScaledContent(scaleFactor = screenScaleOption.factor) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
                 ) {
-                    ShellContent(
+                    NavRail(
                         currentSection = currentSection,
-                        selectedAlbumId = selectedAlbumId,
-                        selectedArtistId = selectedArtistId,
-                        showNowPlaying = showNowPlaying,
-                        preselectedPlaylistId = preselectedPlaylistId,
-                        playbackQueue = playbackState.queue,
-                        homeViewModel = homeViewModel,
-                        albumsViewModel = albumsViewModel,
-                        albumDetailViewModel = albumDetailViewModel,
-                        artistDetailViewModel = artistDetailViewModel,
-                        playlistsViewModel = playlistsViewModel,
-                        searchViewModel = searchViewModel,
-                        playbackViewModel = playbackViewModel,
-                        streamModeLabel = if (preferDirectWithFallback) "FLAC" else "MP3",
-                        onCycleStreamMode = ::cycleStreamMode,
-                        autoFocusNowPlayingTransport = autoFocusNowPlayingTransport,
-                        onNowPlayingAutoFocusConsumed = { autoFocusNowPlayingTransport = false },
-                        onOpenAlbum = ::openAlbum,
-                        onOpenArtist = ::openArtist,
-                        onOpenSection = ::openSection,
-                        onOpenPlaylist = {
-                            currentSection = NavSection.Playlists
-                            preselectedPlaylistId = it
-                            selectedAlbumId = null
-                            selectedArtistId = null
-                            showNowPlaying = false
-                            autoFocusNowPlayingTransport = false
-                            showExitPrompt = false
+                        onSectionSelected = ::openSection,
+                        onNowPlaying = ::openNowPlaying,
+                        isNowPlayingActive = showNowPlaying,
+                        username = session?.username.orEmpty(),
+                        screenScaleOption = screenScaleOption,
+                        onScreenScaleSelected = { option ->
+                            scope.launch {
+                                playbackPreferencesStore.setScreenScale(option)
+                            }
                         },
-                        onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
-                        onOpenNowPlaying = ::openNowPlaying,
-                        onPlayTracks = ::playTracks,
+                        onExitApp = onExitApp,
                     )
+
+                    Spacer(Modifier.width(22.dp))
+
+                    Box(
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(34.dp))
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                                    shape = RoundedCornerShape(34.dp),
+                                )
+                                .padding(22.dp),
+                    ) {
+                        ShellContent(
+                            currentSection = currentSection,
+                            selectedAlbumId = selectedAlbumId,
+                            selectedArtistId = selectedArtistId,
+                            showNowPlaying = showNowPlaying,
+                            preselectedPlaylistId = preselectedPlaylistId,
+                            playbackQueue = playbackState.queue,
+                            homeViewModel = homeViewModel,
+                            albumsViewModel = albumsViewModel,
+                            albumDetailViewModel = albumDetailViewModel,
+                            artistDetailViewModel = artistDetailViewModel,
+                            playlistsViewModel = playlistsViewModel,
+                            searchViewModel = searchViewModel,
+                            playbackViewModel = playbackViewModel,
+                            streamModeLabel = if (preferDirectWithFallback) "FLAC" else "MP3",
+                            onCycleStreamMode = ::cycleStreamMode,
+                            autoFocusNowPlayingTransport = autoFocusNowPlayingTransport,
+                            onNowPlayingAutoFocusConsumed = { autoFocusNowPlayingTransport = false },
+                            onOpenAlbum = ::openAlbum,
+                            onOpenArtist = ::openArtist,
+                            onOpenSection = ::openSection,
+                            onOpenPlaylist = {
+                                currentSection = NavSection.Playlists
+                                preselectedPlaylistId = it
+                                selectedAlbumId = null
+                                selectedArtistId = null
+                                showNowPlaying = false
+                                autoFocusNowPlayingTransport = false
+                                showExitPrompt = false
+                            },
+                            onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
+                            onOpenNowPlaying = ::openNowPlaying,
+                            onPlayTracks = ::playTracks,
+                        )
+                    }
                 }
             }
         }
@@ -583,7 +593,9 @@ private fun NavRail(
     onNowPlaying: () -> Unit,
     isNowPlayingActive: Boolean,
     username: String,
-    onLogout: () -> Unit,
+    screenScaleOption: ScreenScaleOption,
+    onScreenScaleSelected: (ScreenScaleOption) -> Unit,
+    onExitApp: () -> Unit,
 ) {
     var accountExpanded by rememberSaveable { mutableStateOf(false) }
 
@@ -684,9 +696,11 @@ private fun NavRail(
             AccountRailSection(
                 username = username.ifBlank { "Account" },
                 expanded = accountExpanded,
+                screenScaleOption = screenScaleOption,
                 onToggleExpanded = { accountExpanded = !accountExpanded },
                 onExpand = { accountExpanded = true },
-                onLogout = onLogout,
+                onScreenScaleSelected = onScreenScaleSelected,
+                onExitApp = onExitApp,
             )
         }
     }
@@ -747,11 +761,19 @@ private fun RailItem(
 private fun AccountRailSection(
     username: String,
     expanded: Boolean,
+    screenScaleOption: ScreenScaleOption,
     onToggleExpanded: () -> Unit,
     onExpand: () -> Unit,
-    onLogout: () -> Unit,
+    onScreenScaleSelected: (ScreenScaleOption) -> Unit,
+    onExitApp: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val initial =
+        username
+            .trim()
+            .firstOrNull()
+            ?.uppercaseChar()
+            ?.toString() ?: "A"
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -785,12 +807,23 @@ private fun AccountRailSection(
                     .clickable(onClick = onToggleExpanded)
                     .padding(horizontal = 14.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
         ) {
-            Text(
-                text = username,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            Box(
+                modifier =
+                    Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = initial,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
 
         if (expanded) {
@@ -809,19 +842,29 @@ private fun AccountRailSection(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    text = "App Info",
+                    text = "Screen Scale",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                Text(
-                    text = "TuneFlow for TV",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                RailItem(
+                    label = "100%",
+                    selected = screenScaleOption == ScreenScaleOption.Full,
+                    onClick = { onScreenScaleSelected(ScreenScaleOption.Full) },
                 )
                 RailItem(
-                    label = "Logout",
+                    label = "75%",
+                    selected = screenScaleOption == ScreenScaleOption.Compact,
+                    onClick = { onScreenScaleSelected(ScreenScaleOption.Compact) },
+                )
+                RailItem(
+                    label = "50%",
+                    selected = screenScaleOption == ScreenScaleOption.Dense,
+                    onClick = { onScreenScaleSelected(ScreenScaleOption.Dense) },
+                )
+                RailItem(
+                    label = "Exit",
                     selected = false,
-                    onClick = onLogout,
+                    onClick = onExitApp,
                 )
             }
         }
