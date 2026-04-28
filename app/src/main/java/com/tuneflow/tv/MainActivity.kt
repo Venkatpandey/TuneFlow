@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -89,10 +90,7 @@ class MainActivity : ComponentActivity() {
                         factory = authViewModelFactory(authRepository, sessionStore),
                     )
                 val authState by authViewModel.uiState.collectAsStateWithLifecycle()
-                val screenScaleOption by
-                    playbackPreferencesStore.screenScaleOptionFlow.collectAsStateWithLifecycle(
-                        initialValue = ScreenScaleOption.Compact,
-                    )
+                val screenScaleOption = ScreenScaleOption.Compact
 
                 if (!authState.isLoggedIn) {
                     LoginScreen(
@@ -108,7 +106,6 @@ class MainActivity : ComponentActivity() {
                         sessionStore = sessionStore,
                         playbackPreferencesStore = playbackPreferencesStore,
                         searchHistoryStore = searchHistoryStore,
-                        screenScaleOption = screenScaleOption,
                         onExitApp = ::closeAppToSystem,
                     )
                 }
@@ -206,7 +203,6 @@ private fun TuneFlowShell(
     sessionStore: SessionStore,
     playbackPreferencesStore: PlaybackPreferencesStore,
     searchHistoryStore: SearchHistoryStore,
-    screenScaleOption: ScreenScaleOption,
     onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -372,7 +368,7 @@ private fun TuneFlowShell(
         )
 
         TuneFlowSafeArea {
-            TuneFlowScaledContent(scaleFactor = screenScaleOption.factor) {
+            TuneFlowScaledContent(scaleFactor = ScreenScaleOption.Compact.factor) {
                 Row(
                     modifier = Modifier.fillMaxSize(),
                 ) {
@@ -382,12 +378,6 @@ private fun TuneFlowShell(
                         onNowPlaying = ::openNowPlaying,
                         isNowPlayingActive = showNowPlaying,
                         username = session?.username.orEmpty(),
-                        screenScaleOption = screenScaleOption,
-                        onScreenScaleSelected = { option ->
-                            scope.launch {
-                                playbackPreferencesStore.setScreenScale(option)
-                            }
-                        },
                         onExitApp = onExitApp,
                     )
 
@@ -593,8 +583,6 @@ private fun NavRail(
     onNowPlaying: () -> Unit,
     isNowPlayingActive: Boolean,
     username: String,
-    screenScaleOption: ScreenScaleOption,
-    onScreenScaleSelected: (ScreenScaleOption) -> Unit,
     onExitApp: () -> Unit,
 ) {
     var accountExpanded by rememberSaveable { mutableStateOf(false) }
@@ -696,10 +684,8 @@ private fun NavRail(
             AccountRailSection(
                 username = username.ifBlank { "Account" },
                 expanded = accountExpanded,
-                screenScaleOption = screenScaleOption,
                 onToggleExpanded = { accountExpanded = !accountExpanded },
                 onExpand = { accountExpanded = true },
-                onScreenScaleSelected = onScreenScaleSelected,
                 onExitApp = onExitApp,
             )
         }
@@ -761,10 +747,8 @@ private fun RailItem(
 private fun AccountRailSection(
     username: String,
     expanded: Boolean,
-    screenScaleOption: ScreenScaleOption,
     onToggleExpanded: () -> Unit,
     onExpand: () -> Unit,
-    onScreenScaleSelected: (ScreenScaleOption) -> Unit,
     onExitApp: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -776,12 +760,12 @@ private fun AccountRailSection(
             ?.toString() ?: "A"
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
+        Box(
             modifier =
                 Modifier
-                    .fillMaxWidth()
-                    .scale(if (focused) 1.01f else 1f)
-                    .clip(RoundedCornerShape(18.dp))
+                    .size(44.dp)
+                    .scale(if (focused) 1.05f else 1f)
+                    .clip(CircleShape)
                     .background(
                         if (focused || expanded) {
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
@@ -797,33 +781,22 @@ private fun AccountRailSection(
                             } else {
                                 MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
                             },
-                        shape = RoundedCornerShape(18.dp),
+                        shape = CircleShape,
                     )
                     .onFocusChanged { focusState ->
                         focused = focusState.hasFocus
                         if (focusState.hasFocus) onExpand()
                     }
                     .focusable()
-                    .clickable(onClick = onToggleExpanded)
-                    .padding(horizontal = 14.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
+                    .clickable(onClick = onToggleExpanded),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                modifier =
-                    Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = initial,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
 
         if (expanded) {
@@ -841,26 +814,6 @@ private fun AccountRailSection(
                         .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    text = "Screen Scale",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                RailItem(
-                    label = "100%",
-                    selected = screenScaleOption == ScreenScaleOption.Full,
-                    onClick = { onScreenScaleSelected(ScreenScaleOption.Full) },
-                )
-                RailItem(
-                    label = "75%",
-                    selected = screenScaleOption == ScreenScaleOption.Compact,
-                    onClick = { onScreenScaleSelected(ScreenScaleOption.Compact) },
-                )
-                RailItem(
-                    label = "50%",
-                    selected = screenScaleOption == ScreenScaleOption.Dense,
-                    onClick = { onScreenScaleSelected(ScreenScaleOption.Dense) },
-                )
                 RailItem(
                     label = "Exit",
                     selected = false,
