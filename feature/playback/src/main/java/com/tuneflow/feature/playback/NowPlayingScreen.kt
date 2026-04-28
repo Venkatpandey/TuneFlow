@@ -257,6 +257,15 @@ private fun QueuePanel(
     state: NowPlayingUiState,
     onSelectTrack: (Int) -> Unit,
 ) {
+    val currentFocusRequester = remember { FocusRequester() }
+    val currentIndex = state.queue.currentIndex
+
+    LaunchedEffect(currentIndex) {
+        if (currentIndex >= 0 && currentIndex < state.queue.items.size) {
+            currentFocusRequester.requestFocus()
+        }
+    }
+
     Column(
         modifier =
             Modifier
@@ -282,8 +291,14 @@ private fun QueuePanel(
                 QueueRow(
                     title = track.title,
                     subtitle = track.artist,
-                    isCurrent = index == state.queue.currentIndex,
+                    isCurrent = index == currentIndex,
                     onClick = { onSelectTrack(index) },
+                    modifier =
+                        if (index == currentIndex) {
+                            Modifier.focusRequester(currentFocusRequester)
+                        } else {
+                            Modifier
+                        },
                 )
             }
         }
@@ -296,12 +311,13 @@ private fun QueueRow(
     subtitle: String,
     isCurrent: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
 
     Box(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .scale(if (focused) 1.01f else 1f)
                 .clip(RoundedCornerShape(18.dp))

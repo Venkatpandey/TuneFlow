@@ -23,7 +23,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +73,16 @@ fun AlbumsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
+    val firstAlbumFocusRequester = remember { FocusRequester() }
+    var initialAlbumFocusRequested by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(state.items.size) {
+        if (!initialAlbumFocusRequested && state.items.isNotEmpty()) {
+            firstAlbumFocusRequester.requestFocus()
+            initialAlbumFocusRequested = true
+        }
+    }
+
     when {
         state.isLoading -> {
             LoadingState(modifier = modifier, label = "Loading albums...")
@@ -90,8 +103,17 @@ fun AlbumsScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = 32.dp),
                 ) {
-                    items(state.items, key = { it.id }) { album ->
-                        PremiumAlbumCard(album = album, onClick = { onAlbumSelected(album.id) })
+                    itemsIndexed(state.items, key = { _, album -> album.id }) { index, album ->
+                        PremiumAlbumCard(
+                            album = album,
+                            onClick = { onAlbumSelected(album.id) },
+                            modifier =
+                                if (index == 0) {
+                                    Modifier.focusRequester(firstAlbumFocusRequester)
+                                } else {
+                                    Modifier
+                                },
+                        )
                     }
 
                     if (state.hasMore) {
@@ -126,9 +148,18 @@ fun AlbumDetailScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val playAlbumFocusRequester = remember { FocusRequester() }
+    var initialAlbumFocusRequested by rememberSaveable(albumId) { mutableStateOf(false) }
 
     LaunchedEffect(albumId) {
         viewModel.load(albumId)
+    }
+
+    LaunchedEffect(state.album?.id) {
+        if (!initialAlbumFocusRequested && state.album != null) {
+            playAlbumFocusRequester.requestFocus()
+            initialAlbumFocusRequested = true
+        }
     }
 
     when {
@@ -184,6 +215,7 @@ fun AlbumDetailScreen(
                     )
                     BrowseActionButton(
                         onClick = { onPlayAlbum(album.tracks, 0) },
+                        modifier = Modifier.focusRequester(playAlbumFocusRequester),
                     ) {
                         Text("Play Album")
                     }
@@ -215,9 +247,18 @@ fun ArtistDetailScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val firstArtistAlbumFocusRequester = remember { FocusRequester() }
+    var initialArtistFocusRequested by rememberSaveable(artistId) { mutableStateOf(false) }
 
     LaunchedEffect(artistId) {
         viewModel.load(artistId)
+    }
+
+    LaunchedEffect(state.artist?.albums?.size) {
+        if (!initialArtistFocusRequested && state.artist?.albums?.isNotEmpty() == true) {
+            firstArtistAlbumFocusRequester.requestFocus()
+            initialArtistFocusRequested = true
+        }
     }
 
     when {
@@ -269,8 +310,17 @@ fun ArtistDetailScreen(
                     title = "Albums",
                 )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    items(artist.albums, key = { it.id }) { album ->
-                        PremiumAlbumCard(album = album, onClick = { onOpenAlbum(album.id) })
+                    itemsIndexed(artist.albums, key = { _, album -> album.id }) { index, album ->
+                        PremiumAlbumCard(
+                            album = album,
+                            onClick = { onOpenAlbum(album.id) },
+                            modifier =
+                                if (index == 0) {
+                                    Modifier.focusRequester(firstArtistAlbumFocusRequester)
+                                } else {
+                                    Modifier
+                                },
+                        )
                     }
                 }
             }
@@ -287,11 +337,20 @@ fun PlaylistsScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val firstPlaylistFocusRequester = remember { FocusRequester() }
+    var initialPlaylistFocusRequested by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(preselectedPlaylistId) {
         if (preselectedPlaylistId != null) {
             viewModel.loadPlaylistDetail(preselectedPlaylistId)
             onPreselectedPlaylistConsumed()
+        }
+    }
+
+    LaunchedEffect(state.playlists.size) {
+        if (!initialPlaylistFocusRequested && state.playlists.isNotEmpty()) {
+            firstPlaylistFocusRequester.requestFocus()
+            initialPlaylistFocusRequested = true
         }
     }
 
@@ -316,8 +375,17 @@ fun PlaylistsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 32.dp),
                 ) {
-                    items(state.playlists, key = { it.id }) { playlist ->
-                        PremiumPlaylistRow(playlist = playlist, onClick = { viewModel.loadPlaylistDetail(playlist.id) })
+                    itemsIndexed(state.playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
+                        PremiumPlaylistRow(
+                            playlist = playlist,
+                            onClick = { viewModel.loadPlaylistDetail(playlist.id) },
+                            modifier =
+                                if (index == 0) {
+                                    Modifier.focusRequester(firstPlaylistFocusRequester)
+                                } else {
+                                    Modifier
+                                },
+                        )
                     }
                 }
             }
@@ -389,6 +457,7 @@ fun SearchScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf(state.query) }
     var editingQuery by remember { mutableStateOf(false) }
+    var requestSearchFocus by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(state.query) {
         query = state.query
@@ -411,6 +480,8 @@ fun SearchScreen(
             placeholder = { Text("Artist, album, or track") },
             editing = editingQuery,
             onEditingChange = { editingQuery = it },
+            requestFocusOnDisplay = requestSearchFocus,
+            onRequestFocusConsumed = { requestSearchFocus = false },
         )
 
         if (state.isLoading) {
@@ -474,8 +545,11 @@ fun SearchScreen(
                 item { SectionTitle(title = "Albums") }
                 item {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(state.result.albums, key = { it.id }) { album ->
-                            PremiumAlbumCard(album = album, onClick = { onOpenAlbum(album.id) })
+                        itemsIndexed(state.result.albums, key = { _, album -> album.id }) { _, album ->
+                            PremiumAlbumCard(
+                                album = album,
+                                onClick = { onOpenAlbum(album.id) },
+                            )
                         }
                     }
                 }
@@ -483,7 +557,7 @@ fun SearchScreen(
 
             if (state.result.tracks.isNotEmpty()) {
                 item { SectionTitle(title = "Tracks") }
-                items(state.result.tracks, key = { it.id }) { track ->
+                itemsIndexed(state.result.tracks, key = { _, track -> track.id }) { _, track ->
                     PremiumListRow(
                         title = track.title,
                         subtitle = "${track.artist} • ${track.album}",
@@ -500,9 +574,10 @@ fun SearchScreen(
 private fun PremiumPlaylistRow(
     playlist: PlaylistSummary,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     FocusScaleCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         onClick = onClick,
     ) {
         Row(
@@ -547,11 +622,14 @@ private fun SearchField(
     placeholder: @Composable () -> Unit,
     editing: Boolean,
     onEditingChange: (Boolean) -> Unit,
+    requestFocusOnDisplay: Boolean = false,
+    onRequestFocusConsumed: () -> Unit = {},
+    displayFocusRequesterOverride: FocusRequester? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val editFocusRequester = remember { FocusRequester() }
-    val displayFocusRequester = remember { FocusRequester() }
+    val displayFocusRequester = displayFocusRequesterOverride ?: remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
     var restoreDisplayFocus by remember { mutableStateOf(false) }
     var pendingExitDirection by remember { mutableStateOf<FocusDirection?>(null) }
@@ -577,6 +655,13 @@ private fun SearchField(
             restoreDisplayFocus = false
         },
     )
+
+    LaunchedEffect(requestFocusOnDisplay, editing) {
+        if (requestFocusOnDisplay && !editing) {
+            displayFocusRequester.requestFocus()
+            onRequestFocusConsumed()
+        }
+    }
 
     if (editing) {
         EditingSearchField(
@@ -760,9 +845,10 @@ private fun ScreenInitialFocusAnchor() {
 private fun PremiumAlbumCard(
     album: AlbumSummary,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     FocusScaleCard(
-        modifier = Modifier.width(196.dp),
+        modifier = modifier.width(196.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -814,9 +900,10 @@ private fun PremiumListRow(
     subtitle: String,
     trailing: String? = null,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     FocusScaleCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         onClick = onClick,
     ) {
         Row(
