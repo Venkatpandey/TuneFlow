@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
@@ -33,15 +35,25 @@ class PlaybackViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(NowPlayingUiState())
     val uiState: StateFlow<NowPlayingUiState> = _uiState.asStateFlow()
+    private val isActive = MutableStateFlow(false)
 
     init {
         val scope = scopeOverride ?: viewModelScope
         scope.launch {
+            val gatedTicker =
+                isActive.flatMapLatest { active ->
+                    if (active) {
+                        positionTicker.onStart { emit(Unit) }
+                    } else {
+                        emptyFlow()
+                    }
+                }
+
             combine(
                 playerManager.queue,
                 playerManager.isPlaying,
                 playerManager.playbackStatus,
-                positionTicker.onStart { emit(Unit) },
+                gatedTicker,
             ) { queue, isPlaying, playbackStatus, _ ->
                 NowPlayingUiState(
                     queue = queue,
@@ -55,6 +67,10 @@ class PlaybackViewModel(
                 _uiState.value = it
             }
         }
+    }
+
+    fun setActive(active: Boolean) {
+        isActive.value = active
     }
 
     fun togglePlayPause() {
