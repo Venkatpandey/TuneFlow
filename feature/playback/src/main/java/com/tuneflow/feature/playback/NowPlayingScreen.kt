@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.tuneflow.core.design.TuneFlowShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -144,12 +144,12 @@ internal fun StreamBadge(label: String) {
     Box(
         modifier =
             Modifier
-                .clip(RoundedCornerShape(14.dp))
+                .clip(TuneFlowShapes.badge)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = TuneFlowShapes.badge,
                 )
                 .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
@@ -172,7 +172,7 @@ internal fun StreamModeButton(
         modifier =
             Modifier
                 .scale(if (focused) 1.01f else 1f)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(TuneFlowShapes.button)
                 .background(
                     if (focused) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
@@ -188,7 +188,7 @@ internal fun StreamModeButton(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(14.dp),
+                    shape = TuneFlowShapes.button,
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
@@ -277,12 +277,12 @@ private fun QueuePanel(
             Modifier
                 .width(312.dp)
                 .fillMaxHeight()
-                .clip(RoundedCornerShape(26.dp))
+                .clip(TuneFlowShapes.card)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.76f))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(26.dp),
+                    shape = TuneFlowShapes.card,
                 )
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -326,7 +326,7 @@ private fun QueueRow(
             modifier
                 .fillMaxWidth()
                 .scale(if (focused) 1.01f else 1f)
-                .clip(RoundedCornerShape(18.dp))
+                .clip(TuneFlowShapes.row)
                 .background(
                     when {
                         focused -> MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
@@ -341,7 +341,7 @@ private fun QueueRow(
                             focused || isCurrent -> MaterialTheme.colorScheme.primary
                             else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
                         },
-                    shape = RoundedCornerShape(18.dp),
+                    shape = TuneFlowShapes.row,
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
@@ -376,12 +376,12 @@ internal fun PlaybackStatusCard(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
+                .clip(TuneFlowShapes.card)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                    shape = RoundedCornerShape(22.dp),
+                    shape = TuneFlowShapes.card,
                 )
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -424,7 +424,7 @@ internal fun PlaybackTextButton(
             modifier
                 .focusRequester(focusRequester)
                 .scale(if (focused) 1.01f else 1f)
-                .clip(RoundedCornerShape(22.dp))
+                .clip(TuneFlowShapes.button)
                 .background(
                     if (accent) {
                         MaterialTheme.colorScheme.primary
@@ -440,7 +440,7 @@ internal fun PlaybackTextButton(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(22.dp),
+                    shape = TuneFlowShapes.button,
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()

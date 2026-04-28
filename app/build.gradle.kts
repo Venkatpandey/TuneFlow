@@ -98,6 +98,7 @@ android {
 dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:player"))
+    implementation(project(":core:design"))
     implementation(project(":feature:auth"))
     implementation(project(":feature:browse"))
     implementation(project(":feature:playback"))

@@ -6,7 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.tuneflow.core.design.TuneFlowShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,7 +30,7 @@ internal fun FocusScaleCard(
         modifier =
             modifier
                 .scale(if (focused) 1.01f else 1f)
-                .clip(RoundedCornerShape(18.dp))
+                .clip(TuneFlowShapes.card)
                 .background(
                     if (focused) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
@@ -46,7 +46,7 @@ internal fun FocusScaleCard(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(18.dp),
+                    shape = TuneFlowShapes.card,
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()

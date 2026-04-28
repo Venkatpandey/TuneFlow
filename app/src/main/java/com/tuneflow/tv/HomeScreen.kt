@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.tuneflow.core.design.TuneFlowShapes
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -186,7 +186,7 @@ private fun HomeHero(
             Modifier
                 .fillMaxWidth()
                 .height(246.dp)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(TuneFlowShapes.hero)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)),
     ) {
         if (currentItem?.artUrl != null) {
@@ -260,7 +260,7 @@ private fun HomeHero(
                 modifier =
                     Modifier
                         .size(168.dp)
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(TuneFlowShapes.albumArt)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -290,7 +290,7 @@ private fun HeroActionButton(
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(22.dp)
+    val shape = TuneFlowShapes.button
 
     Box(
         modifier =
@@ -387,7 +387,7 @@ private fun FavoriteTrackCard(
                     Modifier
                         .fillMaxWidth()
                         .height(196.dp)
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(TuneFlowShapes.card)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
                 if (track.artUrl != null) {
@@ -439,7 +439,7 @@ private fun HomeArtistCard(
                     Modifier
                         .fillMaxWidth()
                         .height(172.dp)
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(TuneFlowShapes.card)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
                 if (artist.artUrl != null) {
@@ -480,7 +480,7 @@ private fun HomeLoadingSection() {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(26.dp))
+                .clip(TuneFlowShapes.card)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
                 .padding(28.dp),
     ) {
@@ -504,7 +504,7 @@ private fun ErrorBanner(message: String) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(26.dp))
+                .clip(TuneFlowShapes.card)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
                 .padding(28.dp),
     ) {
@@ -542,7 +542,7 @@ private fun HomeAlbumCard(
                     Modifier
                         .fillMaxWidth()
                         .height(196.dp)
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(TuneFlowShapes.card)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
                 if (album.artUrl != null) {
@@ -628,7 +628,7 @@ private fun PlaylistArtCollage(playlist: PlaylistSummary) {
             Modifier
                 .fillMaxWidth()
                 .height(120.dp)
-                .clip(RoundedCornerShape(18.dp))
+                .clip(TuneFlowShapes.card)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -706,7 +706,7 @@ private fun FocusCard(
         modifier =
             modifier
                 .scale(if (focused) 1.01f else 1f)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(TuneFlowShapes.card)
                 .background(
                     if (focused) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
@@ -722,7 +722,7 @@ private fun FocusCard(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(20.dp),
+                    shape = TuneFlowShapes.card,
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()

@@ -26,8 +26,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import com.tuneflow.core.design.TuneFlowShapes
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -126,7 +126,7 @@ fun AlbumsScreen(
                                     Modifier
                                         .fillMaxWidth()
                                         .height(240.dp)
-                                        .clip(RoundedCornerShape(20.dp))
+                                        .clip(TuneFlowShapes.card)
                                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -177,7 +177,7 @@ fun AlbumDetailScreen(
                         Modifier
                             .width(292.dp)
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(22.dp))
+                            .clip(TuneFlowShapes.hero)
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
                             .padding(16.dp),
                 ) {
@@ -190,7 +190,7 @@ fun AlbumDetailScreen(
                                 Modifier
                                     .fillMaxWidth()
                                     .height(248.dp)
-                                    .clip(RoundedCornerShape(20.dp))
+                                    .clip(TuneFlowShapes.card)
                                     .align(Alignment.TopCenter),
                         )
                     }
@@ -277,7 +277,7 @@ fun ArtistDetailScreen(
                         Modifier
                             .fillMaxWidth()
                             .height(208.dp)
-                            .clip(RoundedCornerShape(24.dp))
+                            .clip(TuneFlowShapes.hero)
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f)),
                 ) {
                     if (artist.artUrl != null) {
@@ -396,7 +396,7 @@ fun PlaylistsScreen(
                 Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(TuneFlowShapes.card)
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
                     .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -591,7 +591,7 @@ private fun PremiumPlaylistRow(
                 modifier =
                     Modifier
                         .size(58.dp)
-                        .clip(RoundedCornerShape(12.dp)),
+                        .clip(TuneFlowShapes.card),
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -766,7 +766,7 @@ private fun SearchDisplayField(
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
                 .scale(if (focused) 1.005f else 1f)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(TuneFlowShapes.field)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
                 .border(
                     width = if (focused) 2.dp else 1.dp,
@@ -776,7 +776,7 @@ private fun SearchDisplayField(
                         } else {
                             MaterialTheme.colorScheme.outline
                         },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = TuneFlowShapes.field,
                 )
                 .onFocusChanged { onFocusedChange(it.hasFocus) }
                 .focusable()
@@ -857,7 +857,7 @@ private fun PremiumAlbumCard(
                     Modifier
                         .fillMaxWidth()
                         .height(196.dp)
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(TuneFlowShapes.card)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f)),
             ) {
                 if (album.artUrl != null) {
@@ -1035,7 +1035,7 @@ private fun BrowseActionButton(
         modifier =
             modifier
                 .scale(if (focused) 1.01f else 1f)
-                .clip(RoundedCornerShape(18.dp))
+                .clip(TuneFlowShapes.button)
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = if (focused) 0.94f else 0.84f))
                 .border(
                     width = if (focused) 3.dp else 1.dp,
@@ -1045,7 +1045,7 @@ private fun BrowseActionButton(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(18.dp),
+                    shape = TuneFlowShapes.button,
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
