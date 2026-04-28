@@ -7,6 +7,7 @@ import com.tuneflow.core.player.QueueItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -35,6 +36,7 @@ class PlaybackViewModelTest {
                     positionTicker = flowOf(Unit),
                     scopeOverride = backgroundScope,
                 )
+            vm.setActive(true)
             runCurrent()
             vm.togglePlayPause()
 
@@ -62,9 +64,41 @@ class PlaybackViewModelTest {
                     positionTicker = flowOf(Unit),
                     scopeOverride = backgroundScope,
                 )
+            vm.setActive(true)
             runCurrent()
 
             assertEquals("1", vm.uiState.value.queue.currentItem?.id)
+        }
+
+    @Test
+    fun positionTicker_pausesWhenInactive() =
+        runTest {
+            val fake =
+                FakeController(
+                    isPlaying = false,
+                    queue = PlaybackQueue(),
+                )
+            var tickerCollected = false
+            val ticker =
+                flow {
+                    tickerCollected = true
+                    emit(Unit)
+                }
+
+            val vm =
+                PlaybackViewModel(
+                    fake,
+                    positionTicker = ticker,
+                    scopeOverride = backgroundScope,
+                )
+            runCurrent()
+
+            assertFalse(tickerCollected)
+
+            vm.setActive(true)
+            runCurrent()
+
+            assertTrue(tickerCollected)
         }
 }
 

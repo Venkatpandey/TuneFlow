@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +65,11 @@ fun NowPlayingScreen(
     var showQueue by rememberSaveable { mutableStateOf(false) }
     val artSize by animateDpAsState(targetValue = if (showQueue) 152.dp else 180.dp, label = "now-playing-art-size")
     val artFrameHeight by animateDpAsState(targetValue = if (showQueue) 176.dp else 200.dp, label = "now-playing-art-frame-height")
+
+    DisposableEffect(Unit) {
+        viewModel.setActive(true)
+        onDispose { viewModel.setActive(false) }
+    }
 
     Box(
         modifier =
