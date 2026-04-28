@@ -23,7 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.tuneflow.core.design.TuneFlowShapes
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -120,7 +120,7 @@ internal fun ArtworkCard(
             Modifier
                 .fillMaxWidth()
                 .height(artFrameHeight)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(TuneFlowShapes.albumArt)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
                 .animateContentSize()
                 .padding(10.dp),
@@ -130,7 +130,7 @@ internal fun ArtworkCard(
             modifier =
                 Modifier
                     .size(artSize)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(TuneFlowShapes.albumArt)
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
             contentAlignment = Alignment.Center,
         ) {

@@ -16,6 +16,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "TuneFlow"
 include(":app")
+include(":core:design")
 include(":core:network")
 include(":core:player")
 include(":feature:auth")
