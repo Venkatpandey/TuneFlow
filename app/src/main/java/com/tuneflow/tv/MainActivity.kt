@@ -367,7 +367,19 @@ private fun TuneFlowShell(
         )
 
         TuneFlowSafeArea {
-            TuneFlowScaledContent(scaleFactor = ScreenScaleOption.Compact.factor) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(34.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(34.dp),
+                        )
+                        .padding(22.dp),
+            ) {
                 Row(
                     modifier = Modifier.fillMaxSize(),
                 ) {
@@ -386,15 +398,7 @@ private fun TuneFlowShell(
                         modifier =
                             Modifier
                                 .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(34.dp))
-                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
-                                .border(
-                                    width = 1.dp,
-                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                                    shape = RoundedCornerShape(34.dp),
-                                )
-                                .padding(22.dp),
+                                .fillMaxHeight(),
                     ) {
                         ShellContent(
                             currentSection = currentSection,
@@ -591,13 +595,6 @@ private fun NavRail(
             Modifier
                 .width(236.dp)
                 .fillMaxHeight()
-                .clip(RoundedCornerShape(26.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(26.dp),
-                )
                 .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
