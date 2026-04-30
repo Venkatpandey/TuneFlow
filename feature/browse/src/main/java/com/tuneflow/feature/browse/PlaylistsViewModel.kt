@@ -54,9 +54,13 @@ class PlaylistsViewModel(private val repository: BrowseRepository) : ViewModel()
                 if (result.isSuccess) {
                     it.copy(selected = result.getOrNull(), error = null)
                 } else {
-                    it.copy(error = result.exceptionOrNull()?.message)
+                    it.copy(selected = null, error = result.exceptionOrNull()?.message)
                 }
             }
         }
+    }
+
+    fun clearSelection() {
+        _uiState.update { it.copy(selected = null, error = null) }
     }
 }
