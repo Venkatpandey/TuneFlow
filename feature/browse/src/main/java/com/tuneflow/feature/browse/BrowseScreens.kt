@@ -2,6 +2,12 @@
 
 package com.tuneflow.feature.browse
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -359,6 +365,12 @@ fun PlaylistsScreen(
         }
     }
 
+    val showDetail = state.selected != null
+    val listWidth by animateDpAsState(
+        targetValue = if (showDetail) 272.dp else 312.dp,
+        label = "playlist-list-width",
+    )
+
     Row(
         modifier = modifier.fillMaxSize(),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
@@ -366,7 +378,7 @@ fun PlaylistsScreen(
         Column(
             modifier =
                 Modifier
-                    .width(312.dp)
+                    .width(listWidth)
                     .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -403,60 +415,80 @@ fun PlaylistsScreen(
             }
         }
 
-        Column(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .fillMaxSize()
-                    .clip(TuneFlowShapes.card)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+        AnimatedVisibility(
+            visible = showDetail,
+            enter = fadeIn() + slideInHorizontally(initialOffsetX = { it / 4 }),
+            exit = fadeOut() + slideOutHorizontally(targetOffsetX = { it / 4 }),
         ) {
-            when {
-                state.selected == null && state.error != null -> {
-                    ErrorState(message = state.error.orEmpty())
+            Column(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxSize()
+                        .clip(TuneFlowShapes.card)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
+                        .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                val selected = state.selected!!
+                Text(
+                    text = selected.name,
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = "${selected.tracks.size} tracks • ${formatTotalDuration(selected.tracks.sumOf { it.durationSec })}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                BrowseActionButton(onClick = { onPlayTracks(selected.tracks, 0) }) {
+                    Text("Play Playlist")
                 }
-                state.selected == null -> {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp),
+                ) {
+                    itemsIndexed(selected.tracks, key = { _, track -> track.id }) { index, track ->
+                        PremiumListRow(
+                            title = track.title,
+                            subtitle = track.artist,
+                            trailing = formatTrackDuration(track.durationSec),
+                            onClick = {
+                                onPlayTracks(
+                                    selected.tracks,
+                                    index,
+                                )
+                            },
+                            modifier =
+                                Modifier.boundaryLockedVerticalItem(
+                                    index = index,
+                                    lastIndex = selected.tracks.lastIndex,
+                                ),
+                        )
+                    }
+                }
+            }
+        }
+
+        if (!showDetail) {
+            Column(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxSize()
+                        .clip(TuneFlowShapes.card)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
+                        .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                if (state.error != null) {
+                    ErrorState(message = state.error.orEmpty())
+                } else {
                     Text(
                         text = "Select a playlist to inspect tracks and start playback.",
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-                else -> {
-                    val selected = state.selected!!
-                    Text(
-                        text = selected.name,
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    BrowseActionButton(onClick = { onPlayTracks(selected.tracks, 0) }) {
-                        Text("Play Playlist")
-                    }
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(bottom = 32.dp),
-                    ) {
-                        itemsIndexed(selected.tracks, key = { _, track -> track.id }) { index, track ->
-                            PremiumListRow(
-                                title = track.title,
-                                subtitle = track.artist,
-                                trailing = formatTrackDuration(track.durationSec),
-                                onClick = {
-                                    onPlayTracks(
-                                        selected.tracks,
-                                        index,
-                                    )
-                                },
-                                modifier =
-                                    Modifier.boundaryLockedVerticalItem(
-                                        index = index,
-                                        lastIndex = selected.tracks.lastIndex,
-                                    ),
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -627,7 +659,7 @@ private fun PremiumPlaylistRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${playlist.songCount} tracks",
+                    text = "${playlist.songCount} tracks • ${formatTotalDuration(playlist.durationSec)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

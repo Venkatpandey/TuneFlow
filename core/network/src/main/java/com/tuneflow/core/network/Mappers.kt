@@ -31,6 +31,7 @@ data class PlaylistSummary(
     val id: String,
     val name: String,
     val songCount: Int,
+    val durationSec: Int,
     val artUrls: List<String> = emptyList(),
 )
 
@@ -101,6 +102,7 @@ fun PlaylistDto.toSummary(): PlaylistSummary {
         id = id,
         name = name,
         songCount = songCount ?: 0,
+        durationSec = duration ?: 0,
     )
 }
 

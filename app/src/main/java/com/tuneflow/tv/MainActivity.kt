@@ -236,9 +236,8 @@ private fun TuneFlowShell(
         currentSection = section
         selectedAlbumId = null
         selectedArtistId = null
-        if (section != NavSection.Playlists) {
-            preselectedPlaylistId = null
-        }
+        preselectedPlaylistId = null
+        playlistsViewModel.clearSelection()
         showNowPlaying = false
         autoFocusNowPlayingTransport = false
         showExitPrompt = false
