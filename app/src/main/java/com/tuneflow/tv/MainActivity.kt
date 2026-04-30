@@ -377,63 +377,64 @@ private fun TuneFlowShell(
                             width = 1.dp,
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
                             shape = RoundedCornerShape(34.dp),
-                        )
-                        .padding(22.dp),
+                        ),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    NavRail(
-                        currentSection = currentSection,
-                        onSectionSelected = ::openSection,
-                        onNowPlaying = ::openNowPlaying,
-                        isNowPlayingActive = showNowPlaying,
-                        username = session?.username.orEmpty(),
-                        onExitApp = onExitApp,
-                    )
-
-                    Spacer(Modifier.width(22.dp))
-
-                    Box(
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .fillMaxHeight(),
+                TuneFlowScaledContent(scaleFactor = ScreenScaleOption.Compact.factor) {
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(22.dp),
                     ) {
-                        ShellContent(
+                        NavRail(
                             currentSection = currentSection,
-                            selectedAlbumId = selectedAlbumId,
-                            selectedArtistId = selectedArtistId,
-                            showNowPlaying = showNowPlaying,
-                            preselectedPlaylistId = preselectedPlaylistId,
-                            playbackQueue = playbackState.queue,
-                            homeViewModel = homeViewModel,
-                            albumsViewModel = albumsViewModel,
-                            albumDetailViewModel = albumDetailViewModel,
-                            artistDetailViewModel = artistDetailViewModel,
-                            playlistsViewModel = playlistsViewModel,
-                            searchViewModel = searchViewModel,
-                            playbackViewModel = playbackViewModel,
-                            streamModeLabel = if (preferDirectWithFallback) "FLAC" else "MP3",
-                            onCycleStreamMode = ::cycleStreamMode,
-                            autoFocusNowPlayingTransport = autoFocusNowPlayingTransport,
-                            onNowPlayingAutoFocusConsumed = { autoFocusNowPlayingTransport = false },
-                            onOpenAlbum = ::openAlbum,
-                            onOpenArtist = ::openArtist,
-                            onOpenSection = ::openSection,
-                            onOpenPlaylist = {
-                                currentSection = NavSection.Playlists
-                                preselectedPlaylistId = it
-                                selectedAlbumId = null
-                                selectedArtistId = null
-                                showNowPlaying = false
-                                autoFocusNowPlayingTransport = false
-                                showExitPrompt = false
-                            },
-                            onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
-                            onOpenNowPlaying = ::openNowPlaying,
-                            onPlayTracks = ::playTracks,
+                            onSectionSelected = ::openSection,
+                            onNowPlaying = ::openNowPlaying,
+                            isNowPlayingActive = showNowPlaying,
+                            username = session?.username.orEmpty(),
+                            onExitApp = onExitApp,
                         )
+
+                        Spacer(Modifier.width(22.dp))
+
+                        Box(
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                        ) {
+                            ShellContent(
+                                currentSection = currentSection,
+                                selectedAlbumId = selectedAlbumId,
+                                selectedArtistId = selectedArtistId,
+                                showNowPlaying = showNowPlaying,
+                                preselectedPlaylistId = preselectedPlaylistId,
+                                playbackQueue = playbackState.queue,
+                                homeViewModel = homeViewModel,
+                                albumsViewModel = albumsViewModel,
+                                albumDetailViewModel = albumDetailViewModel,
+                                artistDetailViewModel = artistDetailViewModel,
+                                playlistsViewModel = playlistsViewModel,
+                                searchViewModel = searchViewModel,
+                                playbackViewModel = playbackViewModel,
+                                streamModeLabel = if (preferDirectWithFallback) "FLAC" else "MP3",
+                                onCycleStreamMode = ::cycleStreamMode,
+                                autoFocusNowPlayingTransport = autoFocusNowPlayingTransport,
+                                onNowPlayingAutoFocusConsumed = { autoFocusNowPlayingTransport = false },
+                                onOpenAlbum = ::openAlbum,
+                                onOpenArtist = ::openArtist,
+                                onOpenSection = ::openSection,
+                                onOpenPlaylist = {
+                                    currentSection = NavSection.Playlists
+                                    preselectedPlaylistId = it
+                                    selectedAlbumId = null
+                                    selectedArtistId = null
+                                    showNowPlaying = false
+                                    autoFocusNowPlayingTransport = false
+                                    showExitPrompt = false
+                                },
+                                onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
+                                onOpenNowPlaying = ::openNowPlaying,
+                                onPlayTracks = ::playTracks,
+                            )
+                        }
                     }
                 }
             }
