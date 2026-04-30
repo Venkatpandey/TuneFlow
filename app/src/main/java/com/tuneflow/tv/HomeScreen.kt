@@ -39,6 +39,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,6 +55,7 @@ import com.tuneflow.core.network.FavoritesBundle
 import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.core.network.TrackSummary
 import com.tuneflow.core.player.PlaybackQueue
+import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
 fun HomeScreen(
@@ -88,7 +92,8 @@ fun HomeScreen(
             item { HomeLoadingSection() }
         }
 
-        if (state.error != null &&
+        if (
+            state.error != null &&
             state.recentAlbums.isEmpty() &&
             state.playlists.isEmpty() &&
             state.favorites.albums.isEmpty() &&
@@ -166,6 +171,7 @@ fun HomeScreen(
                     ActionCard(
                         title = "All Playlists",
                         onClick = { onOpenPlaylists(null) },
+                        modifier = Modifier.homeBottomBoundaryItem(),
                     )
                 }
             }
@@ -673,9 +679,10 @@ private fun PlaylistArtCollage(playlist: PlaylistSummary) {
 private fun ActionCard(
     title: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     FocusCard(
-        modifier = Modifier.width(208.dp),
+        modifier = modifier.width(208.dp),
         onClick = onClick,
     ) {
         Column(
@@ -732,3 +739,10 @@ private fun FocusCard(
         Column(content = content)
     }
 }
+
+private fun Modifier.homeBottomBoundaryItem(): Modifier =
+    onPreviewKeyEvent { event ->
+        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+        event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN
+    }
