@@ -224,12 +224,17 @@ fun AlbumDetailScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         contentPadding = PaddingValues(bottom = 32.dp),
                     ) {
-                        items(album.tracks, key = { it.id }) { track ->
+                        itemsIndexed(album.tracks, key = { _, track -> track.id }) { index, track ->
                             PremiumListRow(
                                 title = track.title,
                                 subtitle = track.artist,
                                 trailing = formatTrackDuration(track.durationSec),
-                                onClick = { onPlayAlbum(album.tracks, album.tracks.indexOf(track)) },
+                                onClick = { onPlayAlbum(album.tracks, index) },
+                                modifier =
+                                    Modifier.boundaryLockedVerticalItem(
+                                        index = index,
+                                        lastIndex = album.tracks.lastIndex,
+                                    ),
                             )
                         }
                     }
@@ -380,11 +385,18 @@ fun PlaylistsScreen(
                             playlist = playlist,
                             onClick = { viewModel.loadPlaylistDetail(playlist.id) },
                             modifier =
-                                if (index == 0) {
-                                    Modifier.focusRequester(firstPlaylistFocusRequester)
-                                } else {
-                                    Modifier
-                                },
+                                Modifier
+                                    .boundaryLockedVerticalItem(
+                                        index = index,
+                                        lastIndex = state.playlists.lastIndex,
+                                    )
+                                    .then(
+                                        if (index == 0) {
+                                            Modifier.focusRequester(firstPlaylistFocusRequester)
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
                         )
                     }
                 }
@@ -426,7 +438,7 @@ fun PlaylistsScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         contentPadding = PaddingValues(bottom = 32.dp),
                     ) {
-                        items(selected.tracks, key = { it.id }) { track ->
+                        itemsIndexed(selected.tracks, key = { _, track -> track.id }) { index, track ->
                             PremiumListRow(
                                 title = track.title,
                                 subtitle = track.artist,
@@ -434,9 +446,14 @@ fun PlaylistsScreen(
                                 onClick = {
                                     onPlayTracks(
                                         selected.tracks,
-                                        selected.tracks.indexOf(track),
+                                        index,
                                     )
                                 },
+                                modifier =
+                                    Modifier.boundaryLockedVerticalItem(
+                                        index = index,
+                                        lastIndex = selected.tracks.lastIndex,
+                                    ),
                             )
                         }
                     }
@@ -557,12 +574,17 @@ fun SearchScreen(
 
             if (state.result.tracks.isNotEmpty()) {
                 item { SectionTitle(title = "Tracks") }
-                itemsIndexed(state.result.tracks, key = { _, track -> track.id }) { _, track ->
+                itemsIndexed(state.result.tracks, key = { _, track -> track.id }) { index, track ->
                     PremiumListRow(
                         title = track.title,
                         subtitle = "${track.artist} • ${track.album}",
                         trailing = formatTrackDuration(track.durationSec),
-                        onClick = { onPlayTracks(state.result.tracks, state.result.tracks.indexOf(track)) },
+                        onClick = { onPlayTracks(state.result.tracks, index) },
+                        modifier =
+                            Modifier.boundaryLockedVerticalItem(
+                                index = index,
+                                lastIndex = state.result.tracks.lastIndex,
+                            ),
                     )
                 }
             }
@@ -800,6 +822,20 @@ private fun SearchDisplayField(
         }
     }
 }
+
+private fun Modifier.boundaryLockedVerticalItem(
+    index: Int,
+    lastIndex: Int,
+): Modifier =
+    onPreviewKeyEvent { event ->
+        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+        when {
+            event.key == Key.DirectionUp && index == 0 -> true
+            event.key == Key.DirectionDown && index == lastIndex -> true
+            else -> false
+        }
+    }
 
 private fun searchFieldFocusDirection(key: Key): FocusDirection? {
     return when (key) {

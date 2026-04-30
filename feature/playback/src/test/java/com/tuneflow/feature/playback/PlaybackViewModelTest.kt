@@ -5,6 +5,7 @@ import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlaybackStatus
 import com.tuneflow.core.player.QueueItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
@@ -100,6 +101,38 @@ class PlaybackViewModelTest {
 
             assertTrue(tickerCollected)
         }
+
+    @Test
+    fun uiState_updatesImmediatelyWhenQueueChangesWhileActive() =
+        runTest {
+            val fake =
+                FakeController(
+                    isPlaying = false,
+                    queue = PlaybackQueue(),
+                )
+            val ticker = MutableSharedFlow<Unit>()
+
+            val vm =
+                PlaybackViewModel(
+                    fake,
+                    positionTicker = ticker,
+                    scopeOverride = backgroundScope,
+                )
+            vm.setActive(true)
+            runCurrent()
+
+            fake.updateQueue(
+                PlaybackQueue(
+                    items = listOf(QueueItem("1", "Track A", "Artist", "Album", streamUrl = "s", durationMs = 180_000L)),
+                    currentIndex = 0,
+                    currentPositionMs = 12_000L,
+                ),
+            )
+            runCurrent()
+
+            assertEquals(12_000L, vm.uiState.value.positionMs)
+            assertEquals(180_000L, vm.uiState.value.durationMs)
+        }
 }
 
 private class FakeController(
@@ -141,5 +174,9 @@ private class FakeController(
 
     override fun currentPositionMs(): Long = queueState.value.currentPositionMs
 
-    override fun durationMs(): Long = 10_000L
+    override fun durationMs(): Long = 0L
+
+    fun updateQueue(queue: PlaybackQueue) {
+        queueState.value = queue
+    }
 }

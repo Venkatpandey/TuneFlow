@@ -178,6 +178,70 @@ internal fun TrackMetadata(item: QueueItem?) {
 }
 
 @Composable
+internal fun StreamBadge(label: String) {
+    Box(
+        modifier =
+            Modifier
+                .clip(TuneFlowShapes.badge)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                    shape = TuneFlowShapes.badge,
+                )
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
+internal fun StreamModeButton(
+    label: String,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier =
+            Modifier
+                .scale(if (focused) 1.01f else 1f)
+                .clip(TuneFlowShapes.button)
+                .background(
+                    if (focused) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f)
+                    },
+                )
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                        },
+                    shape = TuneFlowShapes.button,
+                )
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
 internal fun StreamControlRow(
     streamModeLabel: String,
     bitrateLabel: String,
