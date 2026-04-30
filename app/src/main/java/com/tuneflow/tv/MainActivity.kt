@@ -287,6 +287,17 @@ private fun TuneFlowShell(
         }
     }
 
+    fun shuffleTracks(tracks: List<com.tuneflow.core.network.TrackSummary>) {
+        scope.launch {
+            if (tracks.isEmpty()) return@launch
+            val shuffledTracks = tracks.shuffled()
+            val queue = buildQueueItems(shuffledTracks, browseRepository, preferDirectWithFallback)
+            playerManager.playQueue(queue, 0)
+            openNowPlaying()
+            autoFocusNowPlayingTransport = true
+        }
+    }
+
     fun cycleStreamMode() {
         scope.launch {
             cyclePlaybackStreamMode(
@@ -433,6 +444,7 @@ private fun TuneFlowShell(
                                 onPreselectedPlaylistConsumed = { preselectedPlaylistId = null },
                                 onOpenNowPlaying = ::openNowPlaying,
                                 onPlayTracks = ::playTracks,
+                                onShuffleTracks = ::shuffleTracks,
                             )
                         }
                     }
@@ -513,6 +525,7 @@ private fun ShellContent(
     onPreselectedPlaylistConsumed: () -> Unit,
     onOpenNowPlaying: () -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
+    onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
 ) {
     val screenKey = shellScreenKey(currentSection, selectedAlbumId, selectedArtistId, showNowPlaying)
 
@@ -532,6 +545,7 @@ private fun ShellContent(
                     albumId = targetScreen.removePrefix("album:"),
                     viewModel = albumDetailViewModel,
                     onPlayAlbum = onPlayTracks,
+                    onShuffleAlbum = onShuffleTracks,
                 )
             }
             targetScreen.startsWith("artist:") -> {
@@ -566,6 +580,7 @@ private fun ShellContent(
                     preselectedPlaylistId = preselectedPlaylistId,
                     onPreselectedPlaylistConsumed = onPreselectedPlaylistConsumed,
                     onPlayTracks = onPlayTracks,
+                    onShuffleTracks = onShuffleTracks,
                 )
             }
             targetScreen == NavSection.Search.name -> {

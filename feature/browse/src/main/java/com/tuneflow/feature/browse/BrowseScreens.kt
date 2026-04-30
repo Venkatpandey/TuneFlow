@@ -155,6 +155,7 @@ fun AlbumDetailScreen(
     albumId: String,
     viewModel: AlbumDetailViewModel,
     onPlayAlbum: (tracks: List<TrackSummary>, index: Int) -> Unit,
+    onShuffleAlbum: (tracks: List<TrackSummary>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -223,11 +224,16 @@ fun AlbumDetailScreen(
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    BrowseActionButton(
-                        onClick = { onPlayAlbum(album.tracks, 0) },
-                        modifier = Modifier.focusRequester(playAlbumFocusRequester),
-                    ) {
-                        BrowsePlayIcon()
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        BrowseActionButton(
+                            onClick = { onPlayAlbum(album.tracks, 0) },
+                            modifier = Modifier.focusRequester(playAlbumFocusRequester),
+                        ) {
+                            BrowsePlayIcon()
+                        }
+                        BrowseActionButton(onClick = { onShuffleAlbum(album.tracks) }) {
+                            BrowseShuffleIcon()
+                        }
                     }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -349,6 +355,7 @@ fun PlaylistsScreen(
     preselectedPlaylistId: String? = null,
     onPreselectedPlaylistConsumed: () -> Unit = {},
     onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
+    onShuffleTracks: (tracks: List<TrackSummary>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -445,8 +452,13 @@ fun PlaylistsScreen(
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                BrowseActionButton(onClick = { onPlayTracks(selected.tracks, 0) }) {
-                    BrowsePlayIcon()
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    BrowseActionButton(onClick = { onPlayTracks(selected.tracks, 0) }) {
+                        BrowsePlayIcon()
+                    }
+                    BrowseActionButton(onClick = { onShuffleTracks(selected.tracks) }) {
+                        BrowseShuffleIcon()
+                    }
                 }
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1135,8 +1147,29 @@ private fun BrowseActionButton(
 
 @Composable
 private fun BrowsePlayIcon(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val painter = painterResource(id = R.drawable.browse_play_action)
+    BrowseActionIcon(
+        drawableRes = R.drawable.browse_play_action,
+        contentDescription = "Play",
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun BrowseShuffleIcon(modifier: Modifier = Modifier) {
+    BrowseActionIcon(
+        drawableRes = R.drawable.browse_shuffle_action,
+        contentDescription = "Shuffle",
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun BrowseActionIcon(
+    drawableRes: Int,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+) {
+    val painter = painterResource(id = drawableRes)
     val intrinsicSize = painter.intrinsicSize
     val aspectRatio =
         if (intrinsicSize.width > 0f && intrinsicSize.height > 0f) {
@@ -1148,7 +1181,7 @@ private fun BrowsePlayIcon(modifier: Modifier = Modifier) {
 
     Image(
         painter = painter,
-        contentDescription = context.getString(android.R.string.ok),
+        contentDescription = contentDescription,
         modifier = modifier.size(iconSize),
     )
 }
