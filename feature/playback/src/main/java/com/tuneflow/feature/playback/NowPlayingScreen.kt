@@ -265,10 +265,11 @@ private fun QueuePanel(
 ) {
     val currentFocusRequester = remember { FocusRequester() }
     val currentIndex = state.queue.currentIndex
+    val hasCurrentQueueItem = currentIndex in state.queue.items.indices
 
-    LaunchedEffect(currentIndex) {
-        if (currentIndex >= 0 && currentIndex < state.queue.items.size) {
-            currentFocusRequester.requestFocus()
+    LaunchedEffect(hasCurrentQueueItem, currentIndex) {
+        if (hasCurrentQueueItem) {
+            runCatching { currentFocusRequester.requestFocus() }
         }
     }
 
