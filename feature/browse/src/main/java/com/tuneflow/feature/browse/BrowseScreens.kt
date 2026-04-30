@@ -37,6 +37,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.foundation.Image
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,7 +61,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,6 +73,7 @@ import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.core.network.TrackSummary
+import com.tuneflow.feature.browse.R
 
 @Composable
 fun AlbumsScreen(
@@ -223,7 +227,7 @@ fun AlbumDetailScreen(
                         onClick = { onPlayAlbum(album.tracks, 0) },
                         modifier = Modifier.focusRequester(playAlbumFocusRequester),
                     ) {
-                        Text("Play Album")
+                        BrowsePlayIcon()
                     }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -442,7 +446,7 @@ fun PlaylistsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 BrowseActionButton(onClick = { onPlayTracks(selected.tracks, 0) }) {
-                    Text("Play Playlist")
+                    BrowsePlayIcon()
                 }
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1118,7 +1122,7 @@ private fun BrowseActionButton(
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp, vertical = 11.dp),
+                .padding(horizontal = 18.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.runtime.CompositionLocalProvider(
@@ -1127,6 +1131,26 @@ private fun BrowseActionButton(
             content()
         }
     }
+}
+
+@Composable
+private fun BrowsePlayIcon(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val painter = painterResource(id = R.drawable.browse_play_action)
+    val intrinsicSize = painter.intrinsicSize
+    val aspectRatio =
+        if (intrinsicSize.width > 0f && intrinsicSize.height > 0f) {
+            intrinsicSize.width / intrinsicSize.height
+        } else {
+            1f
+        }
+    val iconSize = if (aspectRatio >= 1f) 28.dp else 30.dp
+
+    Image(
+        painter = painter,
+        contentDescription = context.getString(android.R.string.ok),
+        modifier = modifier.size(iconSize),
+    )
 }
 
 @Composable
