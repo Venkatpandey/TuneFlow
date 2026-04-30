@@ -5,9 +5,9 @@ import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlaybackStatus
 import com.tuneflow.core.player.QueueItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runCurrent
@@ -101,6 +101,7 @@ class PlaybackViewModelTest {
 
             assertTrue(tickerCollected)
         }
+
     @Test
     fun uiState_updatesImmediatelyWhenQueueChangesWhileActive() =
         runTest {

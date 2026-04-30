@@ -139,70 +139,6 @@ fun NowPlayingScreen(
     }
 }
 
-@Composable
-internal fun StreamBadge(label: String) {
-    Box(
-        modifier =
-            Modifier
-                .clip(TuneFlowShapes.badge)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                    shape = TuneFlowShapes.badge,
-                )
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
-}
-
-@Composable
-internal fun StreamModeButton(
-    label: String,
-    onClick: () -> Unit,
-) {
-    var focused by remember { mutableStateOf(false) }
-
-    Box(
-        modifier =
-            Modifier
-                .scale(if (focused) 1.01f else 1f)
-                .clip(TuneFlowShapes.button)
-                .background(
-                    if (focused) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f)
-                    },
-                )
-                .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = TuneFlowShapes.button,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
-}
-
 private fun handleTransportMediaKey(
     event: androidx.compose.ui.input.key.KeyEvent,
     viewModel: PlaybackViewModel,
@@ -301,11 +237,18 @@ private fun QueuePanel(
                     isCurrent = index == currentIndex,
                     onClick = { onSelectTrack(index) },
                     modifier =
-                        if (index == currentIndex) {
-                            Modifier.focusRequester(currentFocusRequester)
-                        } else {
-                            Modifier
-                        },
+                        Modifier
+                            .boundaryLockedVerticalItem(
+                                index = index,
+                                lastIndex = state.queue.items.lastIndex,
+                            )
+                            .then(
+                                if (index == currentIndex) {
+                                    Modifier.focusRequester(currentFocusRequester)
+                                } else {
+                                    Modifier
+                                },
+                            ),
                 )
             }
         }
@@ -367,6 +310,20 @@ private fun QueueRow(
         }
     }
 }
+
+private fun Modifier.boundaryLockedVerticalItem(
+    index: Int,
+    lastIndex: Int,
+): Modifier =
+    onPreviewKeyEvent { event ->
+        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+
+        when {
+            event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP && index == 0 -> true
+            event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN && index == lastIndex -> true
+            else -> false
+        }
+    }
 
 @Composable
 internal fun PlaybackStatusCard(
