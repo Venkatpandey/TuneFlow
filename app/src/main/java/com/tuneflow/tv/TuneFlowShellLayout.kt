@@ -266,27 +266,27 @@ private fun NavRailItem(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .onFocusChanged { focusState -> focused = focusState.isFocused }
+                .focusable()
                 .clip(RoundedCornerShape(20.dp))
                 .background(
                     if (active) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
                     } else {
                         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
                     },
                 )
                 .border(
-                    width = if (active) 2.dp else 1.dp,
+                    width = if (active) 3.dp else 1.dp,
                     color =
                         if (active) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.92f)
+                            MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
                         },
                     shape = RoundedCornerShape(20.dp),
                 )
                 .clickable(onClick = onClick)
-                .onFocusChanged { focusState -> focused = focusState.isFocused }
-                .focusable()
                 .padding(horizontal = 16.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -294,7 +294,7 @@ private fun NavRailItem(
             text = label,
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
             color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.scale(if (focused) 1.03f else 1f),
+            modifier = Modifier.scale(if (focused) 1.05f else 1f),
         )
     }
 }

@@ -328,12 +328,20 @@ private fun PlaybackStateIconButton(
                 .size(44.dp)
                 .scale(if (focused) 1.03f else 1f)
                 .clip(TuneFlowShapes.button)
-                .background(Color.Transparent)
+                .background(
+                    if (focused || active) {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f)
+                    },
+                )
                 .border(
-                    width = if (focused || active) 2.dp else 1.dp,
+                    width = if (focused) 2.dp else 1.dp,
                     color =
-                        if (focused || active) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.92f)
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else if (active) {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
@@ -350,13 +358,12 @@ private fun PlaybackStateIconButton(
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Fit,
-            colorFilter = ColorFilter.tint(
-                if (focused || active) {
-                    MaterialTheme.colorScheme.primary
+            colorFilter =
+                if (active) {
+                    null
                 } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                    ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f))
                 },
-            ),
         )
     }
 }
@@ -507,7 +514,7 @@ internal fun PlaybackIconButton(
                 .focusRequester(focusRequester)
                 .scale(scale)
                 .clip(CircleShape)
-                .background(Color.Transparent)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = if (focused) 0.22f else 0.08f))
                 .border(
                     width = if (focused) 3.dp else 1.dp,
                     color =
