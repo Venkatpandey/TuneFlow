@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -28,6 +29,7 @@ data class NowPlayingUiState(
     val statusMessage: String? = null,
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackViewModel(
     private val playerManager: PlaybackController,
     private val positionTicker: Flow<Unit> = defaultTickerFlow(),
@@ -49,20 +51,24 @@ class PlaybackViewModel(
                     }
                 }
 
+            val playbackSnapshot =
+                combine(
+                    playerManager.queue,
+                    playerManager.isPlaying,
+                    playerManager.playbackStatus,
+                ) { queue, isPlaying, playbackStatus ->
+                    PlaybackSnapshot(
+                        queue = queue,
+                        isPlaying = isPlaying,
+                        playbackStatus = playbackStatus,
+                    )
+                }
+
             combine(
-                playerManager.queue,
-                playerManager.isPlaying,
-                playerManager.playbackStatus,
-                gatedTicker,
-            ) { queue, isPlaying, playbackStatus, _ ->
-                NowPlayingUiState(
-                    queue = queue,
-                    isPlaying = isPlaying,
-                    positionMs = playerManager.currentPositionMs(),
-                    durationMs = playerManager.durationMs(),
-                    playbackStatus = playbackStatus,
-                    statusMessage = buildStatusMessage(playbackStatus, isPlaying),
-                )
+                playbackSnapshot,
+                gatedTicker.onStart { emit(Unit) },
+            ) { snapshot, _ ->
+                snapshot.toUiState(playerManager)
             }.collect {
                 _uiState.value = it
             }
@@ -95,6 +101,22 @@ class PlaybackViewModel(
 
     fun retry() = playerManager.retryCurrent()
 }
+
+private data class PlaybackSnapshot(
+    val queue: PlaybackQueue,
+    val isPlaying: Boolean,
+    val playbackStatus: PlaybackStatus,
+)
+
+private fun PlaybackSnapshot.toUiState(playerManager: PlaybackController): NowPlayingUiState =
+    NowPlayingUiState(
+        queue = queue,
+        isPlaying = isPlaying,
+        positionMs = playerManager.currentPositionMs(),
+        durationMs = playerManager.durationMs().takeIf { it > 0L } ?: queue.currentItem?.durationMs ?: 0L,
+        playbackStatus = playbackStatus,
+        statusMessage = buildStatusMessage(playbackStatus, isPlaying),
+    )
 
 private fun buildStatusMessage(
     playbackStatus: PlaybackStatus,
