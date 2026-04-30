@@ -40,12 +40,14 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.QueueItem
 
 @Composable
@@ -58,6 +60,7 @@ internal fun NowPlayingPrimaryColumn(
     showQueue: Boolean,
     onCycleStreamMode: () -> Unit,
     onToggleQueue: () -> Unit,
+    onCyclePlaybackMode: () -> Unit,
     onRetry: () -> Unit,
     onPrevious: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -83,6 +86,8 @@ internal fun NowPlayingPrimaryColumn(
             showQueue = showQueue,
             onCycleStreamMode = onCycleStreamMode,
             onToggleQueue = onToggleQueue,
+            playbackMode = state.playbackMode,
+            onCyclePlaybackMode = onCyclePlaybackMode,
         )
 
         state.statusMessage?.let {
@@ -246,19 +251,119 @@ internal fun StreamControlRow(
     streamModeLabel: String,
     bitrateLabel: String,
     showQueue: Boolean,
+    playbackMode: PlaybackMode,
     onCycleStreamMode: () -> Unit,
     onToggleQueue: () -> Unit,
+    onCyclePlaybackMode: () -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         StreamModeButton(
             label = streamModeLabel,
             onClick = onCycleStreamMode,
         )
-        StreamModeButton(
-            label = if (showQueue) "Hide List" else "Track List",
+        PlaybackModeIconButton(
+            playbackMode = playbackMode,
+            onClick = onCyclePlaybackMode,
+        )
+        QueueToggleIconButton(
+            active = showQueue,
             onClick = onToggleQueue,
         )
         StreamBadge(label = bitrateLabel)
+    }
+}
+
+@Composable
+private fun PlaybackModeIconButton(
+    playbackMode: PlaybackMode,
+    onClick: () -> Unit,
+) {
+    val iconRes =
+        when (playbackMode) {
+            PlaybackMode.Default -> R.drawable.now_playing_shuffle_mode
+            PlaybackMode.Shuffle -> R.drawable.now_playing_shuffle_mode
+            PlaybackMode.Loop -> R.drawable.now_playing_loop_mode
+        }
+    val active = playbackMode != PlaybackMode.Default
+
+    PlaybackStateIconButton(
+        iconResId = iconRes,
+        contentDescription =
+            when (playbackMode) {
+                PlaybackMode.Default -> "Playback mode default"
+                PlaybackMode.Shuffle -> "Playback mode shuffle"
+                PlaybackMode.Loop -> "Playback mode loop"
+            },
+        active = active,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun QueueToggleIconButton(
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    PlaybackStateIconButton(
+        iconResId = R.drawable.now_playing_track_list,
+        contentDescription = if (active) "Hide track list" else "Show track list",
+        active = active,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun PlaybackStateIconButton(
+    iconResId: Int,
+    contentDescription: String,
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier =
+            Modifier
+                .size(44.dp)
+                .scale(if (focused) 1.03f else 1f)
+                .clip(TuneFlowShapes.button)
+                .background(
+                    if (focused || active) {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f)
+                    },
+                )
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else if (active) {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                        },
+                    shape = TuneFlowShapes.button,
+                )
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable()
+                .clickable(onClick = onClick)
+                .padding(8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(iconResId),
+            contentDescription = contentDescription,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
+            colorFilter =
+                if (active) {
+                    null
+                } else {
+                    ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f))
+                },
+        )
     }
 }
 

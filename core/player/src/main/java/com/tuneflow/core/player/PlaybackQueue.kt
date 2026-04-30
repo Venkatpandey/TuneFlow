@@ -48,3 +48,10 @@ data class PlaybackQueue(
 
     fun seek(positionMs: Long): PlaybackQueue = copy(currentPositionMs = positionMs.coerceAtLeast(0L))
 }
+
+@Serializable
+enum class PlaybackMode {
+    Default,
+    Shuffle,
+    Loop,
+}

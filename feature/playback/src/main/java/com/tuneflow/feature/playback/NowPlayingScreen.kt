@@ -115,6 +115,7 @@ fun NowPlayingScreen(
                 showQueue = showQueue,
                 onCycleStreamMode = onCycleStreamMode,
                 onToggleQueue = { showQueue = !showQueue },
+                onCyclePlaybackMode = viewModel::cyclePlaybackMode,
                 onRetry = viewModel::retry,
                 onPrevious = viewModel::previous,
                 onTogglePlayPause = viewModel::togglePlayPause,
