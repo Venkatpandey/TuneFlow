@@ -358,7 +358,9 @@ fun PlaylistsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val firstPlaylistFocusRequester = remember { FocusRequester() }
+    val playPlaylistFocusRequester = remember { FocusRequester() }
     var initialPlaylistFocusRequested by rememberSaveable { mutableStateOf(false) }
+    var detailActionFocusRequested by rememberSaveable(state.selected?.id) { mutableStateOf(false) }
 
     LaunchedEffect(preselectedPlaylistId) {
         if (preselectedPlaylistId != null) {
@@ -375,6 +377,20 @@ fun PlaylistsScreen(
     }
 
     val showDetail = state.selected != null
+
+    LaunchedEffect(state.selected?.id) {
+        if (state.selected != null) {
+            detailActionFocusRequested = false
+        }
+    }
+
+    LaunchedEffect(showDetail, state.selected?.tracks?.size) {
+        if (showDetail && state.selected?.tracks?.isNotEmpty() == true && !detailActionFocusRequested) {
+            playPlaylistFocusRequester.requestFocus()
+            detailActionFocusRequested = true
+        }
+    }
+
     val listWidth by animateDpAsState(
         targetValue = if (showDetail) 272.dp else 312.dp,
         label = "playlist-list-width",
@@ -451,7 +467,10 @@ fun PlaylistsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    BrowseActionButton(onClick = { onPlayTracks(selected.tracks, 0) }) {
+                    BrowseActionButton(
+                        onClick = { onPlayTracks(selected.tracks, 0) },
+                        modifier = Modifier.focusRequester(playPlaylistFocusRequester),
+                    ) {
                         BrowsePlayIcon()
                     }
                     BrowseActionButton(onClick = { onShuffleTracks(selected.tracks) }) {

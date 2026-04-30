@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -187,7 +188,7 @@ private fun NavRail(
     Column(
         modifier =
             Modifier
-                .width(112.dp)
+                .width(148.dp)
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(28.dp))
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
@@ -196,8 +197,8 @@ private fun NavRail(
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
                     shape = RoundedCornerShape(28.dp),
                 )
-                .padding(vertical = 18.dp, horizontal = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(vertical = 20.dp, horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -264,35 +265,36 @@ private fun NavRailItem(
     Box(
         modifier =
             Modifier
+                .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(
                     if (active) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
                     } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
                     },
                 )
                 .border(
-                    width = 1.dp,
+                    width = if (active) 2.dp else 1.dp,
                     color =
                         if (active) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.42f)
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.92f)
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
                         },
                     shape = RoundedCornerShape(20.dp),
                 )
                 .clickable(onClick = onClick)
-                .onFocusChanged { focused = it.isFocused }
+                .onFocusChanged { focusState -> focused = focusState.isFocused }
                 .focusable()
-                .padding(horizontal = 12.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
             color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.scale(if (focused) 1.04f else 1f),
+            modifier = Modifier.scale(if (focused) 1.03f else 1f),
         )
     }
 }
