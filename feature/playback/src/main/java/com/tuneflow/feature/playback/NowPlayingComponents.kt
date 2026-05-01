@@ -5,8 +5,10 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -66,7 +68,9 @@ internal fun NowPlayingPrimaryColumn(
     onNext: () -> Unit,
     compactTransport: Boolean,
     autoFocusTransport: Boolean,
+    autoFocusStreamMode: Boolean,
     onAutoFocusConsumed: () -> Unit,
+    onStreamModeFocusConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -84,6 +88,8 @@ internal fun NowPlayingPrimaryColumn(
             bitrateLabel = item?.streamBitrateLabel ?: "--",
             showQueue = showQueue,
             onCycleStreamMode = onCycleStreamMode,
+            autoFocusStreamMode = autoFocusStreamMode,
+            onStreamModeFocusConsumed = onStreamModeFocusConsumed,
             onToggleQueue = onToggleQueue,
             playbackMode = state.playbackMode,
             onCyclePlaybackMode = onCyclePlaybackMode,
@@ -158,6 +164,7 @@ internal fun ArtworkCard(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 internal fun TrackMetadata(item: QueueItem?) {
     Text(
         text = item?.title ?: "Nothing playing",
@@ -171,7 +178,8 @@ internal fun TrackMetadata(item: QueueItem?) {
         style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
+        overflow = TextOverflow.Clip,
+        modifier = Modifier.fillMaxWidth().basicMarquee(),
     )
     Text(
         text = item?.album ?: "",
@@ -191,13 +199,24 @@ internal fun StreamBadge(label: String) {
 internal fun StreamModeButton(
     label: String,
     onClick: () -> Unit,
+    requestFocus: Boolean = false,
+    onRequestedFocusApplied: () -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(requestFocus) {
+        if (requestFocus) {
+            focusRequester.requestFocus()
+            onRequestedFocusApplied()
+        }
+    }
 
     Box(
         modifier =
             Modifier
                 .size(44.dp)
+                .focusRequester(focusRequester)
                 .scale(if (focused) 1.01f else 1f)
                 .clip(TuneFlowShapes.button)
                 .background(
@@ -237,6 +256,8 @@ internal fun StreamControlRow(
     showQueue: Boolean,
     playbackMode: PlaybackMode,
     onCycleStreamMode: () -> Unit,
+    autoFocusStreamMode: Boolean,
+    onStreamModeFocusConsumed: () -> Unit,
     onToggleQueue: () -> Unit,
     onCyclePlaybackMode: () -> Unit,
 ) {
@@ -244,6 +265,8 @@ internal fun StreamControlRow(
         StreamModeButton(
             label = streamModeLabel,
             onClick = onCycleStreamMode,
+            requestFocus = autoFocusStreamMode,
+            onRequestedFocusApplied = onStreamModeFocusConsumed,
         )
         StreamBadge(label = bitrateLabel)
         PlaybackModeIconButton(

@@ -161,12 +161,14 @@ fun HomeScreen(
                     ActionCard(
                         title = "Search",
                         onClick = onOpenSearch,
+                        modifier = Modifier.homeBottomBoundaryItem(),
                     )
                 }
                 item {
                     ActionCard(
                         title = "Browse Albums",
                         onClick = onOpenAlbums,
+                        modifier = Modifier.homeBottomBoundaryItem(),
                     )
                 }
                 item {
