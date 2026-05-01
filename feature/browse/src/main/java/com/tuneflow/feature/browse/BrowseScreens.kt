@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -83,9 +84,10 @@ fun AlbumsScreen(
 
     val firstAlbumFocusRequester = remember { FocusRequester() }
     var initialAlbumFocusRequested by rememberSaveable { mutableStateOf(false) }
+    val albumGridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
 
     LaunchedEffect(state.items.size) {
-        if (!initialAlbumFocusRequested && state.items.isNotEmpty()) {
+        if (!initialAlbumFocusRequested && state.items.isNotEmpty() && albumGridState.firstVisibleItemIndex == 0) {
             firstAlbumFocusRequester.requestFocus()
             initialAlbumFocusRequested = true
         }
@@ -106,6 +108,7 @@ fun AlbumsScreen(
                 SectionTitle(title = "Albums")
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 196.dp),
+                    state = albumGridState,
                     modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),

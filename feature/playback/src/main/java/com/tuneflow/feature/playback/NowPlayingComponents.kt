@@ -183,24 +183,7 @@ internal fun TrackMetadata(item: QueueItem?) {
 
 @Composable
 internal fun StreamBadge(label: String) {
-    Box(
-        modifier =
-            Modifier
-                .clip(TuneFlowShapes.badge)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                    shape = TuneFlowShapes.badge,
-                )
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
+    StreamMetaBadge(label = label)
 }
 
 @Composable
@@ -213,6 +196,7 @@ internal fun StreamModeButton(
     Box(
         modifier =
             Modifier
+                .size(44.dp)
                 .scale(if (focused) 1.01f else 1f)
                 .clip(TuneFlowShapes.button)
                 .background(
@@ -234,8 +218,8 @@ internal fun StreamModeButton(
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
@@ -260,6 +244,7 @@ internal fun StreamControlRow(
             label = streamModeLabel,
             onClick = onCycleStreamMode,
         )
+        StreamBadge(label = bitrateLabel)
         PlaybackModeIconButton(
             playbackMode = playbackMode,
             onClick = onCyclePlaybackMode,
@@ -268,7 +253,31 @@ internal fun StreamControlRow(
             active = showQueue,
             onClick = onToggleQueue,
         )
-        StreamBadge(label = bitrateLabel)
+    }
+}
+
+@Composable
+private fun StreamMetaBadge(label: String) {
+    Box(
+        modifier =
+            Modifier
+                .size(44.dp)
+                .clip(TuneFlowShapes.button)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                    shape = TuneFlowShapes.button,
+                ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
