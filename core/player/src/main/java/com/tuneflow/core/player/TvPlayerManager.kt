@@ -40,6 +40,9 @@ class TvPlayerManager(
     private val _playbackStatus = MutableStateFlow(PlaybackStatus())
     override val playbackStatus: StateFlow<PlaybackStatus> = _playbackStatus.asStateFlow()
 
+    private val _playbackMode = MutableStateFlow(PlaybackMode.Default)
+    override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
+
     val player: ExoPlayer =
         ExoPlayer.Builder(appContext)
             .setHandleAudioBecomingNoisy(true)
@@ -79,8 +82,10 @@ class TvPlayerManager(
                                     }
                                 }
                                 Player.STATE_ENDED -> {
-                                    expectedToPlay = false
-                                    cancelFallbackMonitor()
+                                    if (_playbackMode.value != PlaybackMode.Loop) {
+                                        expectedToPlay = false
+                                        cancelFallbackMonitor()
+                                    }
                                 }
                                 Player.STATE_IDLE -> {
                                     if (expectedToPlay) scheduleFallbackMonitor()
@@ -170,6 +175,7 @@ class TvPlayerManager(
         val mediaItems = items.map { it.toMediaItem() }
         player.setMediaItems(mediaItems, queue.currentIndex, 0L)
         player.prepare()
+        player.repeatMode = Player.REPEAT_MODE_OFF
         player.play()
         scheduleFallbackMonitor()
         updatePlaybackStatus()
@@ -240,6 +246,8 @@ class TvPlayerManager(
         _queue.value = PlaybackQueue()
         _isPlaying.value = false
         _playbackStatus.value = PlaybackStatus()
+        _playbackMode.value = PlaybackMode.Default
+        player.repeatMode = Player.REPEAT_MODE_OFF
         scope.launch {
             queueStore.clear()
         }
@@ -268,6 +276,46 @@ class TvPlayerManager(
     override fun currentPositionMs(): Long = player.currentPosition.coerceAtLeast(0L)
 
     override fun durationMs(): Long = player.duration.coerceAtLeast(0L)
+
+    override fun cyclePlaybackMode() {
+        when (_playbackMode.value) {
+            PlaybackMode.Default -> {
+                val queue = _queue.value
+                if (queue.items.isEmpty()) return
+
+                val currentItem = queue.currentItem
+                val remainingItems = queue.items.filterIndexed { index, _ -> index != queue.currentIndex }.shuffled()
+                val reorderedItems = listOfNotNull(currentItem) + remainingItems
+                val currentPositionMs = player.currentPosition.coerceAtLeast(0L)
+
+                _queue.value = queue.copy(items = reorderedItems, currentIndex = 0, currentPositionMs = currentPositionMs)
+                player.setMediaItems(reorderedItems.map { it.toMediaItem() }, 0, currentPositionMs)
+                player.repeatMode = Player.REPEAT_MODE_OFF
+                player.prepare()
+                if (expectedToPlay || _isPlaying.value) {
+                    player.playWhenReady = true
+                    player.play()
+                }
+                _playbackMode.value = PlaybackMode.Shuffle
+                updatePlaybackStatus()
+                persist()
+            }
+
+            PlaybackMode.Shuffle -> {
+                _playbackMode.value = PlaybackMode.Loop
+                player.repeatMode = Player.REPEAT_MODE_ALL
+                updatePlaybackStatus()
+                persist()
+            }
+
+            PlaybackMode.Loop -> {
+                _playbackMode.value = PlaybackMode.Default
+                player.repeatMode = Player.REPEAT_MODE_OFF
+                updatePlaybackStatus()
+                persist()
+            }
+        }
+    }
 
     fun release() {
         cancelFallbackMonitor()

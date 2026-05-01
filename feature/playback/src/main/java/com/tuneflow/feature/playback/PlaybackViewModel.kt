@@ -3,6 +3,7 @@ package com.tuneflow.feature.playback
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tuneflow.core.player.PlaybackController
+import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.PlaybackPhase
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlaybackStatus
@@ -27,6 +28,7 @@ data class NowPlayingUiState(
     val durationMs: Long = 0L,
     val playbackStatus: PlaybackStatus = PlaybackStatus(),
     val statusMessage: String? = null,
+    val playbackMode: PlaybackMode = PlaybackMode.Default,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -56,11 +58,13 @@ class PlaybackViewModel(
                     playerManager.queue,
                     playerManager.isPlaying,
                     playerManager.playbackStatus,
-                ) { queue, isPlaying, playbackStatus ->
+                    playerManager.playbackMode,
+                ) { queue, isPlaying, playbackStatus, playbackMode ->
                     PlaybackSnapshot(
                         queue = queue,
                         isPlaying = isPlaying,
                         playbackStatus = playbackStatus,
+                        playbackMode = playbackMode,
                     )
                 }
 
@@ -100,12 +104,15 @@ class PlaybackViewModel(
     fun playFromIndex(index: Int) = playerManager.playFromIndex(index)
 
     fun retry() = playerManager.retryCurrent()
+
+    fun cyclePlaybackMode() = playerManager.cyclePlaybackMode()
 }
 
 private data class PlaybackSnapshot(
     val queue: PlaybackQueue,
     val isPlaying: Boolean,
     val playbackStatus: PlaybackStatus,
+    val playbackMode: PlaybackMode,
 )
 
 private fun PlaybackSnapshot.toUiState(playerManager: PlaybackController): NowPlayingUiState =
@@ -116,6 +123,7 @@ private fun PlaybackSnapshot.toUiState(playerManager: PlaybackController): NowPl
         durationMs = playerManager.durationMs().takeIf { it > 0L } ?: queue.currentItem?.durationMs ?: 0L,
         playbackStatus = playbackStatus,
         statusMessage = buildStatusMessage(playbackStatus, isPlaying),
+        playbackMode = playbackMode,
     )
 
 private fun buildStatusMessage(

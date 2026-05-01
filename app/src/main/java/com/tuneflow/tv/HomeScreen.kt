@@ -2,6 +2,7 @@
 
 package com.tuneflow.tv
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,6 +44,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -278,10 +280,11 @@ private fun HomeHero(
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
-                    Text(
-                        text = "TuneFlow",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_tuneflow_brand),
+                        contentDescription = "TuneFlow logo",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
                     )
                 }
             }
@@ -338,6 +341,8 @@ private fun HeroActionButton(
                 },
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

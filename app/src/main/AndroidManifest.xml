@@ -14,6 +14,7 @@
         android:allowBackup="true"
         android:banner="@drawable/tv_banner_brand"
         android:icon="@drawable/ic_tuneflow_brand"
+        android:roundIcon="@drawable/ic_tuneflow_brand"
         android:label="TuneFlow"
         android:supportsRtl="false"
         android:theme="@style/Theme.TuneFlow"

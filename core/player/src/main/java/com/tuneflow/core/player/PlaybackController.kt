@@ -6,6 +6,7 @@ interface PlaybackController {
     val queue: StateFlow<PlaybackQueue>
     val isPlaying: StateFlow<Boolean>
     val playbackStatus: StateFlow<PlaybackStatus>
+    val playbackMode: StateFlow<PlaybackMode>
 
     fun play()
 
@@ -26,4 +27,6 @@ interface PlaybackController {
     fun currentPositionMs(): Long
 
     fun durationMs(): Long
+
+    fun cyclePlaybackMode()
 }

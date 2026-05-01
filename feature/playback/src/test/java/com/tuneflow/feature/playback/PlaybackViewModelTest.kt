@@ -1,6 +1,7 @@
 package com.tuneflow.feature.playback
 
 import com.tuneflow.core.player.PlaybackController
+import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlaybackStatus
 import com.tuneflow.core.player.QueueItem
@@ -142,6 +143,7 @@ private class FakeController(
     private val queueState = MutableStateFlow(queue)
     private val playingState = MutableStateFlow(isPlaying)
     private val statusState = MutableStateFlow(PlaybackStatus())
+    private val playbackModeState = MutableStateFlow(PlaybackMode.Default)
 
     var playCalled = false
     var pauseCalled = false
@@ -149,6 +151,7 @@ private class FakeController(
     override val queue: StateFlow<PlaybackQueue> = queueState
     override val isPlaying: StateFlow<Boolean> = playingState
     override val playbackStatus: StateFlow<PlaybackStatus> = statusState
+    override val playbackMode: StateFlow<PlaybackMode> = playbackModeState
 
     override fun play() {
         playCalled = true
@@ -175,6 +178,8 @@ private class FakeController(
     override fun currentPositionMs(): Long = queueState.value.currentPositionMs
 
     override fun durationMs(): Long = 0L
+
+    override fun cyclePlaybackMode() = Unit
 
     fun updateQueue(queue: PlaybackQueue) {
         queueState.value = queue

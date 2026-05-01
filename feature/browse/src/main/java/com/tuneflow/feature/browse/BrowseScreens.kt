@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -61,6 +63,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,9 +84,10 @@ fun AlbumsScreen(
 
     val firstAlbumFocusRequester = remember { FocusRequester() }
     var initialAlbumFocusRequested by rememberSaveable { mutableStateOf(false) }
+    val albumGridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
 
     LaunchedEffect(state.items.size) {
-        if (!initialAlbumFocusRequested && state.items.isNotEmpty()) {
+        if (!initialAlbumFocusRequested && state.items.isNotEmpty() && albumGridState.firstVisibleItemIndex == 0) {
             firstAlbumFocusRequester.requestFocus()
             initialAlbumFocusRequested = true
         }
@@ -104,6 +108,7 @@ fun AlbumsScreen(
                 SectionTitle(title = "Albums")
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 196.dp),
+                    state = albumGridState,
                     modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -151,6 +156,7 @@ fun AlbumDetailScreen(
     albumId: String,
     viewModel: AlbumDetailViewModel,
     onPlayAlbum: (tracks: List<TrackSummary>, index: Int) -> Unit,
+    onShuffleAlbum: (tracks: List<TrackSummary>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -219,11 +225,16 @@ fun AlbumDetailScreen(
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    BrowseActionButton(
-                        onClick = { onPlayAlbum(album.tracks, 0) },
-                        modifier = Modifier.focusRequester(playAlbumFocusRequester),
-                    ) {
-                        Text("Play Album")
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        BrowseActionButton(
+                            onClick = { onPlayAlbum(album.tracks, 0) },
+                            modifier = Modifier.focusRequester(playAlbumFocusRequester),
+                        ) {
+                            BrowsePlayIcon()
+                        }
+                        BrowseActionButton(onClick = { onShuffleAlbum(album.tracks) }) {
+                            BrowseShuffleIcon()
+                        }
                     }
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -340,16 +351,21 @@ fun ArtistDetailScreen(
 }
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 fun PlaylistsScreen(
     viewModel: PlaylistsViewModel,
     preselectedPlaylistId: String? = null,
     onPreselectedPlaylistConsumed: () -> Unit = {},
+    currentTrackId: String? = null,
     onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
+    onShuffleTracks: (tracks: List<TrackSummary>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val firstPlaylistFocusRequester = remember { FocusRequester() }
+    val playPlaylistFocusRequester = remember { FocusRequester() }
     var initialPlaylistFocusRequested by rememberSaveable { mutableStateOf(false) }
+    var detailActionFocusRequested by rememberSaveable(state.selected?.id) { mutableStateOf(false) }
 
     LaunchedEffect(preselectedPlaylistId) {
         if (preselectedPlaylistId != null) {
@@ -366,6 +382,20 @@ fun PlaylistsScreen(
     }
 
     val showDetail = state.selected != null
+
+    LaunchedEffect(state.selected?.id) {
+        if (state.selected != null) {
+            detailActionFocusRequested = false
+        }
+    }
+
+    LaunchedEffect(showDetail, state.selected?.tracks?.size) {
+        if (showDetail && state.selected?.tracks?.isNotEmpty() == true && !detailActionFocusRequested) {
+            playPlaylistFocusRequester.requestFocus()
+            detailActionFocusRequested = true
+        }
+    }
+
     val listWidth by animateDpAsState(
         targetValue = if (showDetail) 272.dp else 312.dp,
         label = "playlist-list-width",
@@ -441,8 +471,16 @@ fun PlaylistsScreen(
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                BrowseActionButton(onClick = { onPlayTracks(selected.tracks, 0) }) {
-                    Text("Play Playlist")
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    BrowseActionButton(
+                        onClick = { onPlayTracks(selected.tracks, 0) },
+                        modifier = Modifier.focusRequester(playPlaylistFocusRequester),
+                    ) {
+                        BrowsePlayIcon()
+                    }
+                    BrowseActionButton(onClick = { onShuffleTracks(selected.tracks) }) {
+                        BrowseShuffleIcon()
+                    }
                 }
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -453,6 +491,11 @@ fun PlaylistsScreen(
                             title = track.title,
                             subtitle = track.artist,
                             trailing = formatTrackDuration(track.durationSec),
+                            leadingContent = {
+                                if (track.id == currentTrackId) {
+                                    CurrentlyPlayingIndicator()
+                                }
+                            },
                             onClick = {
                                 onPlayTracks(
                                     selected.tracks,
@@ -967,6 +1010,7 @@ private fun PremiumListRow(
     title: String,
     subtitle: String,
     trailing: String? = null,
+    leadingContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -979,6 +1023,10 @@ private fun PremiumListRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (leadingContent != null) {
+                leadingContent()
+                Spacer(modifier = Modifier.width(10.dp))
+            }
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -1008,6 +1056,16 @@ private fun PremiumListRow(
             }
         }
     }
+}
+
+@Composable
+private fun CurrentlyPlayingIndicator() {
+    AsyncImage(
+        model = R.drawable.currently_playing,
+        contentDescription = "Currently playing",
+        modifier = Modifier.size(20.dp),
+        contentScale = ContentScale.Fit,
+    )
 }
 
 @Composable
@@ -1118,7 +1176,7 @@ private fun BrowseActionButton(
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp, vertical = 11.dp),
+                .padding(horizontal = 18.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.runtime.CompositionLocalProvider(
@@ -1127,6 +1185,47 @@ private fun BrowseActionButton(
             content()
         }
     }
+}
+
+@Composable
+private fun BrowsePlayIcon(modifier: Modifier = Modifier) {
+    BrowseActionIcon(
+        drawableRes = R.drawable.browse_play_action,
+        contentDescription = "Play",
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun BrowseShuffleIcon(modifier: Modifier = Modifier) {
+    BrowseActionIcon(
+        drawableRes = R.drawable.browse_shuffle_action,
+        contentDescription = "Shuffle",
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun BrowseActionIcon(
+    drawableRes: Int,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+) {
+    val painter = painterResource(id = drawableRes)
+    val intrinsicSize = painter.intrinsicSize
+    val aspectRatio =
+        if (intrinsicSize.width > 0f && intrinsicSize.height > 0f) {
+            intrinsicSize.width / intrinsicSize.height
+        } else {
+            1f
+        }
+    val iconSize = if (aspectRatio >= 1f) 28.dp else 30.dp
+
+    Image(
+        painter = painter,
+        contentDescription = contentDescription,
+        modifier = modifier.size(iconSize),
+    )
 }
 
 @Composable

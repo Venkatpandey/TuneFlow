@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.QueueItem
 
 @Composable
@@ -58,6 +59,7 @@ internal fun NowPlayingPrimaryColumn(
     showQueue: Boolean,
     onCycleStreamMode: () -> Unit,
     onToggleQueue: () -> Unit,
+    onCyclePlaybackMode: () -> Unit,
     onRetry: () -> Unit,
     onPrevious: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -83,6 +85,8 @@ internal fun NowPlayingPrimaryColumn(
             showQueue = showQueue,
             onCycleStreamMode = onCycleStreamMode,
             onToggleQueue = onToggleQueue,
+            playbackMode = state.playbackMode,
+            onCyclePlaybackMode = onCyclePlaybackMode,
         )
 
         state.statusMessage?.let {
@@ -142,10 +146,11 @@ internal fun ArtworkCard(
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Text(
-                    text = "TuneFlow",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                Image(
+                    painter = painterResource(id = R.drawable.ic_tuneflow_brand),
+                    contentDescription = "TuneFlow logo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(14.dp),
                 )
             }
         }
@@ -179,24 +184,7 @@ internal fun TrackMetadata(item: QueueItem?) {
 
 @Composable
 internal fun StreamBadge(label: String) {
-    Box(
-        modifier =
-            Modifier
-                .clip(TuneFlowShapes.badge)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                    shape = TuneFlowShapes.badge,
-                )
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
+    StreamMetaBadge(label = label)
 }
 
 @Composable
@@ -209,6 +197,7 @@ internal fun StreamModeButton(
     Box(
         modifier =
             Modifier
+                .size(44.dp)
                 .scale(if (focused) 1.01f else 1f)
                 .clip(TuneFlowShapes.button)
                 .background(
@@ -230,8 +219,8 @@ internal fun StreamModeButton(
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
@@ -246,19 +235,137 @@ internal fun StreamControlRow(
     streamModeLabel: String,
     bitrateLabel: String,
     showQueue: Boolean,
+    playbackMode: PlaybackMode,
     onCycleStreamMode: () -> Unit,
     onToggleQueue: () -> Unit,
+    onCyclePlaybackMode: () -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         StreamModeButton(
             label = streamModeLabel,
             onClick = onCycleStreamMode,
         )
-        StreamModeButton(
-            label = if (showQueue) "Hide List" else "Track List",
+        StreamBadge(label = bitrateLabel)
+        PlaybackModeIconButton(
+            playbackMode = playbackMode,
+            onClick = onCyclePlaybackMode,
+        )
+        QueueToggleIconButton(
+            active = showQueue,
             onClick = onToggleQueue,
         )
-        StreamBadge(label = bitrateLabel)
+    }
+}
+
+@Composable
+private fun StreamMetaBadge(label: String) {
+    Box(
+        modifier =
+            Modifier
+                .size(44.dp)
+                .clip(TuneFlowShapes.button)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                    shape = TuneFlowShapes.button,
+                ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun PlaybackModeIconButton(
+    playbackMode: PlaybackMode,
+    onClick: () -> Unit,
+) {
+    val (iconRes, active) =
+        when (playbackMode) {
+            PlaybackMode.Default -> R.drawable.shuffle_disabled to false
+            PlaybackMode.Shuffle -> R.drawable.shuffle_enabled to true
+            PlaybackMode.Loop -> R.drawable.loop_enabled to true
+        }
+
+    PlaybackStateIconButton(
+        iconResId = iconRes,
+        contentDescription =
+            when (playbackMode) {
+                PlaybackMode.Default -> "Playback mode default"
+                PlaybackMode.Shuffle -> "Playback mode shuffle"
+                PlaybackMode.Loop -> "Playback mode loop"
+            },
+        active = active,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun QueueToggleIconButton(
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    PlaybackStateIconButton(
+        iconResId = if (active) R.drawable.tracklist_enabled else R.drawable.tracklist_disabled,
+        contentDescription = if (active) "Hide track list" else "Show track list",
+        active = active,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun PlaybackStateIconButton(
+    iconResId: Int,
+    contentDescription: String,
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier =
+            Modifier
+                .size(44.dp)
+                .scale(if (focused) 1.03f else 1f)
+                .clip(TuneFlowShapes.button)
+                .background(
+                    if (focused || active) {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f)
+                    },
+                )
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else if (active) {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                        },
+                    shape = TuneFlowShapes.button,
+                )
+                .onFocusChanged { focusState -> focused = focusState.hasFocus }
+                .focusable()
+                .clickable(onClick = onClick)
+                .padding(8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(iconResId),
+            contentDescription = contentDescription,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
+        )
     }
 }
 
@@ -419,7 +526,7 @@ internal fun PlaybackIconButton(
                         },
                     shape = CircleShape,
                 )
-                .onFocusChanged { focused = it.hasFocus }
+                .onFocusChanged { focusState -> focused = focusState.hasFocus }
                 .focusable()
                 .clickable(onClick = onClick)
                 .padding(4.dp),
@@ -428,10 +535,7 @@ internal fun PlaybackIconButton(
         Image(
             painter = painterResource(iconResId),
             contentDescription = contentDescription,
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape),
+            modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Fit,
         )
     }
