@@ -348,10 +348,12 @@ fun ArtistDetailScreen(
 }
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 fun PlaylistsScreen(
     viewModel: PlaylistsViewModel,
     preselectedPlaylistId: String? = null,
     onPreselectedPlaylistConsumed: () -> Unit = {},
+    currentTrackId: String? = null,
     onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
     onShuffleTracks: (tracks: List<TrackSummary>) -> Unit,
     modifier: Modifier = Modifier,
@@ -486,6 +488,11 @@ fun PlaylistsScreen(
                             title = track.title,
                             subtitle = track.artist,
                             trailing = formatTrackDuration(track.durationSec),
+                            leadingContent = {
+                                if (track.id == currentTrackId) {
+                                    CurrentlyPlayingIndicator()
+                                }
+                            },
                             onClick = {
                                 onPlayTracks(
                                     selected.tracks,
@@ -1000,6 +1007,7 @@ private fun PremiumListRow(
     title: String,
     subtitle: String,
     trailing: String? = null,
+    leadingContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1012,6 +1020,10 @@ private fun PremiumListRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (leadingContent != null) {
+                leadingContent()
+                Spacer(modifier = Modifier.width(10.dp))
+            }
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -1041,6 +1053,16 @@ private fun PremiumListRow(
             }
         }
     }
+}
+
+@Composable
+private fun CurrentlyPlayingIndicator() {
+    AsyncImage(
+        model = R.drawable.currently_playing,
+        contentDescription = "Currently playing",
+        modifier = Modifier.size(20.dp),
+        contentScale = ContentScale.Fit,
+    )
 }
 
 @Composable

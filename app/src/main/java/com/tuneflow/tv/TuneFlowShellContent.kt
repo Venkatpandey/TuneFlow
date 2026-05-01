@@ -90,6 +90,7 @@ internal fun ShellContent(
                     viewModel = playlistsViewModel,
                     preselectedPlaylistId = preselectedPlaylistId,
                     onPreselectedPlaylistConsumed = onPreselectedPlaylistConsumed,
+                    currentTrackId = playbackQueue.currentItem?.id,
                     onPlayTracks = onPlayTracks,
                     onShuffleTracks = onShuffleTracks,
                 )

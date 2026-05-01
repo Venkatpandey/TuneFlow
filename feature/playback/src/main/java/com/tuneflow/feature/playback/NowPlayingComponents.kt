@@ -39,7 +39,6 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -278,13 +277,12 @@ private fun PlaybackModeIconButton(
     playbackMode: PlaybackMode,
     onClick: () -> Unit,
 ) {
-    val iconRes =
+    val (iconRes, active) =
         when (playbackMode) {
-            PlaybackMode.Default -> R.drawable.now_playing_shuffle_mode
-            PlaybackMode.Shuffle -> R.drawable.now_playing_shuffle_mode
-            PlaybackMode.Loop -> R.drawable.now_playing_loop_mode
+            PlaybackMode.Default -> R.drawable.shuffle_disabled to false
+            PlaybackMode.Shuffle -> R.drawable.shuffle_enabled to true
+            PlaybackMode.Loop -> R.drawable.loop_enabled to true
         }
-    val active = playbackMode != PlaybackMode.Default
 
     PlaybackStateIconButton(
         iconResId = iconRes,
@@ -305,7 +303,7 @@ private fun QueueToggleIconButton(
     onClick: () -> Unit,
 ) {
     PlaybackStateIconButton(
-        iconResId = R.drawable.now_playing_track_list,
+        iconResId = if (active) R.drawable.tracklist_enabled else R.drawable.tracklist_disabled,
         contentDescription = if (active) "Hide track list" else "Show track list",
         active = active,
         onClick = onClick,
@@ -357,12 +355,6 @@ private fun PlaybackStateIconButton(
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Fit,
-            colorFilter =
-                if (active) {
-                    null
-                } else {
-                    ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f))
-                },
         )
     }
 }
