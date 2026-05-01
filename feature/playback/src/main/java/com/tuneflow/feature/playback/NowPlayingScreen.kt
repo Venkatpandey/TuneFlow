@@ -23,12 +23,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.tuneflow.core.design.TuneFlowShapes
+import kotlinx.coroutines.delay
 import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
@@ -64,6 +67,9 @@ fun NowPlayingScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val item = state.queue.currentItem
     var showQueue by rememberSaveable { mutableStateOf(false) }
+    var requestStreamFocus by rememberSaveable { mutableStateOf(false) }
+    var requestTransportFocus by rememberSaveable { mutableStateOf(false) }
+    var focusedQueueIndex by rememberSaveable { mutableIntStateOf(0) }
     val artSize by animateDpAsState(targetValue = if (showQueue) 152.dp else 180.dp, label = "now-playing-art-size")
     val artFrameHeight by animateDpAsState(targetValue = if (showQueue) 176.dp else 200.dp, label = "now-playing-art-frame-height")
 
@@ -115,15 +121,21 @@ fun NowPlayingScreen(
                 streamModeLabel = streamModeLabel,
                 showQueue = showQueue,
                 onCycleStreamMode = onCycleStreamMode,
-                onToggleQueue = { showQueue = !showQueue },
+                onToggleQueue = {
+                    showQueue = !showQueue
+                    requestStreamFocus = false
+                    requestTransportFocus = false
+                },
                 onCyclePlaybackMode = viewModel::cyclePlaybackMode,
                 onRetry = viewModel::retry,
                 onPrevious = viewModel::previous,
                 onTogglePlayPause = viewModel::togglePlayPause,
                 onNext = viewModel::next,
                 compactTransport = showQueue,
-                autoFocusTransport = autoFocusTransport,
+                autoFocusTransport = autoFocusTransport || requestTransportFocus,
+                autoFocusStreamMode = requestStreamFocus,
                 onAutoFocusConsumed = onAutoFocusConsumed,
+                onStreamModeFocusConsumed = { requestStreamFocus = false },
             )
 
             AnimatedVisibility(
@@ -135,6 +147,17 @@ fun NowPlayingScreen(
                     title = "Track List",
                     state = state,
                     onSelectTrack = viewModel::playFromIndex,
+                    onQueueExit = { target ->
+                        showQueue = false
+                        requestStreamFocus = target == QueueExitTarget.StreamControls
+                        requestTransportFocus = target == QueueExitTarget.TransportControls
+                    },
+                    onFocusedIndexChanged = { focusedQueueIndex = it },
+                    preferredExitTarget =
+                        resolveQueueExitTarget(
+                            focusedIndex = focusedQueueIndex,
+                            itemCount = state.queue.items.size,
+                        ),
                 )
             }
         }
@@ -200,14 +223,22 @@ private fun QueuePanel(
     title: String,
     state: NowPlayingUiState,
     onSelectTrack: (Int) -> Unit,
+    onQueueExit: (QueueExitTarget) -> Unit,
+    onFocusedIndexChanged: (Int) -> Unit,
+    preferredExitTarget: QueueExitTarget,
 ) {
     val currentFocusRequester = remember { FocusRequester() }
+    val queueListState = rememberLazyListState()
     val currentIndex = state.queue.currentIndex
     val hasCurrentQueueItem = currentIndex in state.queue.items.indices
 
     LaunchedEffect(hasCurrentQueueItem, currentIndex) {
         if (hasCurrentQueueItem) {
+            // Show the user where we are by animating the list to current track first.
+            queueListState.animateScrollToItem(currentIndex)
+            delay(500)
             runCatching { currentFocusRequester.requestFocus() }
+            onFocusedIndexChanged(currentIndex)
         }
     }
 
@@ -223,6 +254,18 @@ private fun QueuePanel(
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
                     shape = TuneFlowShapes.card,
                 )
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.nativeKeyEvent.keyCode) {
+                        AndroidKeyEvent.KEYCODE_BACK,
+                        AndroidKeyEvent.KEYCODE_DPAD_LEFT,
+                        -> {
+                            onQueueExit(preferredExitTarget)
+                            true
+                        }
+                        else -> false
+                    }
+                }
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -231,13 +274,17 @@ private fun QueuePanel(
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(
+            state = queueListState,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             itemsIndexed(state.queue.items, key = { _, track -> track.id }) { index, track ->
                 QueueRow(
                     title = track.title,
                     subtitle = track.artist,
                     isCurrent = index == currentIndex,
                     onClick = { onSelectTrack(index) },
+                    onFocused = { onFocusedIndexChanged(index) },
                     modifier =
                         Modifier
                             .boundaryLockedVerticalItem(
@@ -263,6 +310,7 @@ private fun QueueRow(
     subtitle: String,
     isCurrent: Boolean,
     onClick: () -> Unit,
+    onFocused: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -289,7 +337,10 @@ private fun QueueRow(
                         },
                     shape = TuneFlowShapes.row,
                 )
-                .onFocusChanged { focused = it.hasFocus }
+                .onFocusChanged {
+                    focused = it.hasFocus
+                    if (it.hasFocus) onFocused()
+                }
                 .focusable()
                 .clickable(onClick = onClick)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -325,6 +376,24 @@ private fun QueueRow(
                 )
             }
         }
+    }
+}
+
+private enum class QueueExitTarget {
+    StreamControls,
+    TransportControls,
+}
+
+private fun resolveQueueExitTarget(
+    focusedIndex: Int,
+    itemCount: Int,
+): QueueExitTarget {
+    if (itemCount <= 1) return QueueExitTarget.StreamControls
+    val threshold = (itemCount - 1) / 2
+    return if (focusedIndex <= threshold) {
+        QueueExitTarget.StreamControls
+    } else {
+        QueueExitTarget.TransportControls
     }
 }
 
