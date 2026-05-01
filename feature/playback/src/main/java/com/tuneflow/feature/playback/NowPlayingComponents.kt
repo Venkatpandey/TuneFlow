@@ -146,10 +146,11 @@ internal fun ArtworkCard(
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Text(
-                    text = "TuneFlow",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                Image(
+                    painter = painterResource(id = R.drawable.ic_tuneflow_brand),
+                    contentDescription = "TuneFlow logo",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(14.dp),
                 )
             }
         }
