@@ -3,7 +3,13 @@
 package com.tuneflow.feature.browse
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -35,7 +41,6 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -55,6 +60,9 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -95,7 +103,21 @@ fun AlbumsScreen(
 
     when {
         state.isLoading -> {
-            LoadingState(modifier = modifier, label = "Loading albums...")
+            Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                ScreenInitialFocusAnchor()
+                SectionTitle(title = "Albums")
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 196.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp),
+                ) {
+                    items(10) {
+                        AlbumCardSkeleton()
+                    }
+                }
+            }
         }
 
         state.error != null && state.items.isEmpty() -> {
@@ -132,17 +154,7 @@ fun AlbumsScreen(
                             LaunchedEffect(state.items.size) {
                                 viewModel.loadMore()
                             }
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .height(240.dp)
-                                        .clip(TuneFlowShapes.card)
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                CircularProgressIndicator()
-                            }
+                            AlbumGridLoadingMoreCard()
                         }
                     }
                 }
@@ -175,7 +187,7 @@ fun AlbumDetailScreen(
     }
 
     when {
-        state.isLoading -> LoadingState(modifier = modifier, label = "Loading album...")
+        state.isLoading -> AlbumDetailSkeleton(modifier = modifier)
         state.error != null -> ErrorState(modifier = modifier, message = state.error.orEmpty())
         state.album == null -> ErrorState(modifier = modifier, message = "No album data")
         else -> {
@@ -285,7 +297,7 @@ fun ArtistDetailScreen(
     }
 
     when {
-        state.isLoading -> LoadingState(modifier = modifier, label = "Loading artist...")
+        state.isLoading -> ArtistDetailSkeleton(modifier = modifier)
         state.error != null -> ErrorState(modifier = modifier, message = state.error.orEmpty())
         state.artist == null -> ErrorState(modifier = modifier, message = "No artist data")
         else -> {
@@ -418,7 +430,7 @@ fun PlaylistsScreen(
             SectionTitle(title = "Playlists")
 
             if (state.isLoading && state.playlists.isEmpty()) {
-                LoadingState(label = "Loading playlists...")
+                PlaylistListSkeleton()
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -579,7 +591,7 @@ fun SearchScreen(
         )
 
         if (state.isLoading) {
-            LoadingState(label = "Searching...")
+            SearchResultsSkeleton()
         }
         if (state.error != null) {
             Text(
@@ -1220,26 +1232,261 @@ private fun BrowseActionIcon(
 }
 
 @Composable
-private fun LoadingState(
+private fun AlbumGridLoadingMoreCard() {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(240.dp)
+                .clip(TuneFlowShapes.card)
+                .shimmerEffect(),
+    )
+}
+
+@Composable
+private fun AlbumCardSkeleton() {
+    Column(
+        modifier = Modifier.width(196.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(196.dp)
+                    .clip(TuneFlowShapes.card)
+                    .shimmerEffect(),
+        )
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth(0.8f)
+                    .height(16.dp)
+                    .clip(TuneFlowShapes.field)
+                    .shimmerEffect(),
+        )
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth(0.5f)
+                    .height(14.dp)
+                    .clip(TuneFlowShapes.field)
+                    .shimmerEffect(),
+        )
+    }
+}
+
+@Composable
+private fun DetailArtworkSkeleton(
     modifier: Modifier = Modifier,
-    label: String,
+    artworkWidth: androidx.compose.ui.unit.Dp,
+    artworkHeight: androidx.compose.ui.unit.Dp,
 ) {
     Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
+        modifier =
+            modifier
+                .clip(TuneFlowShapes.card)
+                .shimmerEffect(),
     ) {
+        Box(
+            modifier =
+                Modifier
+                    .width(artworkWidth)
+                    .height(artworkHeight)
+                    .clip(TuneFlowShapes.card)
+                    .shimmerEffect()
+                    .align(Alignment.TopCenter),
+        )
+    }
+}
+
+@Composable
+private fun TextLineSkeleton(
+    widthFraction: Float,
+    height: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier =
+            modifier
+                .fillMaxWidth(widthFraction)
+                .height(height)
+                .clip(TuneFlowShapes.field)
+                .shimmerEffect(),
+    )
+}
+
+@Composable
+private fun ActionButtonSkeleton() {
+    Box(
+        modifier =
+            Modifier
+                .width(72.dp)
+                .height(48.dp)
+                .clip(TuneFlowShapes.button)
+                .shimmerEffect(),
+    )
+}
+
+@Composable
+private fun ListRowSkeleton() {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(72.dp)
+                .clip(TuneFlowShapes.card)
+                .shimmerEffect(),
+    )
+}
+
+@Composable
+private fun ChipSkeleton() {
+    Box(
+        modifier =
+            Modifier
+                .width(172.dp)
+                .height(56.dp)
+                .clip(TuneFlowShapes.button)
+                .shimmerEffect(),
+    )
+}
+
+@Composable
+private fun AlbumDetailSkeleton(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        DetailArtworkSkeleton(
+            modifier =
+                Modifier
+                    .width(292.dp)
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f), TuneFlowShapes.hero)
+                    .padding(16.dp),
+            artworkWidth = 260.dp,
+            artworkHeight = 248.dp,
+        )
+
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            CircularProgressIndicator()
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            ScreenInitialFocusAnchor()
+            TextLineSkeleton(widthFraction = 0.52f, height = 34.dp)
+            TextLineSkeleton(widthFraction = 0.34f, height = 28.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ActionButtonSkeleton()
+                ActionButtonSkeleton()
+            }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 32.dp),
+            ) {
+                items(8) {
+                    ListRowSkeleton()
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun ArtistDetailSkeleton(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        ScreenInitialFocusAnchor()
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(208.dp)
+                    .clip(TuneFlowShapes.hero)
+                    .shimmerEffect(),
+        )
+        TextLineSkeleton(widthFraction = 0.28f, height = 34.dp)
+        TextLineSkeleton(widthFraction = 0.18f, height = 28.dp)
+        SectionTitle(title = "Albums")
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            items(6) {
+                AlbumCardSkeleton()
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistListSkeleton() {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 32.dp),
+    ) {
+        items(8) {
+            ListRowSkeleton()
+        }
+    }
+}
+
+@Composable
+private fun SearchResultsSkeleton() {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+        contentPadding = PaddingValues(bottom = 48.dp),
+    ) {
+        item { SectionTitle(title = "Suggestions") }
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(4) {
+                    ChipSkeleton()
+                }
+            }
+        }
+        item { SectionTitle(title = "Albums") }
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                items(5) {
+                    AlbumCardSkeleton()
+                }
+            }
+        }
+        item { SectionTitle(title = "Tracks") }
+        items(6) {
+            ListRowSkeleton()
+        }
+    }
+}
+
+@Composable
+private fun Modifier.shimmerEffect(): Modifier {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val translateAnim by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(durationMillis = 1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+        label = "shimmerTranslate",
+    )
+
+    return this.background(
+        brush =
+            Brush.linearGradient(
+                colors =
+                    listOf(
+                        Color(0xFF141420),
+                        Color(0xFF1E1E2E),
+                        Color(0xFF141420),
+                    ),
+                start = Offset(translateAnim - 500f, 0f),
+                end = Offset(translateAnim, 0f),
+            ),
+    )
 }
 
 @Composable

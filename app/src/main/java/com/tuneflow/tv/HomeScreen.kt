@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -290,7 +289,6 @@ private fun HomeHero(
                 } else {
                     ArtworkPlaceholder(
                         fallbackPainterResId = R.drawable.ic_tuneflow_brand,
-                        showProgress = false,
                     )
                 }
             }
@@ -480,25 +478,43 @@ private fun HomeArtistCard(
 }
 
 @Composable
-private fun HomeLoadingSection() {
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(TuneFlowShapes.card)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
-                .padding(28.dp),
+private fun AlbumCardSkeleton() {
+    Column(
+        modifier = Modifier.width(196.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            CircularProgressIndicator()
-            Text(
-                text = "Curating your library...",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(196.dp)
+                    .clip(TuneFlowShapes.card)
+                    .shimmerEffect(),
+        )
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth(0.8f)
+                    .height(16.dp)
+                    .clip(TuneFlowShapes.field)
+                    .shimmerEffect(),
+        )
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth(0.5f)
+                    .height(14.dp)
+                    .clip(TuneFlowShapes.field)
+                    .shimmerEffect(),
+        )
+    }
+}
+
+@Composable
+private fun HomeLoadingSection() {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        items(5) {
+            AlbumCardSkeleton()
         }
     }
 }

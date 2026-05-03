@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -68,14 +67,12 @@ fun TuneFlowArtwork(
             ArtworkPlaceholder(
                 placeholderText = placeholderText,
                 fallbackPainterResId = fallbackPainterResId,
-                showProgress = true,
             )
         },
         error = {
             ArtworkPlaceholder(
                 placeholderText = placeholderText,
                 fallbackPainterResId = fallbackPainterResId,
-                showProgress = false,
             )
         },
     )
@@ -85,7 +82,6 @@ fun TuneFlowArtwork(
 fun BoxScope.ArtworkPlaceholder(
     placeholderText: String? = null,
     fallbackPainterResId: Int? = null,
-    showProgress: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -126,13 +122,6 @@ fun BoxScope.ArtworkPlaceholder(
                     overflow = TextOverflow.Clip,
                 )
             }
-        }
-
-        if (showProgress) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
-                strokeWidth = 2.dp,
-            )
         }
     }
 }
