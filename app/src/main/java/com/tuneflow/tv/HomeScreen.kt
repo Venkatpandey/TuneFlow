@@ -2,7 +2,6 @@
 
 package com.tuneflow.tv
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,12 +43,12 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
+import com.tuneflow.core.design.ArtworkPlaceholder
+import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.ArtistSummary
@@ -200,12 +199,15 @@ private fun HomeHero(
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)),
     ) {
         if (currentItem?.artUrl != null) {
-            AsyncImage(
+            TuneFlowArtwork(
                 model = currentItem.artUrl,
                 contentDescription = currentItem.title,
-                contentScale = ContentScale.Crop,
+                width = 1280.dp,
+                height = 246.dp,
                 modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
                 alpha = 0.28f,
+                placeholderText = currentItem.title,
             )
         }
 
@@ -253,7 +255,7 @@ private fun HomeHero(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     HeroActionButton(
-                        label = if (currentItem != null) "Resume Playback" else "Start Searching",
+                        label = if (currentItem != null) "Resume" else "Start Searching",
                         accent = true,
                         onClick = onPrimaryAction,
                     )
@@ -274,19 +276,21 @@ private fun HomeHero(
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
                 contentAlignment = Alignment.Center,
             ) {
-                if (currentItem?.artUrl != null) {
-                    AsyncImage(
+                if (currentItem != null) {
+                    TuneFlowArtwork(
                         model = currentItem.artUrl,
                         contentDescription = currentItem.title,
-                        contentScale = ContentScale.Crop,
+                        width = 168.dp,
+                        height = 168.dp,
                         modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        placeholderText = currentItem.title,
+                        fallbackPainterResId = R.drawable.ic_tuneflow_brand,
                     )
                 } else {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_tuneflow_brand),
-                        contentDescription = "TuneFlow logo",
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                    ArtworkPlaceholder(
+                        fallbackPainterResId = R.drawable.ic_tuneflow_brand,
+                        showProgress = false,
                     )
                 }
             }
@@ -403,21 +407,15 @@ private fun FavoriteTrackCard(
                         .clip(TuneFlowShapes.card)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
-                if (track.artUrl != null) {
-                    AsyncImage(
-                        model = track.artUrl,
-                        contentDescription = track.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Text(
-                        text = track.title.take(1),
-                        style = MaterialTheme.typography.displayMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                }
+                TuneFlowArtwork(
+                    model = track.artUrl,
+                    contentDescription = track.title,
+                    width = 196.dp,
+                    height = 196.dp,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = track.title,
+                )
             }
             Text(
                 text = track.title,
@@ -455,21 +453,15 @@ private fun HomeArtistCard(
                         .clip(TuneFlowShapes.card)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
-                if (artist.artUrl != null) {
-                    AsyncImage(
-                        model = artist.artUrl,
-                        contentDescription = artist.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Text(
-                        text = artist.name.take(1),
-                        style = MaterialTheme.typography.displayMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                }
+                TuneFlowArtwork(
+                    model = artist.artUrl,
+                    contentDescription = artist.name,
+                    width = 208.dp,
+                    height = 172.dp,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = artist.name,
+                )
             }
             Text(
                 text = artist.name,
@@ -558,21 +550,15 @@ private fun HomeAlbumCard(
                         .clip(TuneFlowShapes.card)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
-                if (album.artUrl != null) {
-                    AsyncImage(
-                        model = album.artUrl,
-                        contentDescription = album.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Text(
-                        text = album.title.take(1),
-                        style = MaterialTheme.typography.displayMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                }
+                TuneFlowArtwork(
+                    model = album.artUrl,
+                    contentDescription = album.title,
+                    width = 196.dp,
+                    height = 196.dp,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = album.title,
+                )
             }
             Text(
                 text = album.title,
@@ -660,21 +646,15 @@ private fun PlaylistArtCollage(playlist: PlaylistSummary) {
                                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (artUrl != null) {
-                            AsyncImage(
-                                model = artUrl,
-                                contentDescription = playlist.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        } else {
-                            Text(
-                                text = "TF",
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
+                        TuneFlowArtwork(
+                            model = artUrl,
+                            contentDescription = playlist.name,
+                            width = 58.dp,
+                            height = 58.dp,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            placeholderText = playlist.name,
+                        )
                     }
                 }
             }

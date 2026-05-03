@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,11 +47,12 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
+import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import kotlinx.coroutines.delay
 import android.view.KeyEvent as AndroidKeyEvent
@@ -84,15 +86,16 @@ fun NowPlayingScreen(
                 .fillMaxSize()
                 .onPreviewKeyEvent { event -> handleNowPlayingKeyEvent(event, showQueue, { showQueue = false }, viewModel) },
     ) {
-        if (item?.artUrl != null) {
-            AsyncImage(
-                model = item.artUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                alpha = 0.18f,
-            )
-        }
+        TuneFlowArtwork(
+            model = item?.artUrl,
+            contentDescription = null,
+            width = 1280.dp,
+            height = 720.dp,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            alpha = 0.18f,
+            placeholderText = item?.title,
+        )
 
         Box(
             modifier =
@@ -350,8 +353,8 @@ private fun QueueRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (isCurrent) {
-                AsyncImage(
-                    model = R.drawable.currently_playing,
+                Image(
+                    painter = painterResource(id = R.drawable.currently_playing),
                     contentDescription = "Currently playing",
                     modifier = Modifier.size(18.dp),
                     contentScale = ContentScale.Fit,
