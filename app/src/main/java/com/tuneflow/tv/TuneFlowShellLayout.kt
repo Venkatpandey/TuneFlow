@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.player.PlaybackQueue
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 @Composable
 internal fun TuneFlowShellLayout(
@@ -208,19 +211,38 @@ private fun NavRail(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(52.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))
-                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), CircleShape),
-            contentAlignment = Alignment.Center,
+        val currentTime by produceState(initialValue = currentTime24h()) {
+            while (true) {
+                value = currentTime24h()
+                kotlinx.coroutines.delay(1000L)
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))
+                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = username.ifBlank { "TuneFlow" }.take(1).uppercase(),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
             Text(
-                text = username.ifBlank { "TuneFlow" }.take(1).uppercase(),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                text = currentTime,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
         }
 
@@ -419,6 +441,10 @@ private fun NowPlayingRailWidget(
         }
     }
 }
+
+private val navRailTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+private fun currentTime24h(): String = LocalTime.now().format(navRailTimeFormatter)
 
 private fun railFormatTime(ms: Long): String {
     if (ms <= 0L) return "00:00"

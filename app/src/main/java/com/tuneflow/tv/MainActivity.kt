@@ -5,7 +5,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -177,6 +179,7 @@ private fun TuneFlowShell(
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
     val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)
+    var navWidgetPositionMs by remember { mutableLongStateOf(0L) }
 
     var shellState by rememberSaveable(stateSaver = TuneFlowShellState.Saver) {
         mutableStateOf(TuneFlowShellState())
@@ -237,11 +240,19 @@ private fun TuneFlowShell(
         updateShellState { it.showExitPrompt(now) }
     }
 
-    androidx.compose.runtime.LaunchedEffect(shellState.showExitPrompt, shellState.lastExitPromptAt) {
+    LaunchedEffect(shellState.showExitPrompt, shellState.lastExitPromptAt) {
         if (!shellState.showExitPrompt) return@LaunchedEffect
         delay(EXIT_CONFIRM_TIMEOUT_MS)
         if (System.currentTimeMillis() - shellState.lastExitPromptAt >= EXIT_CONFIRM_TIMEOUT_MS) {
             updateShellState { it.hideExitPrompt() }
+        }
+    }
+
+    LaunchedEffect(playbackState.queue.currentItem?.id, playbackState.isPlaying) {
+        navWidgetPositionMs = playerManager.currentPositionMs()
+        while (playbackState.queue.currentItem != null) {
+            navWidgetPositionMs = playerManager.currentPositionMs()
+            delay(1000L)
         }
     }
 
@@ -262,7 +273,7 @@ private fun TuneFlowShell(
         showNowPlaying = shellState.showNowPlaying,
         username = session?.username.orEmpty(),
         playbackQueue = playbackState.queue,
-        playbackPositionMs = playbackState.positionMs,
+        playbackPositionMs = navWidgetPositionMs,
         homeViewModel = homeViewModel,
         albumsViewModel = albumsViewModel,
         albumDetailViewModel = albumDetailViewModel,
