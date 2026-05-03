@@ -1,7 +1,8 @@
 package com.tuneflow.tv
 
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -13,11 +14,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,7 +37,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.player.PlaybackQueue
 
@@ -77,7 +82,7 @@ internal fun TuneFlowShellLayout(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background),
     ) {
-        Image(
+        androidx.compose.foundation.Image(
             painter = painterResource(id = R.drawable.login_background),
             contentDescription = null,
             contentScale = ContentScale.Crop,
@@ -118,6 +123,7 @@ internal fun TuneFlowShellLayout(
                     ) {
                         NavRail(
                             currentSection = currentSection,
+                            playbackQueue = playbackQueue,
                             onSectionSelected = onSectionSelected,
                             onNowPlaying = onNowPlaying,
                             isNowPlayingActive = showNowPlaying,
@@ -179,6 +185,7 @@ internal fun TuneFlowShellLayout(
 @Composable
 private fun NavRail(
     currentSection: NavSection,
+    playbackQueue: PlaybackQueue,
     onSectionSelected: (NavSection) -> Unit,
     onNowPlaying: () -> Unit,
     isNowPlayingActive: Boolean,
@@ -197,7 +204,7 @@ private fun NavRail(
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
                     shape = RoundedCornerShape(28.dp),
                 )
-                .padding(vertical = 20.dp, horizontal = 16.dp),
+                .padding(vertical = 20.dp, horizontal = 10.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -240,8 +247,8 @@ private fun NavRail(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        NavRailItem(
-            label = "Now Playing",
+        NowPlayingRailWidget(
+            playbackQueue = playbackQueue,
             selected = isNowPlayingActive,
             onClick = onNowPlaying,
         )
@@ -297,4 +304,153 @@ private fun NavRailItem(
             modifier = Modifier.scale(if (focused) 1.05f else 1f),
         )
     }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+private fun NowPlayingRailWidget(
+    playbackQueue: PlaybackQueue,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val active = selected || focused
+    val currentItem = playbackQueue.currentItem
+    val durationMs = currentItem?.durationMs ?: 0L
+    val positionMs = playbackQueue.currentPositionMs.coerceAtLeast(0L)
+    val progress =
+        if (durationMs > 0L) {
+            (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(212.dp)
+                .onFocusChanged { focusState -> focused = focusState.isFocused }
+                .focusable()
+                .clip(RoundedCornerShape(22.dp))
+                .background(
+                    if (active) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
+                    },
+                )
+                .border(
+                    width = if (active) 3.dp else 1.dp,
+                    color =
+                        if (active) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                        },
+                    shape = RoundedCornerShape(22.dp),
+                )
+                .clickable(onClick = onClick)
+                .padding(10.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Now Playing",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(92.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                TuneFlowArtwork(
+                    model = currentItem?.artUrl,
+                    contentDescription = currentItem?.title,
+                    width = 128.dp,
+                    height = 92.dp,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = currentItem?.title ?: "Nothing playing",
+                    fallbackPainterResId = R.drawable.ic_tuneflow_brand,
+                )
+            }
+
+            RailMarqueeText(
+                text = currentItem?.title ?: "Nothing playing",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            RailMarqueeText(
+                text = currentItem?.artist ?: "",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            RailMarqueeText(
+                text = currentItem?.album ?: "",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(999.dp)),
+            )
+            Text(
+                text = railFormatTime(positionMs),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private fun railFormatTime(ms: Long): String {
+    if (ms <= 0L) return "00:00"
+    val totalSec = ms / 1000
+    val hours = totalSec / 3600
+    val minutes = (totalSec % 3600) / 60
+    val seconds = totalSec % 60
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%02d:%02d".format(minutes, seconds)
+    }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+private fun RailMarqueeText(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle,
+    color: androidx.compose.ui.graphics.Color,
+) {
+    if (text.isBlank()) return
+
+    Text(
+        text = text,
+        style = style,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Clip,
+        modifier = Modifier.fillMaxWidth().basicMarquee(),
+    )
 }
