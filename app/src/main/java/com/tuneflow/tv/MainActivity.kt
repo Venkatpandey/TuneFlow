@@ -29,6 +29,9 @@ import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.BrowseRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private lateinit var playerManager: com.tuneflow.core.player.TvPlayerManager
@@ -180,6 +183,7 @@ private fun TuneFlowShell(
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
     val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)
     var navWidgetPositionMs by remember { mutableLongStateOf(0L) }
+    var navClockText by remember { mutableStateOf(currentTime24h()) }
 
     var shellState by rememberSaveable(stateSaver = TuneFlowShellState.Saver) {
         mutableStateOf(TuneFlowShellState())
@@ -248,6 +252,15 @@ private fun TuneFlowShell(
         }
     }
 
+    LaunchedEffect(Unit) {
+        while (true) {
+            navClockText = currentTime24h()
+            val nowMs = System.currentTimeMillis()
+            val delayMs = 60_000L - (nowMs % 60_000L)
+            delay(delayMs.coerceAtLeast(250L))
+        }
+    }
+
     LaunchedEffect(playbackState.queue.currentItem?.id, playbackState.isPlaying) {
         navWidgetPositionMs = playerManager.currentPositionMs()
         while (playbackState.queue.currentItem != null) {
@@ -272,6 +285,7 @@ private fun TuneFlowShell(
         currentSection = shellState.currentSection,
         showNowPlaying = shellState.showNowPlaying,
         username = session?.username.orEmpty(),
+        currentTimeText = navClockText,
         playbackQueue = playbackState.queue,
         playbackPositionMs = navWidgetPositionMs,
         homeViewModel = homeViewModel,
@@ -301,3 +315,7 @@ private fun TuneFlowShell(
         showExitPrompt = shellState.showExitPrompt,
     )
 }
+
+private val shellClockFormatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+private fun currentTime24h(): String = shellClockFormatter.format(Date())
