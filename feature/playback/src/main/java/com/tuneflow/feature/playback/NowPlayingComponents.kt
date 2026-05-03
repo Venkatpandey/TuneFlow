@@ -46,7 +46,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.QueueItem
@@ -144,21 +144,16 @@ internal fun ArtworkCard(
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
             contentAlignment = Alignment.Center,
         ) {
-            if (item?.artUrl != null) {
-                AsyncImage(
-                    model = item.artUrl,
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_tuneflow_brand),
-                    contentDescription = "TuneFlow logo",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize().padding(14.dp),
-                )
-            }
+            TuneFlowArtwork(
+                model = item?.artUrl,
+                contentDescription = item?.title,
+                width = artSize,
+                height = artSize,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                placeholderText = item?.title,
+                fallbackPainterResId = R.drawable.ic_tuneflow_brand,
+            )
         }
     }
 }

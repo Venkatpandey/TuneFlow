@@ -68,7 +68,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
+import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.PlaylistSummary
@@ -193,19 +193,20 @@ fun AlbumDetailScreen(
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
                             .padding(16.dp),
                 ) {
-                    if (album.artUrl != null) {
-                        AsyncImage(
-                            model = album.artUrl,
-                            contentDescription = album.title,
-                            contentScale = ContentScale.Crop,
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(248.dp)
-                                    .clip(TuneFlowShapes.card)
-                                    .align(Alignment.TopCenter),
-                        )
-                    }
+                    TuneFlowArtwork(
+                        model = album.artUrl,
+                        contentDescription = album.title,
+                        width = 260.dp,
+                        height = 248.dp,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(248.dp)
+                                .clip(TuneFlowShapes.card)
+                                .align(Alignment.TopCenter),
+                        contentScale = ContentScale.Crop,
+                        placeholderText = album.title,
+                    )
                 }
 
                 Column(
@@ -302,15 +303,16 @@ fun ArtistDetailScreen(
                             .clip(TuneFlowShapes.hero)
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f)),
                 ) {
-                    if (artist.artUrl != null) {
-                        AsyncImage(
-                            model = artist.artUrl,
-                            contentDescription = artist.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                            alpha = 0.34f,
-                        )
-                    }
+                    TuneFlowArtwork(
+                        model = artist.artUrl,
+                        contentDescription = artist.name,
+                        width = 1280.dp,
+                        height = 208.dp,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        alpha = 0.34f,
+                        placeholderText = artist.name,
+                    )
                     Column(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -971,21 +973,15 @@ private fun PremiumAlbumCard(
                         .clip(TuneFlowShapes.card)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f)),
             ) {
-                if (album.artUrl != null) {
-                    AsyncImage(
-                        model = album.artUrl,
-                        contentDescription = album.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Text(
-                        text = album.title.take(1),
-                        style = MaterialTheme.typography.displayMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                }
+                TuneFlowArtwork(
+                    model = album.artUrl,
+                    contentDescription = album.title,
+                    width = 196.dp,
+                    height = 196.dp,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = album.title,
+                )
             }
             Text(
                 text = album.title,
@@ -1060,8 +1056,8 @@ private fun PremiumListRow(
 
 @Composable
 private fun CurrentlyPlayingIndicator() {
-    AsyncImage(
-        model = R.drawable.currently_playing,
+    Image(
+        painter = painterResource(id = R.drawable.currently_playing),
         contentDescription = "Currently playing",
         modifier = Modifier.size(20.dp),
         contentScale = ContentScale.Fit,
@@ -1119,20 +1115,15 @@ private fun PlaylistArtworkGrid(
                                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (artUrl != null) {
-                            AsyncImage(
-                                model = artUrl,
-                                contentDescription = label,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        } else {
-                            Text(
-                                text = "TF",
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
+                        TuneFlowArtwork(
+                            model = artUrl,
+                            contentDescription = label,
+                            width = 58.dp,
+                            height = 58.dp,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            placeholderText = label,
+                        )
                     }
                 }
             }
