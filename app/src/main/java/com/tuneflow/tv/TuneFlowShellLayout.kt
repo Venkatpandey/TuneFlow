@@ -49,6 +49,7 @@ internal fun TuneFlowShellLayout(
     showNowPlaying: Boolean,
     username: String,
     playbackQueue: PlaybackQueue,
+    playbackPositionMs: Long,
     homeViewModel: HomeViewModel,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
@@ -63,7 +64,6 @@ internal fun TuneFlowShellLayout(
     autoFocusNowPlayingTransport: Boolean,
     onSectionSelected: (NavSection) -> Unit,
     onNowPlaying: () -> Unit,
-    onExitApp: () -> Unit,
     onCycleStreamMode: () -> Unit,
     onNowPlayingAutoFocusConsumed: () -> Unit,
     onOpenAlbum: (String, NavSection) -> Unit,
@@ -124,11 +124,11 @@ internal fun TuneFlowShellLayout(
                         NavRail(
                             currentSection = currentSection,
                             playbackQueue = playbackQueue,
+                            playbackPositionMs = playbackPositionMs,
                             onSectionSelected = onSectionSelected,
                             onNowPlaying = onNowPlaying,
                             isNowPlayingActive = showNowPlaying,
                             username = username,
-                            onExitApp = onExitApp,
                         )
 
                         Spacer(Modifier.width(22.dp))
@@ -186,11 +186,11 @@ internal fun TuneFlowShellLayout(
 private fun NavRail(
     currentSection: NavSection,
     playbackQueue: PlaybackQueue,
+    playbackPositionMs: Long,
     onSectionSelected: (NavSection) -> Unit,
     onNowPlaying: () -> Unit,
     isNowPlayingActive: Boolean,
     username: String,
-    onExitApp: () -> Unit,
 ) {
     Column(
         modifier =
@@ -205,7 +205,7 @@ private fun NavRail(
                     shape = RoundedCornerShape(28.dp),
                 )
                 .padding(vertical = 20.dp, horizontal = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -249,13 +249,9 @@ private fun NavRail(
 
         NowPlayingRailWidget(
             playbackQueue = playbackQueue,
+            playbackPositionMs = playbackPositionMs,
             selected = isNowPlayingActive,
             onClick = onNowPlaying,
-        )
-        NavRailItem(
-            label = "Exit",
-            selected = false,
-            onClick = onExitApp,
         )
     }
 }
@@ -310,6 +306,7 @@ private fun NavRailItem(
 @OptIn(ExperimentalFoundationApi::class)
 private fun NowPlayingRailWidget(
     playbackQueue: PlaybackQueue,
+    playbackPositionMs: Long,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -317,7 +314,7 @@ private fun NowPlayingRailWidget(
     val active = selected || focused
     val currentItem = playbackQueue.currentItem
     val durationMs = currentItem?.durationMs ?: 0L
-    val positionMs = playbackQueue.currentPositionMs.coerceAtLeast(0L)
+    val positionMs = playbackPositionMs.coerceAtLeast(0L)
     val progress =
         if (durationMs > 0L) {
             (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
@@ -329,7 +326,7 @@ private fun NowPlayingRailWidget(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(212.dp)
+                .height(196.dp)
                 .onFocusChanged { focusState -> focused = focusState.isFocused }
                 .focusable()
                 .clip(RoundedCornerShape(22.dp))
@@ -355,7 +352,7 @@ private fun NowPlayingRailWidget(
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
                 text = "Now Playing",
@@ -369,7 +366,7 @@ private fun NowPlayingRailWidget(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(92.dp)
+                        .height(84.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)),
                 contentAlignment = Alignment.Center,
@@ -392,13 +389,12 @@ private fun NowPlayingRailWidget(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             RailMarqueeText(
-                text = currentItem?.artist ?: "",
+                text =
+                    listOfNotNull(
+                        currentItem?.artist?.takeIf { it.isNotBlank() },
+                        currentItem?.album?.takeIf { it.isNotBlank() },
+                    ).joinToString(" • "),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            RailMarqueeText(
-                text = currentItem?.album ?: "",
-                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
@@ -409,12 +405,13 @@ private fun NowPlayingRailWidget(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(6.dp)
+                        .height(4.dp)
                         .clip(RoundedCornerShape(999.dp)),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
             )
             Text(
                 text = railFormatTime(positionMs),
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -445,12 +442,15 @@ private fun RailMarqueeText(
 ) {
     if (text.isBlank()) return
 
-    Text(
-        text = text,
-        style = style,
-        color = color,
-        maxLines = 1,
-        overflow = TextOverflow.Clip,
-        modifier = Modifier.fillMaxWidth().basicMarquee(),
-    )
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = text,
+            style = style,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            softWrap = false,
+            modifier = Modifier.basicMarquee().fillMaxWidth(),
+        )
+    }
 }

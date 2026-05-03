@@ -201,8 +201,6 @@ private fun TuneFlowShell(
         scope.launch {
             val queue = buildQueueItems(tracks, browseRepository, preferDirectWithFallback)
             playerManager.playQueue(queue, index)
-            navigationActions.openNowPlaying()
-            updateShellState { it.enableNowPlayingTransportFocus() }
         }
     }
 
@@ -212,8 +210,6 @@ private fun TuneFlowShell(
             val shuffledTracks = tracks.shuffled()
             val queue = buildQueueItems(shuffledTracks, browseRepository, preferDirectWithFallback)
             playerManager.playQueue(queue, 0)
-            navigationActions.openNowPlaying()
-            updateShellState { it.enableNowPlayingTransportFocus() }
         }
     }
 
@@ -266,6 +262,7 @@ private fun TuneFlowShell(
         showNowPlaying = shellState.showNowPlaying,
         username = session?.username.orEmpty(),
         playbackQueue = playbackState.queue,
+        playbackPositionMs = playbackState.positionMs,
         homeViewModel = homeViewModel,
         albumsViewModel = albumsViewModel,
         albumDetailViewModel = albumDetailViewModel,
@@ -280,7 +277,6 @@ private fun TuneFlowShell(
         autoFocusNowPlayingTransport = shellState.autoFocusNowPlayingTransport,
         onSectionSelected = navigationActions::openSection,
         onNowPlaying = navigationActions::openNowPlaying,
-        onExitApp = onExitApp,
         onCycleStreamMode = ::cycleStreamMode,
         onNowPlayingAutoFocusConsumed = { updateShellState { it.consumeNowPlayingTransportFocus() } },
         onOpenAlbum = navigationActions::openAlbum,
