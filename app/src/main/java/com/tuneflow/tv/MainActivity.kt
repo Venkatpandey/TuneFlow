@@ -5,7 +5,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -27,6 +29,9 @@ import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.BrowseRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private lateinit var playerManager: com.tuneflow.core.player.TvPlayerManager
@@ -177,6 +182,8 @@ private fun TuneFlowShell(
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
     val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)
+    var navWidgetPositionMs by remember { mutableLongStateOf(0L) }
+    var navClockText by remember { mutableStateOf(currentTime24h()) }
 
     var shellState by rememberSaveable(stateSaver = TuneFlowShellState.Saver) {
         mutableStateOf(TuneFlowShellState())
@@ -201,8 +208,6 @@ private fun TuneFlowShell(
         scope.launch {
             val queue = buildQueueItems(tracks, browseRepository, preferDirectWithFallback)
             playerManager.playQueue(queue, index)
-            navigationActions.openNowPlaying()
-            updateShellState { it.enableNowPlayingTransportFocus() }
         }
     }
 
@@ -212,8 +217,6 @@ private fun TuneFlowShell(
             val shuffledTracks = tracks.shuffled()
             val queue = buildQueueItems(shuffledTracks, browseRepository, preferDirectWithFallback)
             playerManager.playQueue(queue, 0)
-            navigationActions.openNowPlaying()
-            updateShellState { it.enableNowPlayingTransportFocus() }
         }
     }
 
@@ -241,11 +244,28 @@ private fun TuneFlowShell(
         updateShellState { it.showExitPrompt(now) }
     }
 
-    androidx.compose.runtime.LaunchedEffect(shellState.showExitPrompt, shellState.lastExitPromptAt) {
+    LaunchedEffect(shellState.showExitPrompt, shellState.lastExitPromptAt) {
         if (!shellState.showExitPrompt) return@LaunchedEffect
         delay(EXIT_CONFIRM_TIMEOUT_MS)
         if (System.currentTimeMillis() - shellState.lastExitPromptAt >= EXIT_CONFIRM_TIMEOUT_MS) {
             updateShellState { it.hideExitPrompt() }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            navClockText = currentTime24h()
+            val nowMs = System.currentTimeMillis()
+            val delayMs = 60_000L - (nowMs % 60_000L)
+            delay(delayMs.coerceAtLeast(250L))
+        }
+    }
+
+    LaunchedEffect(playbackState.queue.currentItem?.id, playbackState.isPlaying) {
+        navWidgetPositionMs = playerManager.currentPositionMs()
+        while (playbackState.queue.currentItem != null) {
+            navWidgetPositionMs = playerManager.currentPositionMs()
+            delay(1000L)
         }
     }
 
@@ -265,7 +285,9 @@ private fun TuneFlowShell(
         currentSection = shellState.currentSection,
         showNowPlaying = shellState.showNowPlaying,
         username = session?.username.orEmpty(),
+        currentTimeText = navClockText,
         playbackQueue = playbackState.queue,
+        playbackPositionMs = navWidgetPositionMs,
         homeViewModel = homeViewModel,
         albumsViewModel = albumsViewModel,
         albumDetailViewModel = albumDetailViewModel,
@@ -280,7 +302,6 @@ private fun TuneFlowShell(
         autoFocusNowPlayingTransport = shellState.autoFocusNowPlayingTransport,
         onSectionSelected = navigationActions::openSection,
         onNowPlaying = navigationActions::openNowPlaying,
-        onExitApp = onExitApp,
         onCycleStreamMode = ::cycleStreamMode,
         onNowPlayingAutoFocusConsumed = { updateShellState { it.consumeNowPlayingTransportFocus() } },
         onOpenAlbum = navigationActions::openAlbum,
@@ -294,3 +315,7 @@ private fun TuneFlowShell(
         showExitPrompt = shellState.showExitPrompt,
     )
 }
+
+private val shellClockFormatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+
+private fun currentTime24h(): String = shellClockFormatter.format(Date())

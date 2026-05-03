@@ -474,7 +474,7 @@ fun PlaylistsScreen(
                         .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                val selected = state.selected!!
+                val selected = state.selected ?: return@AnimatedVisibility
                 Text(
                     text = selected.name,
                     style = MaterialTheme.typography.headlineLarge,
