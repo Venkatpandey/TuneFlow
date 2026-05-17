@@ -1,8 +1,11 @@
 package com.tuneflow.tv
 
+import com.tuneflow.feature.browse.HomeCategoryKind
+
 internal fun TuneFlowShellState.openSection(section: NavSection): TuneFlowShellState =
     copy(
         currentSection = section,
+        selectedHomeCategory = null,
         selectedAlbumId = null,
         selectedArtistId = null,
         preselectedPlaylistId = null,
@@ -45,9 +48,22 @@ internal fun TuneFlowShellState.openNowPlaying(): TuneFlowShellState =
 internal fun TuneFlowShellState.enableNowPlayingTransportFocus(): TuneFlowShellState =
     copy(showNowPlaying = true, autoFocusNowPlayingTransport = true, showExitPrompt = false)
 
+internal fun TuneFlowShellState.openHomeCategory(category: HomeCategoryKind): TuneFlowShellState =
+    copy(
+        currentSection = NavSection.Home,
+        selectedHomeCategory = category,
+        selectedAlbumId = null,
+        selectedArtistId = null,
+        preselectedPlaylistId = null,
+        showNowPlaying = false,
+        autoFocusNowPlayingTransport = false,
+        showExitPrompt = false,
+    )
+
 internal fun TuneFlowShellState.openPlaylist(playlistId: String?): TuneFlowShellState =
     copy(
         currentSection = NavSection.Playlists,
+        selectedHomeCategory = null,
         preselectedPlaylistId = playlistId,
         selectedAlbumId = null,
         selectedArtistId = null,
@@ -62,4 +78,4 @@ internal fun TuneFlowShellState.closeAlbum(): TuneFlowShellState = copy(selected
 
 internal fun TuneFlowShellState.closeArtist(): TuneFlowShellState = copy(selectedArtistId = null, currentSection = artistSourceSection)
 
-internal fun TuneFlowShellState.goHome(): TuneFlowShellState = copy(currentSection = NavSection.Home)
+internal fun TuneFlowShellState.goHome(): TuneFlowShellState = copy(currentSection = NavSection.Home, selectedHomeCategory = null)

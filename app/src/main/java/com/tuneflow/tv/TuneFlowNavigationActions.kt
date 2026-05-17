@@ -2,6 +2,7 @@ package com.tuneflow.tv
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import com.tuneflow.feature.browse.HomeCategoryKind
 
 internal class TuneFlowNavigationActions(
     private val clearPlaylistSelection: () -> Unit,
@@ -30,6 +31,10 @@ internal class TuneFlowNavigationActions(
         updateShellState { it.openNowPlaying() }
     }
 
+    fun openHomeCategory(category: HomeCategoryKind) {
+        updateShellState { it.openHomeCategory(category) }
+    }
+
     fun openPlaylist(playlistId: String?) {
         updateShellState { it.openPlaylist(playlistId) }
     }
@@ -54,6 +59,7 @@ internal class TuneFlowNavigationActions(
 @Composable
 internal fun ShellBackHandler(
     showNowPlaying: Boolean,
+    selectedHomeCategory: HomeCategoryKind?,
     selectedAlbumId: String?,
     selectedArtistId: String?,
     currentSection: NavSection,
@@ -68,6 +74,7 @@ internal fun ShellBackHandler(
             showNowPlaying -> onCloseNowPlaying()
             selectedAlbumId != null -> onCloseAlbum()
             selectedArtistId != null -> onCloseArtist()
+            selectedHomeCategory != null -> onGoHome()
             currentSection != NavSection.Home -> onGoHome()
             else -> onRequestExit()
         }
@@ -76,6 +83,7 @@ internal fun ShellBackHandler(
 
 internal fun shellScreenKey(
     currentSection: NavSection,
+    selectedHomeCategory: HomeCategoryKind?,
     selectedAlbumId: String?,
     selectedArtistId: String?,
     showNowPlaying: Boolean,
@@ -84,6 +92,7 @@ internal fun shellScreenKey(
         showNowPlaying -> NOW_PLAYING_SCREEN_KEY
         selectedAlbumId != null -> "album:$selectedAlbumId"
         selectedArtistId != null -> "artist:$selectedArtistId"
+        selectedHomeCategory != null -> homeCategoryScreenKey(selectedHomeCategory)
         else -> currentSection.name
     }
 }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +56,7 @@ import com.tuneflow.core.network.FavoritesBundle
 import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.core.network.TrackSummary
 import com.tuneflow.core.player.PlaybackQueue
+import com.tuneflow.feature.browse.HomeCategoryKind
 import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
@@ -63,6 +65,7 @@ fun HomeScreen(
     playbackQueue: PlaybackQueue,
     onOpenAlbum: (String) -> Unit,
     onOpenArtist: (String) -> Unit,
+    onOpenHomeCategory: (HomeCategoryKind) -> Unit,
     onOpenAlbums: () -> Unit,
     onOpenPlaylists: (String?) -> Unit,
     onOpenSearch: () -> Unit,
@@ -112,6 +115,7 @@ fun HomeScreen(
                     favorites = state.favorites,
                     onOpenAlbum = onOpenAlbum,
                     onPlayTrack = { track -> onPlayTracks(listOf(track), 0) },
+                    onShowAll = { onOpenHomeCategory(HomeCategoryKind.Favorites) },
                 )
             }
         }
@@ -119,10 +123,12 @@ fun HomeScreen(
         if (state.artists.isNotEmpty()) {
             item { SectionHeading("Artists") }
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    items(state.artists, key = { it.id }) { artist ->
+                HomeContentRow(
+                    items = state.artists,
+                    key = { _, artist -> artist.id },
+                    onShowAll = { onOpenHomeCategory(HomeCategoryKind.Artists) },
+                ) { artist ->
                         HomeArtistCard(artist = artist, onClick = { onOpenArtist(artist.id) })
-                    }
                 }
             }
         }
@@ -130,10 +136,12 @@ fun HomeScreen(
         if (state.recentAlbums.isNotEmpty()) {
             item { SectionHeading("Albums") }
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    items(state.recentAlbums, key = { it.id }) { album ->
+                HomeContentRow(
+                    items = state.recentAlbums,
+                    key = { _, album -> album.id },
+                    onShowAll = { onOpenHomeCategory(HomeCategoryKind.Albums) },
+                ) { album ->
                         HomeAlbumCard(album = album, onClick = { onOpenAlbum(album.id) })
-                    }
                 }
             }
         }
@@ -141,13 +149,15 @@ fun HomeScreen(
         if (state.playlists.isNotEmpty()) {
             item { SectionHeading("Playlists") }
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    items(state.playlists, key = { it.id }) { playlist ->
+                HomeContentRow(
+                    items = state.playlists,
+                    key = { _, playlist -> playlist.id },
+                    onShowAll = { onOpenHomeCategory(HomeCategoryKind.Playlists) },
+                ) { playlist ->
                         HomePlaylistCard(
                             playlist = playlist,
                             onClick = { onOpenPlaylists(playlist.id) },
                         )
-                    }
                 }
             }
         }
@@ -177,6 +187,25 @@ fun HomeScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+private const val HOME_ROW_VISIBLE_ITEM_LIMIT = 5
+
+@Composable
+private fun <T> HomeContentRow(
+    items: List<T>,
+    key: (Int, T) -> Any,
+    onShowAll: () -> Unit,
+    itemContent: @Composable (T) -> Unit,
+) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        itemsIndexed(items.take(HOME_ROW_VISIBLE_ITEM_LIMIT), key = key) { _, item ->
+            itemContent(item)
+        }
+        item {
+            ShowAllCard(onClick = onShowAll)
         }
     }
 }
@@ -373,9 +402,11 @@ private fun FavoriteRail(
     favorites: FavoritesBundle,
     onOpenAlbum: (String) -> Unit,
     onPlayTrack: (TrackSummary) -> Unit,
+    onShowAll: () -> Unit,
 ) {
-    val favoriteAlbums = favorites.albums.take(8)
-    val favoriteTracks = favorites.tracks.take((8 - favoriteAlbums.size).coerceAtLeast(0))
+    val favoriteAlbums = favorites.albums.take(HOME_ROW_VISIBLE_ITEM_LIMIT)
+    val favoriteTracks =
+        favorites.tracks.take((HOME_ROW_VISIBLE_ITEM_LIMIT - favoriteAlbums.size).coerceAtLeast(0))
 
     LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
         items(favoriteAlbums, key = { "album-${it.id}" }) { album ->
@@ -383,6 +414,9 @@ private fun FavoriteRail(
         }
         items(favoriteTracks, key = { "track-${it.id}" }) { track ->
             FavoriteTrackCard(track = track, onClick = { onPlayTrack(track) })
+        }
+        item {
+            ShowAllCard(onClick = onShowAll)
         }
     }
 }
@@ -697,6 +731,31 @@ private fun ActionCard(
         ) {
             Text(
                 text = title,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShowAllCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FocusCard(
+        modifier = modifier.width(208.dp),
+        onClick = onClick,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(92.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = "Show all",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
