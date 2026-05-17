@@ -751,23 +751,27 @@ private fun HomeCategoryResults(
     onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
 ) {
     when (state.category) {
-        HomeCategoryKind.Favorites -> FavoritesCategoryResults(
-            state = state,
-            onOpenAlbum = onOpenAlbum,
-            onPlayTracks = onPlayTracks,
-        )
-        HomeCategoryKind.Artists -> ArtistCategoryResults(
-            artists = state.filteredArtists,
-            onOpenArtist = onOpenArtist,
-        )
-        HomeCategoryKind.Albums -> AlbumCategoryResults(
-            albums = state.filteredAlbums,
-            onOpenAlbum = onOpenAlbum,
-        )
-        HomeCategoryKind.Playlists -> PlaylistCategoryResults(
-            playlists = state.filteredPlaylists,
-            onOpenPlaylist = onOpenPlaylist,
-        )
+        HomeCategoryKind.Favorites ->
+            FavoritesCategoryResults(
+                state = state,
+                onOpenAlbum = onOpenAlbum,
+                onPlayTracks = onPlayTracks,
+            )
+        HomeCategoryKind.Artists ->
+            ArtistCategoryResults(
+                artists = state.filteredArtists,
+                onOpenArtist = onOpenArtist,
+            )
+        HomeCategoryKind.Albums ->
+            AlbumCategoryResults(
+                albums = state.filteredAlbums,
+                onOpenAlbum = onOpenAlbum,
+            )
+        HomeCategoryKind.Playlists ->
+            PlaylistCategoryResults(
+                playlists = state.filteredPlaylists,
+                onOpenPlaylist = onOpenPlaylist,
+            )
     }
 }
 

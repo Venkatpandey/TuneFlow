@@ -128,7 +128,7 @@ fun HomeScreen(
                     key = { _, artist -> artist.id },
                     onShowAll = { onOpenHomeCategory(HomeCategoryKind.Artists) },
                 ) { artist ->
-                        HomeArtistCard(artist = artist, onClick = { onOpenArtist(artist.id) })
+                    HomeArtistCard(artist = artist, onClick = { onOpenArtist(artist.id) })
                 }
             }
         }
@@ -141,7 +141,7 @@ fun HomeScreen(
                     key = { _, album -> album.id },
                     onShowAll = { onOpenHomeCategory(HomeCategoryKind.Albums) },
                 ) { album ->
-                        HomeAlbumCard(album = album, onClick = { onOpenAlbum(album.id) })
+                    HomeAlbumCard(album = album, onClick = { onOpenAlbum(album.id) })
                 }
             }
         }
@@ -154,10 +154,10 @@ fun HomeScreen(
                     key = { _, playlist -> playlist.id },
                     onShowAll = { onOpenHomeCategory(HomeCategoryKind.Playlists) },
                 ) { playlist ->
-                        HomePlaylistCard(
-                            playlist = playlist,
-                            onClick = { onOpenPlaylists(playlist.id) },
-                        )
+                    HomePlaylistCard(
+                        playlist = playlist,
+                        onClick = { onOpenPlaylists(playlist.id) },
+                    )
                 }
             }
         }
