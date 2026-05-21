@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -79,6 +80,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.network.AlbumSummary
+import com.tuneflow.core.network.ArtistSummary
 import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.core.network.TrackSummary
 
@@ -378,6 +380,7 @@ fun PlaylistsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val firstPlaylistFocusRequester = remember { FocusRequester() }
     val playPlaylistFocusRequester = remember { FocusRequester() }
+    val playlistListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     var initialPlaylistFocusRequested by rememberSaveable { mutableStateOf(false) }
     var detailActionFocusRequested by rememberSaveable(state.selected?.id) { mutableStateOf(false) }
 
@@ -389,8 +392,17 @@ fun PlaylistsScreen(
     }
 
     LaunchedEffect(state.playlists.size) {
-        if (!initialPlaylistFocusRequested && state.playlists.isNotEmpty()) {
+        if (!initialPlaylistFocusRequested && state.playlists.isNotEmpty() && preselectedPlaylistId == null) {
             firstPlaylistFocusRequester.requestFocus()
+            initialPlaylistFocusRequested = true
+        }
+    }
+
+    LaunchedEffect(state.playlists, state.selected?.id, preselectedPlaylistId) {
+        val targetPlaylistId = state.selected?.id ?: preselectedPlaylistId ?: return@LaunchedEffect
+        val targetIndex = state.playlists.indexOfFirst { it.id == targetPlaylistId }
+        if (targetIndex >= 0) {
+            playlistListState.scrollToItem(targetIndex)
             initialPlaylistFocusRequested = true
         }
     }
@@ -433,6 +445,7 @@ fun PlaylistsScreen(
                 PlaylistListSkeleton()
             } else {
                 LazyColumn(
+                    state = playlistListState,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 32.dp),
                 ) {
@@ -676,6 +689,370 @@ fun SearchScreen(
                             ),
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun HomeCategoryScreen(
+    category: HomeCategoryKind,
+    viewModel: HomeCategoryViewModel,
+    onOpenArtist: (String) -> Unit,
+    onOpenAlbum: (String) -> Unit,
+    onOpenPlaylist: (String?) -> Unit,
+    onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var query by remember { mutableStateOf("") }
+    var editingQuery by remember { mutableStateOf(false) }
+    var requestSearchFocus by rememberSaveable(category) { mutableStateOf(true) }
+
+    LaunchedEffect(category) {
+        viewModel.load(category)
+    }
+
+    LaunchedEffect(state.query) {
+        query = state.query
+    }
+
+    Column(
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        ScreenInitialFocusAnchor()
+        SectionTitle(title = state.title)
+
+        SearchField(
+            value = query,
+            onValueChange = {
+                query = it
+                viewModel.onQueryChanged(it)
+            },
+            label = { Text("Search ${state.title.lowercase()}") },
+            placeholder = { Text(searchPlaceholderFor(category)) },
+            editing = editingQuery,
+            onEditingChange = { editingQuery = it },
+            requestFocusOnDisplay = requestSearchFocus,
+            onRequestFocusConsumed = { requestSearchFocus = false },
+        )
+
+        when {
+            state.isLoading -> SearchResultsSkeleton()
+            state.error != null -> ErrorState(message = state.error.orEmpty())
+            else -> {
+                HomeCategoryResults(
+                    state = state,
+                    onOpenArtist = onOpenArtist,
+                    onOpenAlbum = onOpenAlbum,
+                    onOpenPlaylist = onOpenPlaylist,
+                    onPlayTracks = onPlayTracks,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeCategoryResults(
+    state: HomeCategoryUiState,
+    onOpenArtist: (String) -> Unit,
+    onOpenAlbum: (String) -> Unit,
+    onOpenPlaylist: (String?) -> Unit,
+    onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
+) {
+    when (state.category) {
+        HomeCategoryKind.Favorites ->
+            FavoritesCategoryResults(
+                state = state,
+                onOpenAlbum = onOpenAlbum,
+                onPlayTracks = onPlayTracks,
+            )
+        HomeCategoryKind.Artists ->
+            ArtistCategoryResults(
+                artists = state.filteredArtists,
+                onOpenArtist = onOpenArtist,
+            )
+        HomeCategoryKind.Albums ->
+            AlbumCategoryResults(
+                albums = state.filteredAlbums,
+                onOpenAlbum = onOpenAlbum,
+            )
+        HomeCategoryKind.Playlists ->
+            PlaylistCategoryResults(
+                playlists = state.filteredPlaylists,
+                onOpenPlaylist = onOpenPlaylist,
+            )
+    }
+}
+
+@Composable
+private fun FavoritesCategoryResults(
+    state: HomeCategoryUiState,
+    onOpenAlbum: (String) -> Unit,
+    onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
+) {
+    val albums = state.filteredFavorites.albums
+    val tracks = state.filteredFavorites.tracks
+
+    if (albums.isEmpty() && tracks.isEmpty()) {
+        EmptyCategoryResults(message = "No favorites match your search.")
+        return
+    }
+
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+        contentPadding = PaddingValues(bottom = 48.dp),
+    ) {
+        if (albums.isNotEmpty()) {
+            item { SectionTitle(title = "Albums") }
+            itemsIndexed(albums, key = { _, album -> album.id }) { index, album ->
+                PremiumAlbumRow(
+                    album = album,
+                    onClick = { onOpenAlbum(album.id) },
+                    modifier =
+                        Modifier.boundaryLockedVerticalItem(
+                            index = index,
+                            lastIndex = if (tracks.isEmpty()) albums.lastIndex else Int.MAX_VALUE,
+                        ),
+                )
+            }
+        }
+
+        if (tracks.isNotEmpty()) {
+            item { SectionTitle(title = "Tracks") }
+            itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                PremiumListRow(
+                    title = track.title,
+                    subtitle = "${track.artist} • ${track.album}",
+                    trailing = formatTrackDuration(track.durationSec),
+                    onClick = { onPlayTracks(tracks, index) },
+                    modifier =
+                        Modifier.boundaryLockedVerticalItem(
+                            index = if (albums.isNotEmpty()) albums.size + index else index,
+                            lastIndex = albums.size + tracks.lastIndex,
+                        ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtistCategoryResults(
+    artists: List<ArtistSummary>,
+    onOpenArtist: (String) -> Unit,
+) {
+    if (artists.isEmpty()) {
+        EmptyCategoryResults(message = "No artists match your search.")
+        return
+    }
+
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 48.dp),
+    ) {
+        itemsIndexed(artists, key = { _, artist -> artist.id }) { index, artist ->
+            PremiumArtistRow(
+                artist = artist,
+                onClick = { onOpenArtist(artist.id) },
+                modifier =
+                    Modifier.boundaryLockedVerticalItem(
+                        index = index,
+                        lastIndex = artists.lastIndex,
+                    ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlbumCategoryResults(
+    albums: List<AlbumSummary>,
+    onOpenAlbum: (String) -> Unit,
+) {
+    if (albums.isEmpty()) {
+        EmptyCategoryResults(message = "No albums match your search.")
+        return
+    }
+
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 48.dp),
+    ) {
+        itemsIndexed(albums, key = { _, album -> album.id }) { index, album ->
+            PremiumAlbumRow(
+                album = album,
+                onClick = { onOpenAlbum(album.id) },
+                modifier =
+                    Modifier.boundaryLockedVerticalItem(
+                        index = index,
+                        lastIndex = albums.lastIndex,
+                    ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistCategoryResults(
+    playlists: List<PlaylistSummary>,
+    onOpenPlaylist: (String?) -> Unit,
+) {
+    if (playlists.isEmpty()) {
+        EmptyCategoryResults(message = "No playlists match your search.")
+        return
+    }
+
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 48.dp),
+    ) {
+        itemsIndexed(playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
+            PremiumPlaylistRow(
+                playlist = playlist,
+                onClick = { onOpenPlaylist(playlist.id) },
+                modifier =
+                    Modifier.boundaryLockedVerticalItem(
+                        index = index,
+                        lastIndex = playlists.lastIndex,
+                    ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyCategoryResults(message: String) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(TuneFlowShapes.card)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
+                .padding(20.dp),
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun searchPlaceholderFor(category: HomeCategoryKind): String {
+    return when (category) {
+        HomeCategoryKind.Favorites -> "Album, artist, or track"
+        HomeCategoryKind.Artists -> "Artist name"
+        HomeCategoryKind.Albums -> "Album or artist"
+        HomeCategoryKind.Playlists -> "Playlist name"
+    }
+}
+
+@Composable
+private fun PremiumArtistRow(
+    artist: ArtistSummary,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FocusScaleCard(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(width = 92.dp, height = 68.dp)
+                        .clip(TuneFlowShapes.card)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.66f)),
+            ) {
+                TuneFlowArtwork(
+                    model = artist.artUrl,
+                    contentDescription = artist.name,
+                    width = 92.dp,
+                    height = 68.dp,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = artist.name,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = artist.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "${artist.albumCount} albums",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PremiumAlbumRow(
+    album: AlbumSummary,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FocusScaleCard(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(68.dp)
+                        .clip(TuneFlowShapes.card)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.66f)),
+            ) {
+                TuneFlowArtwork(
+                    model = album.artUrl,
+                    contentDescription = album.title,
+                    width = 68.dp,
+                    height = 68.dp,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = album.title,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = album.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = album.artist,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

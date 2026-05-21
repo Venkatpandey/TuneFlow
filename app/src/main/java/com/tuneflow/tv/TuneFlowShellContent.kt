@@ -6,6 +6,7 @@ import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.feature.browse.AlbumDetailScreen
 import com.tuneflow.feature.browse.AlbumsScreen
 import com.tuneflow.feature.browse.ArtistDetailScreen
+import com.tuneflow.feature.browse.HomeCategoryScreen
 import com.tuneflow.feature.browse.PlaylistsScreen
 import com.tuneflow.feature.browse.SearchScreen
 import com.tuneflow.feature.playback.NowPlayingScreen
@@ -13,6 +14,7 @@ import com.tuneflow.feature.playback.NowPlayingScreen
 @Composable
 internal fun ShellContent(
     currentSection: NavSection,
+    selectedHomeCategory: com.tuneflow.feature.browse.HomeCategoryKind?,
     selectedAlbumId: String?,
     selectedArtistId: String?,
     showNowPlaying: Boolean,
@@ -20,6 +22,7 @@ internal fun ShellContent(
     playbackQueue: PlaybackQueue,
     homeViewModel: HomeViewModel,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
+    homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel,
     albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
     artistDetailViewModel: com.tuneflow.feature.browse.ArtistDetailViewModel,
     playlistsViewModel: com.tuneflow.feature.browse.PlaylistsViewModel,
@@ -32,13 +35,14 @@ internal fun ShellContent(
     onOpenAlbum: (String, NavSection) -> Unit,
     onOpenArtist: (String, NavSection) -> Unit,
     onOpenSection: (NavSection) -> Unit,
+    onOpenHomeCategory: (com.tuneflow.feature.browse.HomeCategoryKind) -> Unit,
     onOpenPlaylist: (String?) -> Unit,
     onPreselectedPlaylistConsumed: () -> Unit,
     onOpenNowPlaying: () -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
 ) {
-    val screenKey = shellScreenKey(currentSection, selectedAlbumId, selectedArtistId, showNowPlaying)
+    val screenKey = shellScreenKey(currentSection, selectedHomeCategory, selectedAlbumId, selectedArtistId, showNowPlaying)
 
     Crossfade(targetState = screenKey, label = "shell-content") { targetScreen ->
         when {
@@ -72,10 +76,22 @@ internal fun ShellContent(
                     playbackQueue = playbackQueue,
                     onOpenAlbum = { onOpenAlbum(it, NavSection.Home) },
                     onOpenArtist = { onOpenArtist(it, NavSection.Home) },
+                    onOpenHomeCategory = onOpenHomeCategory,
                     onOpenAlbums = { onOpenSection(NavSection.Albums) },
                     onOpenPlaylists = onOpenPlaylist,
                     onOpenSearch = { onOpenSection(NavSection.Search) },
                     onOpenNowPlaying = onOpenNowPlaying,
+                    onPlayTracks = onPlayTracks,
+                )
+            }
+            targetScreen.startsWith("homeCategory:") -> {
+                val category = selectedHomeCategory ?: return@Crossfade
+                HomeCategoryScreen(
+                    category = category,
+                    viewModel = homeCategoryViewModel,
+                    onOpenArtist = { onOpenArtist(it, NavSection.Home) },
+                    onOpenAlbum = { onOpenAlbum(it, NavSection.Home) },
+                    onOpenPlaylist = onOpenPlaylist,
                     onPlayTracks = onPlayTracks,
                 )
             }

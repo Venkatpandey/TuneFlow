@@ -170,6 +170,8 @@ private fun TuneFlowShell(
     val scope = rememberCoroutineScope()
     val homeViewModel: HomeViewModel = viewModel(factory = homeViewModelFactory(browseRepository))
     val albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel = viewModel(factory = albumsViewModelFactory(browseRepository))
+    val homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel =
+        viewModel(factory = homeCategoryViewModelFactory(browseRepository))
     val albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel =
         viewModel(factory = albumDetailViewModelFactory(browseRepository))
     val artistDetailViewModel: com.tuneflow.feature.browse.ArtistDetailViewModel =
@@ -271,18 +273,21 @@ private fun TuneFlowShell(
 
     ShellBackHandler(
         showNowPlaying = shellState.showNowPlaying,
+        selectedHomeCategory = shellState.selectedHomeCategory,
         selectedAlbumId = shellState.selectedAlbumId,
         selectedArtistId = shellState.selectedArtistId,
         currentSection = shellState.currentSection,
         onCloseNowPlaying = navigationActions::closeNowPlaying,
         onCloseAlbum = navigationActions::closeAlbum,
         onCloseArtist = navigationActions::closeArtist,
+        onReturnToHomeCategory = navigationActions::returnToHomeCategory,
         onGoHome = navigationActions::goHome,
         onRequestExit = ::requestAppExit,
     )
 
     TuneFlowShellLayout(
         currentSection = shellState.currentSection,
+        selectedHomeCategory = shellState.selectedHomeCategory,
         showNowPlaying = shellState.showNowPlaying,
         username = session?.username.orEmpty(),
         currentTimeText = navClockText,
@@ -290,6 +295,7 @@ private fun TuneFlowShell(
         playbackPositionMs = navWidgetPositionMs,
         homeViewModel = homeViewModel,
         albumsViewModel = albumsViewModel,
+        homeCategoryViewModel = homeCategoryViewModel,
         albumDetailViewModel = albumDetailViewModel,
         artistDetailViewModel = artistDetailViewModel,
         playlistsViewModel = playlistsViewModel,
@@ -307,6 +313,7 @@ private fun TuneFlowShell(
         onOpenAlbum = navigationActions::openAlbum,
         onOpenArtist = navigationActions::openArtist,
         onOpenSection = navigationActions::openSection,
+        onOpenHomeCategory = navigationActions::openHomeCategory,
         onOpenPlaylist = navigationActions::openPlaylist,
         onPreselectedPlaylistConsumed = { updateShellState { it.consumePreselectedPlaylist() } },
         onOpenNowPlaying = navigationActions::openNowPlaying,

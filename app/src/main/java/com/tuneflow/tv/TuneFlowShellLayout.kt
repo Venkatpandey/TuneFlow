@@ -46,6 +46,7 @@ import com.tuneflow.core.player.PlaybackQueue
 @Composable
 internal fun TuneFlowShellLayout(
     currentSection: NavSection,
+    selectedHomeCategory: com.tuneflow.feature.browse.HomeCategoryKind?,
     showNowPlaying: Boolean,
     username: String,
     currentTimeText: String,
@@ -53,6 +54,7 @@ internal fun TuneFlowShellLayout(
     playbackPositionMs: Long,
     homeViewModel: HomeViewModel,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
+    homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel,
     albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
     artistDetailViewModel: com.tuneflow.feature.browse.ArtistDetailViewModel,
     playlistsViewModel: com.tuneflow.feature.browse.PlaylistsViewModel,
@@ -70,6 +72,7 @@ internal fun TuneFlowShellLayout(
     onOpenAlbum: (String, NavSection) -> Unit,
     onOpenArtist: (String, NavSection) -> Unit,
     onOpenSection: (NavSection) -> Unit,
+    onOpenHomeCategory: (com.tuneflow.feature.browse.HomeCategoryKind) -> Unit,
     onOpenPlaylist: (String?) -> Unit,
     onPreselectedPlaylistConsumed: () -> Unit,
     onOpenNowPlaying: () -> Unit,
@@ -143,6 +146,7 @@ internal fun TuneFlowShellLayout(
                         ) {
                             ShellContent(
                                 currentSection = currentSection,
+                                selectedHomeCategory = selectedHomeCategory,
                                 selectedAlbumId = selectedAlbumId,
                                 selectedArtistId = selectedArtistId,
                                 showNowPlaying = showNowPlaying,
@@ -150,6 +154,7 @@ internal fun TuneFlowShellLayout(
                                 playbackQueue = playbackQueue,
                                 homeViewModel = homeViewModel,
                                 albumsViewModel = albumsViewModel,
+                                homeCategoryViewModel = homeCategoryViewModel,
                                 albumDetailViewModel = albumDetailViewModel,
                                 artistDetailViewModel = artistDetailViewModel,
                                 playlistsViewModel = playlistsViewModel,
@@ -162,6 +167,7 @@ internal fun TuneFlowShellLayout(
                                 onOpenAlbum = onOpenAlbum,
                                 onOpenArtist = onOpenArtist,
                                 onOpenSection = onOpenSection,
+                                onOpenHomeCategory = onOpenHomeCategory,
                                 onOpenPlaylist = onOpenPlaylist,
                                 onPreselectedPlaylistConsumed = onPreselectedPlaylistConsumed,
                                 onOpenNowPlaying = onOpenNowPlaying,

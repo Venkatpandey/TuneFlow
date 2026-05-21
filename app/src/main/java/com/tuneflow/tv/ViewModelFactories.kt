@@ -11,6 +11,7 @@ import com.tuneflow.feature.browse.AlbumDetailViewModel
 import com.tuneflow.feature.browse.AlbumsViewModel
 import com.tuneflow.feature.browse.ArtistDetailViewModel
 import com.tuneflow.feature.browse.BrowseRepository
+import com.tuneflow.feature.browse.HomeCategoryViewModel
 import com.tuneflow.feature.browse.PlaylistsViewModel
 import com.tuneflow.feature.browse.SearchViewModel
 import com.tuneflow.feature.playback.PlaybackViewModel
@@ -30,6 +31,11 @@ fun homeViewModelFactory(repository: BrowseRepository) =
 fun albumsViewModelFactory(repository: BrowseRepository) =
     viewModelFactory {
         initializer { AlbumsViewModel(repository) }
+    }
+
+fun homeCategoryViewModelFactory(repository: BrowseRepository) =
+    viewModelFactory {
+        initializer { HomeCategoryViewModel(repository) }
     }
 
 fun albumDetailViewModelFactory(repository: BrowseRepository) =
