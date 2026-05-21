@@ -35,6 +35,41 @@ class TuneFlowShellStateTransitionsTest {
     }
 
     @Test
+    fun openPlaylistInsideHomeCategory_preservesCategoryContext() {
+        val categoryState = TuneFlowShellState().openHomeCategory(HomeCategoryKind.Playlists)
+
+        val playlistState = categoryState.openPlaylist("playlist-42")
+
+        assertEquals(NavSection.Playlists, playlistState.currentSection)
+        assertEquals(HomeCategoryKind.Playlists, playlistState.selectedHomeCategory)
+        assertEquals("playlist-42", playlistState.preselectedPlaylistId)
+        assertEquals(
+            NavSection.Playlists.name,
+            shellScreenKey(
+                currentSection = playlistState.currentSection,
+                selectedHomeCategory = playlistState.selectedHomeCategory,
+                selectedAlbumId = playlistState.selectedAlbumId,
+                selectedArtistId = playlistState.selectedArtistId,
+                showNowPlaying = playlistState.showNowPlaying,
+            ),
+        )
+    }
+
+    @Test
+    fun returnToHomeCategory_fromPlaylist_keepsCategoryFilterContext() {
+        val playlistState =
+            TuneFlowShellState()
+                .openHomeCategory(HomeCategoryKind.Playlists)
+                .openPlaylist("playlist-42")
+
+        val returnedState = playlistState.returnToHomeCategory()
+
+        assertEquals(NavSection.Home, returnedState.currentSection)
+        assertEquals(HomeCategoryKind.Playlists, returnedState.selectedHomeCategory)
+        assertNull(returnedState.preselectedPlaylistId)
+    }
+
+    @Test
     fun goHome_clearsSelectedHomeCategory() {
         val state = TuneFlowShellState().openHomeCategory(HomeCategoryKind.Favorites)
 

@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -379,6 +380,7 @@ fun PlaylistsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val firstPlaylistFocusRequester = remember { FocusRequester() }
     val playPlaylistFocusRequester = remember { FocusRequester() }
+    val playlistListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     var initialPlaylistFocusRequested by rememberSaveable { mutableStateOf(false) }
     var detailActionFocusRequested by rememberSaveable(state.selected?.id) { mutableStateOf(false) }
 
@@ -390,8 +392,17 @@ fun PlaylistsScreen(
     }
 
     LaunchedEffect(state.playlists.size) {
-        if (!initialPlaylistFocusRequested && state.playlists.isNotEmpty()) {
+        if (!initialPlaylistFocusRequested && state.playlists.isNotEmpty() && preselectedPlaylistId == null) {
             firstPlaylistFocusRequester.requestFocus()
+            initialPlaylistFocusRequested = true
+        }
+    }
+
+    LaunchedEffect(state.playlists, state.selected?.id, preselectedPlaylistId) {
+        val targetPlaylistId = state.selected?.id ?: preselectedPlaylistId ?: return@LaunchedEffect
+        val targetIndex = state.playlists.indexOfFirst { it.id == targetPlaylistId }
+        if (targetIndex >= 0) {
+            playlistListState.scrollToItem(targetIndex)
             initialPlaylistFocusRequested = true
         }
     }
@@ -434,6 +445,7 @@ fun PlaylistsScreen(
                 PlaylistListSkeleton()
             } else {
                 LazyColumn(
+                    state = playlistListState,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 32.dp),
                 ) {

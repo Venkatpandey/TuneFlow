@@ -54,6 +54,10 @@ internal class TuneFlowNavigationActions(
     fun goHome() {
         updateShellState { it.goHome() }
     }
+
+    fun returnToHomeCategory() {
+        updateShellState { it.returnToHomeCategory() }
+    }
 }
 
 @Composable
@@ -66,6 +70,7 @@ internal fun ShellBackHandler(
     onCloseNowPlaying: () -> Unit,
     onCloseAlbum: () -> Unit,
     onCloseArtist: () -> Unit,
+    onReturnToHomeCategory: () -> Unit,
     onGoHome: () -> Unit,
     onRequestExit: () -> Unit,
 ) {
@@ -74,6 +79,7 @@ internal fun ShellBackHandler(
             showNowPlaying -> onCloseNowPlaying()
             selectedAlbumId != null -> onCloseAlbum()
             selectedArtistId != null -> onCloseArtist()
+            selectedHomeCategory != null && currentSection != NavSection.Home -> onReturnToHomeCategory()
             selectedHomeCategory != null -> onGoHome()
             currentSection != NavSection.Home -> onGoHome()
             else -> onRequestExit()
@@ -92,7 +98,8 @@ internal fun shellScreenKey(
         showNowPlaying -> NOW_PLAYING_SCREEN_KEY
         selectedAlbumId != null -> "album:$selectedAlbumId"
         selectedArtistId != null -> "artist:$selectedArtistId"
+        currentSection != NavSection.Home -> currentSection.name
         selectedHomeCategory != null -> homeCategoryScreenKey(selectedHomeCategory)
-        else -> currentSection.name
+        else -> NavSection.Home.name
     }
 }

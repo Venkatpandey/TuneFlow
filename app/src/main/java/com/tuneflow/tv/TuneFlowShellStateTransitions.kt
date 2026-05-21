@@ -63,7 +63,6 @@ internal fun TuneFlowShellState.openHomeCategory(category: HomeCategoryKind): Tu
 internal fun TuneFlowShellState.openPlaylist(playlistId: String?): TuneFlowShellState =
     copy(
         currentSection = NavSection.Playlists,
-        selectedHomeCategory = null,
         preselectedPlaylistId = playlistId,
         selectedAlbumId = null,
         selectedArtistId = null,
@@ -77,5 +76,16 @@ internal fun TuneFlowShellState.closeNowPlaying(): TuneFlowShellState = copy(sho
 internal fun TuneFlowShellState.closeAlbum(): TuneFlowShellState = copy(selectedAlbumId = null, currentSection = albumSourceSection)
 
 internal fun TuneFlowShellState.closeArtist(): TuneFlowShellState = copy(selectedArtistId = null, currentSection = artistSourceSection)
+
+internal fun TuneFlowShellState.returnToHomeCategory(): TuneFlowShellState =
+    copy(
+        currentSection = NavSection.Home,
+        preselectedPlaylistId = null,
+        selectedAlbumId = null,
+        selectedArtistId = null,
+        showNowPlaying = false,
+        autoFocusNowPlayingTransport = false,
+        showExitPrompt = false,
+    )
 
 internal fun TuneFlowShellState.goHome(): TuneFlowShellState = copy(currentSection = NavSection.Home, selectedHomeCategory = null)

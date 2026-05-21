@@ -280,6 +280,7 @@ private fun TuneFlowShell(
         onCloseNowPlaying = navigationActions::closeNowPlaying,
         onCloseAlbum = navigationActions::closeAlbum,
         onCloseArtist = navigationActions::closeArtist,
+        onReturnToHomeCategory = navigationActions::returnToHomeCategory,
         onGoHome = navigationActions::goHome,
         onRequestExit = ::requestAppExit,
     )
