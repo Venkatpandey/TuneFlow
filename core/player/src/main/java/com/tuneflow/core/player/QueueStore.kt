@@ -19,6 +19,7 @@ class QueueStore(private val context: Context) {
 
     private object Keys {
         val queue = stringPreferencesKey("queue_json")
+        val equalizerPreset = stringPreferencesKey("equalizer_preset")
     }
 
     val queueFlow: Flow<PlaybackQueue?> =
@@ -27,6 +28,13 @@ class QueueStore(private val context: Context) {
                 if (ex is IOException) emit(emptyPreferences()) else throw ex
             }
             .map { prefs -> prefs.toQueue(json) }
+
+    val equalizerPresetFlow: Flow<EqualizerPreset> =
+        context.queueDataStore.data
+            .catch { ex ->
+                if (ex is IOException) emit(emptyPreferences()) else throw ex
+            }
+            .map { prefs -> prefs.toEqualizerPreset() }
 
     suspend fun save(queue: PlaybackQueue) {
         context.queueDataStore.edit { prefs ->
@@ -40,8 +48,19 @@ class QueueStore(private val context: Context) {
         }
     }
 
+    suspend fun saveEqualizerPreset(preset: EqualizerPreset) {
+        context.queueDataStore.edit { prefs ->
+            prefs[Keys.equalizerPreset] = preset.name
+        }
+    }
+
     private fun Preferences.toQueue(json: Json): PlaybackQueue? {
         val raw = this[Keys.queue] ?: return null
         return runCatching { json.decodeFromString(PlaybackQueue.serializer(), raw) }.getOrNull()
+    }
+
+    private fun Preferences.toEqualizerPreset(): EqualizerPreset {
+        val raw = this[Keys.equalizerPreset] ?: return EqualizerPreset.Original
+        return runCatching { EqualizerPreset.valueOf(raw) }.getOrDefault(EqualizerPreset.Original)
     }
 }

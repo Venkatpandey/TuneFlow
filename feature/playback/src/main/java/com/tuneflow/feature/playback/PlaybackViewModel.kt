@@ -3,6 +3,7 @@ package com.tuneflow.feature.playback
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tuneflow.core.player.PlaybackController
+import com.tuneflow.core.player.EqualizerState
 import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.PlaybackPhase
 import com.tuneflow.core.player.PlaybackQueue
@@ -29,6 +30,7 @@ data class NowPlayingUiState(
     val playbackStatus: PlaybackStatus = PlaybackStatus(),
     val statusMessage: String? = null,
     val playbackMode: PlaybackMode = PlaybackMode.Default,
+    val equalizerState: EqualizerState = EqualizerState(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -59,12 +61,14 @@ class PlaybackViewModel(
                     playerManager.isPlaying,
                     playerManager.playbackStatus,
                     playerManager.playbackMode,
-                ) { queue, isPlaying, playbackStatus, playbackMode ->
+                    playerManager.equalizerState,
+                ) { queue, isPlaying, playbackStatus, playbackMode, equalizerState ->
                     PlaybackSnapshot(
                         queue = queue,
                         isPlaying = isPlaying,
                         playbackStatus = playbackStatus,
                         playbackMode = playbackMode,
+                        equalizerState = equalizerState,
                     )
                 }
 
@@ -106,6 +110,8 @@ class PlaybackViewModel(
     fun retry() = playerManager.retryCurrent()
 
     fun cyclePlaybackMode() = playerManager.cyclePlaybackMode()
+
+    fun cycleEqualizerPreset() = playerManager.cycleEqualizerPreset()
 }
 
 private data class PlaybackSnapshot(
@@ -113,6 +119,7 @@ private data class PlaybackSnapshot(
     val isPlaying: Boolean,
     val playbackStatus: PlaybackStatus,
     val playbackMode: PlaybackMode,
+    val equalizerState: EqualizerState,
 )
 
 private fun PlaybackSnapshot.toUiState(playerManager: PlaybackController): NowPlayingUiState =
@@ -124,6 +131,7 @@ private fun PlaybackSnapshot.toUiState(playerManager: PlaybackController): NowPl
         playbackStatus = playbackStatus,
         statusMessage = buildStatusMessage(playbackStatus, isPlaying),
         playbackMode = playbackMode,
+        equalizerState = equalizerState,
     )
 
 private fun buildStatusMessage(

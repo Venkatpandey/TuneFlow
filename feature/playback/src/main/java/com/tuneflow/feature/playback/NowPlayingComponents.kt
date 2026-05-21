@@ -46,6 +46,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.tuneflow.core.player.EqualizerState
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.player.PlaybackMode
@@ -59,9 +60,11 @@ internal fun NowPlayingPrimaryColumn(
     artFrameHeight: Dp,
     streamModeLabel: String,
     showQueue: Boolean,
+    equalizerState: EqualizerState,
     onCycleStreamMode: () -> Unit,
     onToggleQueue: () -> Unit,
     onCyclePlaybackMode: () -> Unit,
+    onCycleEqualizerPreset: () -> Unit,
     onRetry: () -> Unit,
     onPrevious: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -87,12 +90,14 @@ internal fun NowPlayingPrimaryColumn(
             streamModeLabel = streamModeLabel,
             bitrateLabel = item?.streamBitrateLabel ?: "--",
             showQueue = showQueue,
+            equalizerState = equalizerState,
             onCycleStreamMode = onCycleStreamMode,
             autoFocusStreamMode = autoFocusStreamMode,
             onStreamModeFocusConsumed = onStreamModeFocusConsumed,
             onToggleQueue = onToggleQueue,
             playbackMode = state.playbackMode,
             onCyclePlaybackMode = onCyclePlaybackMode,
+            onCycleEqualizerPreset = onCycleEqualizerPreset,
         )
 
         state.statusMessage?.let {
@@ -249,12 +254,14 @@ internal fun StreamControlRow(
     streamModeLabel: String,
     bitrateLabel: String,
     showQueue: Boolean,
+    equalizerState: EqualizerState,
     playbackMode: PlaybackMode,
     onCycleStreamMode: () -> Unit,
     autoFocusStreamMode: Boolean,
     onStreamModeFocusConsumed: () -> Unit,
     onToggleQueue: () -> Unit,
     onCyclePlaybackMode: () -> Unit,
+    onCycleEqualizerPreset: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         StreamModeButton(
@@ -268,6 +275,11 @@ internal fun StreamControlRow(
             playbackMode = playbackMode,
             onClick = onCyclePlaybackMode,
         )
+        EqualizerPresetButton(
+            equalizerState = equalizerState,
+            onClick = onCycleEqualizerPreset,
+        )
+        EqualizerPresetBadge(label = equalizerState.displayLabel)
         QueueToggleIconButton(
             active = showQueue,
             onClick = onToggleQueue,
@@ -288,6 +300,33 @@ private fun StreamMetaBadge(label: String) {
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
                     shape = TuneFlowShapes.button,
                 ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun EqualizerPresetBadge(label: String) {
+    Box(
+        modifier =
+            Modifier
+                .width(92.dp)
+                .height(44.dp)
+                .clip(TuneFlowShapes.button)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                    shape = TuneFlowShapes.button,
+                )
+                .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -339,10 +378,25 @@ private fun QueueToggleIconButton(
 }
 
 @Composable
+private fun EqualizerPresetButton(
+    equalizerState: EqualizerState,
+    onClick: () -> Unit,
+) {
+    PlaybackStateIconButton(
+        iconResId = R.drawable.eq_preset,
+        contentDescription = "Cycle equalizer preset",
+        active = equalizerState.isSupported && equalizerState.selectedPreset != com.tuneflow.core.player.EqualizerPreset.Original,
+        enabled = equalizerState.isSupported,
+        onClick = onClick,
+    )
+}
+
+@Composable
 private fun PlaybackStateIconButton(
     iconResId: Int,
     contentDescription: String,
     active: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -354,7 +408,9 @@ private fun PlaybackStateIconButton(
                 .scale(if (focused) 1.03f else 1f)
                 .clip(TuneFlowShapes.button)
                 .background(
-                    if (focused || active) {
+                    if (!enabled) {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f)
+                    } else if (focused || active) {
                         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f)
                     } else {
                         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f)
@@ -363,7 +419,9 @@ private fun PlaybackStateIconButton(
                 .border(
                     width = if (focused) 2.dp else 1.dp,
                     color =
-                        if (focused) {
+                        if (!enabled) {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                        } else if (focused) {
                             MaterialTheme.colorScheme.primary
                         } else if (active) {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
@@ -373,8 +431,8 @@ private fun PlaybackStateIconButton(
                     shape = TuneFlowShapes.button,
                 )
                 .onFocusChanged { focusState -> focused = focusState.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
+                .focusable(enabled = enabled)
+                .clickable(enabled = enabled, onClick = onClick)
                 .padding(8.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -383,6 +441,7 @@ private fun PlaybackStateIconButton(
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Fit,
+            alpha = if (enabled) 1f else 0.45f,
         )
     }
 }

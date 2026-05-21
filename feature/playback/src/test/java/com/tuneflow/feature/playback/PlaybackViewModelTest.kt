@@ -1,6 +1,8 @@
 package com.tuneflow.feature.playback
 
 import com.tuneflow.core.player.PlaybackController
+import com.tuneflow.core.player.EqualizerPreset
+import com.tuneflow.core.player.EqualizerState
 import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlaybackStatus
@@ -134,24 +136,77 @@ class PlaybackViewModelTest {
             assertEquals(12_000L, vm.uiState.value.positionMs)
             assertEquals(180_000L, vm.uiState.value.durationMs)
         }
+
+    @Test
+    fun uiState_reflectsEqualizerState() =
+        runTest {
+            val fake =
+                FakeController(
+                    isPlaying = false,
+                    queue = PlaybackQueue(),
+                    equalizerState =
+                        EqualizerState(
+                            selectedPreset = EqualizerPreset.Jazz,
+                            isSupported = true,
+                            displayLabel = "Jazz",
+                        ),
+                )
+
+            val vm =
+                PlaybackViewModel(
+                    fake,
+                    positionTicker = flowOf(Unit),
+                    scopeOverride = backgroundScope,
+                )
+            vm.setActive(true)
+            runCurrent()
+
+            assertEquals(EqualizerPreset.Jazz, vm.uiState.value.equalizerState.selectedPreset)
+            assertEquals("Jazz", vm.uiState.value.equalizerState.displayLabel)
+        }
+
+    @Test
+    fun cycleEqualizerPreset_delegatesToController() =
+        runTest {
+            val fake =
+                FakeController(
+                    isPlaying = false,
+                    queue = PlaybackQueue(),
+                )
+
+            val vm =
+                PlaybackViewModel(
+                    fake,
+                    positionTicker = flowOf(Unit),
+                    scopeOverride = backgroundScope,
+                )
+
+            vm.cycleEqualizerPreset()
+
+            assertTrue(fake.cycleEqualizerCalled)
+        }
 }
 
 private class FakeController(
     isPlaying: Boolean,
     queue: PlaybackQueue,
+    equalizerState: EqualizerState = EqualizerState(),
 ) : PlaybackController {
     private val queueState = MutableStateFlow(queue)
     private val playingState = MutableStateFlow(isPlaying)
     private val statusState = MutableStateFlow(PlaybackStatus())
     private val playbackModeState = MutableStateFlow(PlaybackMode.Default)
+    private val equalizerStateFlow = MutableStateFlow(equalizerState)
 
     var playCalled = false
     var pauseCalled = false
+    var cycleEqualizerCalled = false
 
     override val queue: StateFlow<PlaybackQueue> = queueState
     override val isPlaying: StateFlow<Boolean> = playingState
     override val playbackStatus: StateFlow<PlaybackStatus> = statusState
     override val playbackMode: StateFlow<PlaybackMode> = playbackModeState
+    override val equalizerState: StateFlow<EqualizerState> = equalizerStateFlow
 
     override fun play() {
         playCalled = true
@@ -180,6 +235,10 @@ private class FakeController(
     override fun durationMs(): Long = 0L
 
     override fun cyclePlaybackMode() = Unit
+
+    override fun cycleEqualizerPreset() {
+        cycleEqualizerCalled = true
+    }
 
     fun updateQueue(queue: PlaybackQueue) {
         queueState.value = queue

@@ -7,6 +7,7 @@ interface PlaybackController {
     val isPlaying: StateFlow<Boolean>
     val playbackStatus: StateFlow<PlaybackStatus>
     val playbackMode: StateFlow<PlaybackMode>
+    val equalizerState: StateFlow<EqualizerState>
 
     fun play()
 
@@ -29,4 +30,6 @@ interface PlaybackController {
     fun durationMs(): Long
 
     fun cyclePlaybackMode()
+
+    fun cycleEqualizerPreset()
 }

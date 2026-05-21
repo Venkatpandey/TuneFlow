@@ -123,6 +123,7 @@ fun NowPlayingScreen(
                 artFrameHeight = artFrameHeight,
                 streamModeLabel = streamModeLabel,
                 showQueue = showQueue,
+                equalizerState = state.equalizerState,
                 onCycleStreamMode = onCycleStreamMode,
                 onToggleQueue = {
                     showQueue = !showQueue
@@ -130,6 +131,7 @@ fun NowPlayingScreen(
                     requestTransportFocus = false
                 },
                 onCyclePlaybackMode = viewModel::cyclePlaybackMode,
+                onCycleEqualizerPreset = viewModel::cycleEqualizerPreset,
                 onRetry = viewModel::retry,
                 onPrevious = viewModel::previous,
                 onTogglePlayPause = viewModel::togglePlayPause,

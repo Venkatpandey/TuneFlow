@@ -43,6 +43,20 @@ class TvPlayerManager(
     private val _playbackMode = MutableStateFlow(PlaybackMode.Default)
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
+    private val _equalizerState = MutableStateFlow(EqualizerState())
+    override val equalizerState: StateFlow<EqualizerState> = _equalizerState.asStateFlow()
+
+    private val equalizerController =
+        PlaybackEqualizerController(
+            effectFactory = EqualizerEffectFactory(::AndroidEqualizerEffect),
+            onStateChanged = { _equalizerState.value = it },
+            onPresetSelected = { preset ->
+                scope.launch {
+                    queueStore.saveEqualizerPreset(preset)
+                }
+            },
+        )
+
     val player: ExoPlayer =
         ExoPlayer.Builder(appContext)
             .setHandleAudioBecomingNoisy(true)
@@ -69,6 +83,7 @@ class TvPlayerManager(
                         }
 
                         override fun onPlaybackStateChanged(playbackState: Int) {
+                            synchronizeEqualizerWithPlayerSession()
                             when (playbackState) {
                                 Player.STATE_BUFFERING -> {
                                     if (expectedToPlay) scheduleFallbackMonitor()
@@ -99,6 +114,7 @@ class TvPlayerManager(
                             playWhenReady: Boolean,
                             reason: Int,
                         ) {
+                            synchronizeEqualizerWithPlayerSession()
                             if (!playWhenReady && !exo.isPlaying) {
                                 expectedToPlay = false
                                 cancelFallbackMonitor()
@@ -110,6 +126,7 @@ class TvPlayerManager(
                             mediaItem: MediaItem?,
                             reason: Int,
                         ) {
+                            synchronizeEqualizerWithPlayerSession()
                             updateQueueIndex(exo.currentMediaItemIndex)
                             if (expectedToPlay) {
                                 scheduleFallbackMonitor()
@@ -123,6 +140,7 @@ class TvPlayerManager(
                             newPosition: Player.PositionInfo,
                             reason: Int,
                         ) {
+                            synchronizeEqualizerWithPlayerSession()
                             _queue.update { it.seek(exo.currentPosition) }
                             updateQueueIndex(exo.currentMediaItemIndex)
                             updatePlaybackStatus()
@@ -147,6 +165,12 @@ class TvPlayerManager(
                 // The initial PlaybackStatus() default value is already correct.
             }
 
+    init {
+        scope.launch {
+            equalizerController.restorePreset(queueStore.equalizerPresetFlow.first())
+        }
+    }
+
     suspend fun restore() {
         val restored =
             queueStore.queueFlow
@@ -157,6 +181,7 @@ class TvPlayerManager(
             _queue.value = restored
             player.setMediaItems(restored.items.map { it.toMediaItem() }, restored.currentIndex, restored.currentPositionMs)
             player.prepare()
+            synchronizeEqualizerWithPlayerSession()
             updatePlaybackStatus()
         }
     }
@@ -177,6 +202,7 @@ class TvPlayerManager(
         player.prepare()
         player.repeatMode = Player.REPEAT_MODE_OFF
         player.play()
+        synchronizeEqualizerWithPlayerSession()
         scheduleFallbackMonitor()
         updatePlaybackStatus()
         persist()
@@ -187,6 +213,7 @@ class TvPlayerManager(
         lastError = null
         expectedToPlay = true
         player.play()
+        synchronizeEqualizerWithPlayerSession()
         scheduleFallbackMonitor()
         updatePlaybackStatus()
     }
@@ -218,6 +245,7 @@ class TvPlayerManager(
             player.prepare()
         }
         player.play()
+        synchronizeEqualizerWithPlayerSession()
         updateQueueIndex(clamped)
         scheduleFallbackMonitor()
         updatePlaybackStatus()
@@ -233,6 +261,7 @@ class TvPlayerManager(
         }
         player.playWhenReady = true
         player.play()
+        synchronizeEqualizerWithPlayerSession()
         scheduleFallbackMonitor()
         updatePlaybackStatus()
     }
@@ -248,6 +277,7 @@ class TvPlayerManager(
         _playbackStatus.value = PlaybackStatus()
         _playbackMode.value = PlaybackMode.Default
         player.repeatMode = Player.REPEAT_MODE_OFF
+        equalizerController.release()
         scope.launch {
             queueStore.clear()
         }
@@ -317,9 +347,14 @@ class TvPlayerManager(
         }
     }
 
+    override fun cycleEqualizerPreset() {
+        equalizerController.cyclePreset()
+    }
+
     fun release() {
         cancelFallbackMonitor()
         persist()
+        equalizerController.release()
         player.release()
     }
 
@@ -422,6 +457,10 @@ class TvPlayerManager(
                 errorCategory = lastError?.errorCodeName,
                 errorMessage = lastError?.localizedMessage ?: suppressionMessage,
             )
+    }
+
+    private fun synchronizeEqualizerWithPlayerSession() {
+        equalizerController.attachToSession(player.audioSessionId)
     }
 
     private fun QueueItem.toMediaItem(): MediaItem {
