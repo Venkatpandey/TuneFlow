@@ -1,5 +1,7 @@
 package com.tuneflow.tv
 
+import com.tuneflow.feature.browse.BrowseFocusTarget
+import com.tuneflow.feature.browse.BrowseFocusTargetKind
 import com.tuneflow.feature.browse.HomeCategoryKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -7,75 +9,100 @@ import org.junit.Test
 
 class TuneFlowShellStateTransitionsTest {
     @Test
-    fun openHomeCategory_setsHomeCategoryScreenKey() {
-        val state = TuneFlowShellState().openHomeCategory(HomeCategoryKind.Albums)
+    fun searchArtistAlbum_backPopsOneLayerAtATime() {
+        val albumState =
+            TuneFlowShellState()
+                .openSection(NavSection.Search)
+                .openArtist("artist-1")
+                .openAlbum("album-1")
 
-        assertEquals(HomeCategoryKind.Albums, state.selectedHomeCategory)
-        assertEquals(
-            homeCategoryScreenKey(HomeCategoryKind.Albums),
-            shellScreenKey(
-                currentSection = state.currentSection,
-                selectedHomeCategory = state.selectedHomeCategory,
-                selectedAlbumId = state.selectedAlbumId,
-                selectedArtistId = state.selectedArtistId,
-                showNowPlaying = state.showNowPlaying,
-            ),
-        )
+        assertEquals(ShellDestination.Album("album-1"), albumState.currentDestination)
+        assertEquals(ShellBackAction.PopDestination, resolveShellBackAction(albumState))
+
+        val artistState = albumState.popDestination()
+        assertEquals(ShellDestination.Artist("artist-1"), artistState.currentDestination)
+        assertEquals(BrowseFocusTarget(BrowseFocusTargetKind.Album, "album-1"), artistState.pendingFocusRestore)
+
+        val searchState = artistState.popDestination()
+        assertEquals(ShellDestination.Search, searchState.currentDestination)
+        assertEquals(BrowseFocusTarget(BrowseFocusTargetKind.Artist, "artist-1"), searchState.pendingFocusRestore)
     }
 
     @Test
-    fun backFromAlbumOpenedInsideHomeCategory_returnsToCategory() {
-        val categoryState = TuneFlowShellState().openHomeCategory(HomeCategoryKind.Playlists)
-        val albumState = categoryState.openAlbum(albumId = "album-1", source = NavSection.Home)
+    fun nowPlaying_backReturnsToExactUnderlyingDetail() {
+        val artistState =
+            TuneFlowShellState()
+                .openSection(NavSection.Search)
+                .openArtist("artist-1")
 
-        val closedState = albumState.closeAlbum()
+        val nowPlayingState = artistState.openNowPlaying()
+        val returnedState = nowPlayingState.popDestination()
 
-        assertEquals(NavSection.Home, closedState.currentSection)
-        assertEquals(HomeCategoryKind.Playlists, closedState.selectedHomeCategory)
+        assertEquals(ShellDestination.Artist("artist-1"), returnedState.currentDestination)
+        assertEquals(artistState.backStack, returnedState.backStack)
     }
 
     @Test
-    fun openPlaylistInsideHomeCategory_preservesCategoryContext() {
-        val categoryState = TuneFlowShellState().openHomeCategory(HomeCategoryKind.Playlists)
-
-        val playlistState = categoryState.openPlaylist("playlist-42")
-
-        assertEquals(NavSection.Playlists, playlistState.currentSection)
-        assertEquals(HomeCategoryKind.Playlists, playlistState.selectedHomeCategory)
-        assertEquals("playlist-42", playlistState.preselectedPlaylistId)
-        assertEquals(
-            NavSection.Playlists.name,
-            shellScreenKey(
-                currentSection = playlistState.currentSection,
-                selectedHomeCategory = playlistState.selectedHomeCategory,
-                selectedAlbumId = playlistState.selectedAlbumId,
-                selectedArtistId = playlistState.selectedArtistId,
-                showNowPlaying = playlistState.showNowPlaying,
-            ),
-        )
-    }
-
-    @Test
-    fun returnToHomeCategory_fromPlaylist_keepsCategoryFilterContext() {
+    fun playlistOpenedFromHomeCategory_returnsToCategory() {
         val playlistState =
             TuneFlowShellState()
                 .openHomeCategory(HomeCategoryKind.Playlists)
                 .openPlaylist("playlist-42")
 
-        val returnedState = playlistState.returnToHomeCategory()
+        assertEquals(ShellDestination.Playlists, playlistState.currentDestination)
+        assertEquals(NavSection.Playlists, playlistState.currentSection)
 
-        assertEquals(NavSection.Home, returnedState.currentSection)
-        assertEquals(HomeCategoryKind.Playlists, returnedState.selectedHomeCategory)
-        assertNull(returnedState.preselectedPlaylistId)
+        val categoryState = playlistState.popDestination()
+        assertEquals(ShellDestination.HomeCategory(HomeCategoryKind.Playlists), categoryState.currentDestination)
+        assertEquals(BrowseFocusTarget(BrowseFocusTargetKind.Playlist, "playlist-42"), categoryState.pendingFocusRestore)
     }
 
     @Test
-    fun goHome_clearsSelectedHomeCategory() {
-        val state = TuneFlowShellState().openHomeCategory(HomeCategoryKind.Favorites)
+    fun homeCategory_backRestoresItsShowAllAction() {
+        val categoryState = TuneFlowShellState().openHomeCategory(HomeCategoryKind.Albums)
 
-        val homeState = state.goHome()
+        val homeState = categoryState.popDestination()
 
-        assertNull(homeState.selectedHomeCategory)
-        assertEquals(NavSection.Home, homeState.currentSection)
+        assertEquals(ShellDestination.Home, homeState.currentDestination)
+        assertEquals(
+            BrowseFocusTarget(BrowseFocusTargetKind.HomeCategory, HomeCategoryKind.Albums.name),
+            homeState.pendingFocusRestore,
+        )
+    }
+
+    @Test
+    fun topLevelSection_backGoesHome_thenRequestsExit() {
+        val albumsState = TuneFlowShellState().openSection(NavSection.Albums)
+
+        assertEquals(ShellBackAction.GoHome, resolveShellBackAction(albumsState))
+
+        val homeState = albumsState.goHome()
+        assertEquals(ShellDestination.Home, homeState.currentDestination)
+        assertEquals(ShellBackAction.RequestExit, resolveShellBackAction(homeState))
+    }
+
+    @Test
+    fun topLevelSelection_resetsNestedStack() {
+        val nestedState =
+            TuneFlowShellState()
+                .openSection(NavSection.Search)
+                .openArtist("artist-1")
+                .openAlbum("album-1")
+
+        val playlistsState = nestedState.openSection(NavSection.Playlists)
+
+        assertEquals(listOf(ShellStackEntry(ShellDestination.Playlists)), playlistsState.backStack)
+        assertNull(playlistsState.pendingFocusRestore)
+    }
+
+    @Test
+    fun stackEntryEncoding_roundTripsIdsAndFocus() {
+        val entry =
+            ShellStackEntry(
+                destination = ShellDestination.Album("album:1 / favorite"),
+                returnFocus = BrowseFocusTarget(BrowseFocusTargetKind.Album, "album:1 / favorite"),
+            )
+
+        assertEquals(entry, ShellStackEntry.decode(entry.encode()))
     }
 }

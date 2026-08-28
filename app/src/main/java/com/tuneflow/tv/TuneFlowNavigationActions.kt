@@ -13,18 +13,12 @@ internal class TuneFlowNavigationActions(
         updateShellState { it.openSection(section) }
     }
 
-    fun openAlbum(
-        albumId: String,
-        source: NavSection,
-    ) {
-        updateShellState { it.openAlbum(albumId, source) }
+    fun openAlbum(albumId: String) {
+        updateShellState { it.openAlbum(albumId) }
     }
 
-    fun openArtist(
-        artistId: String,
-        source: NavSection,
-    ) {
-        updateShellState { it.openArtist(artistId, source) }
+    fun openArtist(artistId: String) {
+        updateShellState { it.openArtist(artistId) }
     }
 
     fun openNowPlaying() {
@@ -39,67 +33,40 @@ internal class TuneFlowNavigationActions(
         updateShellState { it.openPlaylist(playlistId) }
     }
 
-    fun closeNowPlaying() {
-        updateShellState { it.closeNowPlaying() }
-    }
-
-    fun closeAlbum() {
-        updateShellState { it.closeAlbum() }
-    }
-
-    fun closeArtist() {
-        updateShellState { it.closeArtist() }
+    fun popDestination() {
+        updateShellState { it.popDestination() }
     }
 
     fun goHome() {
         updateShellState { it.goHome() }
     }
-
-    fun returnToHomeCategory() {
-        updateShellState { it.returnToHomeCategory() }
-    }
 }
+
+internal enum class ShellBackAction {
+    PopDestination,
+    GoHome,
+    RequestExit,
+}
+
+internal fun resolveShellBackAction(state: TuneFlowShellState): ShellBackAction =
+    when {
+        state.backStack.size > 1 -> ShellBackAction.PopDestination
+        state.currentDestination != ShellDestination.Home -> ShellBackAction.GoHome
+        else -> ShellBackAction.RequestExit
+    }
 
 @Composable
 internal fun ShellBackHandler(
-    showNowPlaying: Boolean,
-    selectedHomeCategory: HomeCategoryKind?,
-    selectedAlbumId: String?,
-    selectedArtistId: String?,
-    currentSection: NavSection,
-    onCloseNowPlaying: () -> Unit,
-    onCloseAlbum: () -> Unit,
-    onCloseArtist: () -> Unit,
-    onReturnToHomeCategory: () -> Unit,
+    state: TuneFlowShellState,
+    onPopDestination: () -> Unit,
     onGoHome: () -> Unit,
     onRequestExit: () -> Unit,
 ) {
     BackHandler {
-        when {
-            showNowPlaying -> onCloseNowPlaying()
-            selectedAlbumId != null -> onCloseAlbum()
-            selectedArtistId != null -> onCloseArtist()
-            selectedHomeCategory != null && currentSection != NavSection.Home -> onReturnToHomeCategory()
-            selectedHomeCategory != null -> onGoHome()
-            currentSection != NavSection.Home -> onGoHome()
-            else -> onRequestExit()
+        when (resolveShellBackAction(state)) {
+            ShellBackAction.PopDestination -> onPopDestination()
+            ShellBackAction.GoHome -> onGoHome()
+            ShellBackAction.RequestExit -> onRequestExit()
         }
-    }
-}
-
-internal fun shellScreenKey(
-    currentSection: NavSection,
-    selectedHomeCategory: HomeCategoryKind?,
-    selectedAlbumId: String?,
-    selectedArtistId: String?,
-    showNowPlaying: Boolean,
-): String {
-    return when {
-        showNowPlaying -> NOW_PLAYING_SCREEN_KEY
-        selectedAlbumId != null -> "album:$selectedAlbumId"
-        selectedArtistId != null -> "artist:$selectedArtistId"
-        currentSection != NavSection.Home -> currentSection.name
-        selectedHomeCategory != null -> homeCategoryScreenKey(selectedHomeCategory)
-        else -> NavSection.Home.name
     }
 }

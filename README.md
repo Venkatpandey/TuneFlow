@@ -83,3 +83,5 @@ That means TuneFlow is designed to request the original stream as served by Navi
 ## Developer Docs
 
 Developer setup, local release signing, and CI/release workflow live in [scripts/README.md](scripts/README.md).
+
+Remote navigation and Back behavior are documented in [docs/navigation.md](docs/navigation.md).

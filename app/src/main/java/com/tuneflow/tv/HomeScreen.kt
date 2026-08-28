@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -30,7 +31,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,13 +59,18 @@ import com.tuneflow.core.network.FavoritesBundle
 import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.core.network.TrackSummary
 import com.tuneflow.core.player.PlaybackQueue
+import com.tuneflow.feature.browse.BrowseFocusTarget
+import com.tuneflow.feature.browse.BrowseFocusTargetKind
 import com.tuneflow.feature.browse.HomeCategoryKind
 import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 fun HomeScreen(
     viewModel: HomeViewModel,
     playbackQueue: PlaybackQueue,
+    focusRestoreTarget: BrowseFocusTarget? = null,
+    onFocusRestoreConsumed: () -> Unit = {},
     onOpenAlbum: (String) -> Unit,
     onOpenArtist: (String) -> Unit,
     onOpenHomeCategory: (HomeCategoryKind) -> Unit,
@@ -74,8 +82,32 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val homeListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val favoritesRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val artistsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val albumsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val playlistsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val restoredItemFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(focusRestoreTarget, state) {
+        val target = focusRestoreTarget ?: return@LaunchedEffect
+        val location = state.focusLocation(target) ?: return@LaunchedEffect
+        homeListState.scrollToItem(location.sectionRowIndex)
+        val rowState =
+            when (location.category) {
+                HomeCategoryKind.Favorites -> favoritesRowState
+                HomeCategoryKind.Artists -> artistsRowState
+                HomeCategoryKind.Albums -> albumsRowState
+                HomeCategoryKind.Playlists -> playlistsRowState
+            }
+        rowState.scrollToItem(location.rowItemIndex)
+        withFrameNanos { }
+        runCatching { restoredItemFocusRequester.requestFocus() }
+        onFocusRestoreConsumed()
+    }
 
     LazyColumn(
+        state = homeListState,
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -113,9 +145,18 @@ fun HomeScreen(
             item {
                 FavoriteRail(
                     favorites = state.favorites,
+                    listState = favoritesRowState,
+                    focusRestoreTarget = focusRestoreTarget,
+                    restoredItemFocusRequester = restoredItemFocusRequester,
                     onOpenAlbum = onOpenAlbum,
                     onPlayTrack = { track -> onPlayTracks(listOf(track), 0) },
                     onShowAll = { onOpenHomeCategory(HomeCategoryKind.Favorites) },
+                    showAllModifier =
+                        showAllFocusModifier(
+                            target = focusRestoreTarget,
+                            category = HomeCategoryKind.Favorites,
+                            focusRequester = restoredItemFocusRequester,
+                        ),
                 )
             }
         }
@@ -125,10 +166,27 @@ fun HomeScreen(
             item {
                 HomeContentRow(
                     items = state.artists,
+                    listState = artistsRowState,
                     key = { _, artist -> artist.id },
                     onShowAll = { onOpenHomeCategory(HomeCategoryKind.Artists) },
+                    showAllModifier =
+                        showAllFocusModifier(
+                            target = focusRestoreTarget,
+                            category = HomeCategoryKind.Artists,
+                            focusRequester = restoredItemFocusRequester,
+                        ),
                 ) { artist ->
-                    HomeArtistCard(artist = artist, onClick = { onOpenArtist(artist.id) })
+                    HomeArtistCard(
+                        artist = artist,
+                        onClick = { onOpenArtist(artist.id) },
+                        modifier =
+                            itemFocusModifier(
+                                target = focusRestoreTarget,
+                                kind = BrowseFocusTargetKind.Artist,
+                                id = artist.id,
+                                focusRequester = restoredItemFocusRequester,
+                            ),
+                    )
                 }
             }
         }
@@ -138,10 +196,27 @@ fun HomeScreen(
             item {
                 HomeContentRow(
                     items = state.recentAlbums,
+                    listState = albumsRowState,
                     key = { _, album -> album.id },
                     onShowAll = { onOpenHomeCategory(HomeCategoryKind.Albums) },
+                    showAllModifier =
+                        showAllFocusModifier(
+                            target = focusRestoreTarget,
+                            category = HomeCategoryKind.Albums,
+                            focusRequester = restoredItemFocusRequester,
+                        ),
                 ) { album ->
-                    HomeAlbumCard(album = album, onClick = { onOpenAlbum(album.id) })
+                    HomeAlbumCard(
+                        album = album,
+                        onClick = { onOpenAlbum(album.id) },
+                        modifier =
+                            itemFocusModifier(
+                                target = focusRestoreTarget,
+                                kind = BrowseFocusTargetKind.Album,
+                                id = album.id,
+                                focusRequester = restoredItemFocusRequester,
+                            ),
+                    )
                 }
             }
         }
@@ -151,12 +226,26 @@ fun HomeScreen(
             item {
                 HomeContentRow(
                     items = state.playlists,
+                    listState = playlistsRowState,
                     key = { _, playlist -> playlist.id },
                     onShowAll = { onOpenHomeCategory(HomeCategoryKind.Playlists) },
+                    showAllModifier =
+                        showAllFocusModifier(
+                            target = focusRestoreTarget,
+                            category = HomeCategoryKind.Playlists,
+                            focusRequester = restoredItemFocusRequester,
+                        ),
                 ) { playlist ->
                     HomePlaylistCard(
                         playlist = playlist,
                         onClick = { onOpenPlaylists(playlist.id) },
+                        modifier =
+                            itemFocusModifier(
+                                target = focusRestoreTarget,
+                                kind = BrowseFocusTargetKind.Playlist,
+                                id = playlist.id,
+                                focusRequester = restoredItemFocusRequester,
+                            ),
                     )
                 }
             }
@@ -191,21 +280,146 @@ fun HomeScreen(
     }
 }
 
+private fun HomeUiState.focusLocation(target: BrowseFocusTarget): HomeFocusLocation? {
+    val sections = focusSections()
+    val sectionIndex = sections.indexOfFirst { it.matches(target) }
+    if (sectionIndex < 0) return null
+    val contentStartIndex = 2 + isLoading.toItemCount() + showsFatalError().toItemCount()
+    val section = sections[sectionIndex]
+    return HomeFocusLocation(
+        category = section.category,
+        sectionRowIndex = contentStartIndex + sectionIndex * 2 + 1,
+        rowItemIndex = section.focusItemIndex(target),
+    )
+}
+
+private data class HomeFocusLocation(
+    val category: HomeCategoryKind,
+    val sectionRowIndex: Int,
+    val rowItemIndex: Int,
+)
+
+private data class HomeFocusSection(
+    val category: HomeCategoryKind,
+    val itemTargets: List<BrowseFocusTarget>,
+    val contentItemCount: Int,
+) {
+    fun matches(target: BrowseFocusTarget): Boolean = target.matchesHomeCategory(category) || target in itemTargets
+
+    fun focusItemIndex(target: BrowseFocusTarget): Int =
+        if (target.matchesHomeCategory(category)) contentItemCount else itemTargets.indexOf(target).coerceAtLeast(0)
+}
+
+private fun HomeUiState.focusSections(): List<HomeFocusSection> =
+    buildList {
+        if (favorites.albums.isNotEmpty() || favorites.tracks.isNotEmpty()) {
+            add(
+                HomeFocusSection(
+                    category = HomeCategoryKind.Favorites,
+                    itemTargets =
+                        favorites.albums
+                            .take(HOME_ROW_VISIBLE_ITEM_LIMIT)
+                            .map { BrowseFocusTarget(BrowseFocusTargetKind.Album, it.id) },
+                    contentItemCount =
+                        (favorites.albums.size + favorites.tracks.size)
+                            .coerceAtMost(HOME_ROW_VISIBLE_ITEM_LIMIT),
+                ),
+            )
+        }
+        if (artists.isNotEmpty()) {
+            add(
+                HomeFocusSection(
+                    category = HomeCategoryKind.Artists,
+                    itemTargets =
+                        artists
+                            .take(HOME_ROW_VISIBLE_ITEM_LIMIT)
+                            .map { BrowseFocusTarget(BrowseFocusTargetKind.Artist, it.id) },
+                    contentItemCount = artists.size.coerceAtMost(HOME_ROW_VISIBLE_ITEM_LIMIT),
+                ),
+            )
+        }
+        if (recentAlbums.isNotEmpty()) {
+            add(
+                HomeFocusSection(
+                    category = HomeCategoryKind.Albums,
+                    itemTargets =
+                        recentAlbums
+                            .take(HOME_ROW_VISIBLE_ITEM_LIMIT)
+                            .map { BrowseFocusTarget(BrowseFocusTargetKind.Album, it.id) },
+                    contentItemCount = recentAlbums.size.coerceAtMost(HOME_ROW_VISIBLE_ITEM_LIMIT),
+                ),
+            )
+        }
+        if (playlists.isNotEmpty()) {
+            add(
+                HomeFocusSection(
+                    category = HomeCategoryKind.Playlists,
+                    itemTargets =
+                        playlists
+                            .take(HOME_ROW_VISIBLE_ITEM_LIMIT)
+                            .map { BrowseFocusTarget(BrowseFocusTargetKind.Playlist, it.id) },
+                    contentItemCount = playlists.size.coerceAtMost(HOME_ROW_VISIBLE_ITEM_LIMIT),
+                ),
+            )
+        }
+    }
+
+private fun HomeUiState.showsFatalError(): Boolean =
+    error != null &&
+        recentAlbums.isEmpty() &&
+        playlists.isEmpty() &&
+        favorites.albums.isEmpty() &&
+        favorites.tracks.isEmpty() &&
+        artists.isEmpty()
+
+private fun Boolean.toItemCount(): Int = if (this) 1 else 0
+
+private fun BrowseFocusTarget.matchesHomeCategory(category: HomeCategoryKind): Boolean =
+    kind == BrowseFocusTargetKind.HomeCategory && id == category.name
+
+private fun showAllFocusModifier(
+    target: BrowseFocusTarget?,
+    category: HomeCategoryKind,
+    focusRequester: FocusRequester,
+): Modifier =
+    if (target?.matchesHomeCategory(category) == true) {
+        Modifier.focusRequester(focusRequester)
+    } else {
+        Modifier
+    }
+
+private fun itemFocusModifier(
+    target: BrowseFocusTarget?,
+    kind: BrowseFocusTargetKind,
+    id: String,
+    focusRequester: FocusRequester,
+): Modifier =
+    if (target?.kind == kind && target.id == id) {
+        Modifier.focusRequester(focusRequester)
+    } else {
+        Modifier
+    }
+
 private const val HOME_ROW_VISIBLE_ITEM_LIMIT = 5
 
 @Composable
 private fun <T> HomeContentRow(
     items: List<T>,
+    listState: LazyListState,
     key: (Int, T) -> Any,
     onShowAll: () -> Unit,
+    showAllModifier: Modifier = Modifier,
     itemContent: @Composable (T) -> Unit,
 ) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+    LazyRow(
+        state = listState,
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
         itemsIndexed(items.take(HOME_ROW_VISIBLE_ITEM_LIMIT), key = key) { _, item ->
             itemContent(item)
         }
         item {
-            ShowAllCard(onClick = onShowAll)
+            ShowAllCard(onClick = onShowAll, modifier = showAllModifier)
         }
     }
 }
@@ -400,23 +614,40 @@ private fun ScreenInitialFocusAnchor() {
 @Composable
 private fun FavoriteRail(
     favorites: FavoritesBundle,
+    listState: LazyListState,
+    focusRestoreTarget: BrowseFocusTarget?,
+    restoredItemFocusRequester: FocusRequester,
     onOpenAlbum: (String) -> Unit,
     onPlayTrack: (TrackSummary) -> Unit,
     onShowAll: () -> Unit,
+    showAllModifier: Modifier = Modifier,
 ) {
     val favoriteAlbums = favorites.albums.take(HOME_ROW_VISIBLE_ITEM_LIMIT)
     val favoriteTracks =
         favorites.tracks.take((HOME_ROW_VISIBLE_ITEM_LIMIT - favoriteAlbums.size).coerceAtLeast(0))
 
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+    LazyRow(
+        state = listState,
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
         items(favoriteAlbums, key = { "album-${it.id}" }) { album ->
-            HomeAlbumCard(album = album, onClick = { onOpenAlbum(album.id) })
+            HomeAlbumCard(
+                album = album,
+                onClick = { onOpenAlbum(album.id) },
+                modifier =
+                    itemFocusModifier(
+                        target = focusRestoreTarget,
+                        kind = BrowseFocusTargetKind.Album,
+                        id = album.id,
+                        focusRequester = restoredItemFocusRequester,
+                    ),
+            )
         }
         items(favoriteTracks, key = { "track-${it.id}" }) { track ->
             FavoriteTrackCard(track = track, onClick = { onPlayTrack(track) })
         }
         item {
-            ShowAllCard(onClick = onShowAll)
+            ShowAllCard(onClick = onShowAll, modifier = showAllModifier)
         }
     }
 }
@@ -471,9 +702,10 @@ private fun FavoriteTrackCard(
 private fun HomeArtistCard(
     artist: ArtistSummary,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     FocusCard(
-        modifier = Modifier.width(208.dp),
+        modifier = modifier.width(208.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -586,9 +818,10 @@ private fun SectionHeading(title: String) {
 private fun HomeAlbumCard(
     album: AlbumSummary,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     FocusCard(
-        modifier = Modifier.width(196.dp),
+        modifier = modifier.width(196.dp),
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -632,9 +865,10 @@ private fun HomeAlbumCard(
 private fun HomePlaylistCard(
     playlist: PlaylistSummary,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     FocusCard(
-        modifier = Modifier.width(236.dp),
+        modifier = modifier.width(236.dp),
         onClick = onClick,
     ) {
         Column(

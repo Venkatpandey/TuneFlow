@@ -1,91 +1,103 @@
 package com.tuneflow.tv
 
+import com.tuneflow.feature.browse.BrowseFocusTarget
+import com.tuneflow.feature.browse.BrowseFocusTargetKind
 import com.tuneflow.feature.browse.HomeCategoryKind
 
 internal fun TuneFlowShellState.openSection(section: NavSection): TuneFlowShellState =
     copy(
-        currentSection = section,
-        selectedHomeCategory = null,
-        selectedAlbumId = null,
-        selectedArtistId = null,
+        backStack = listOf(ShellStackEntry(section.toDestination())),
         preselectedPlaylistId = null,
-        showNowPlaying = false,
         autoFocusNowPlayingTransport = false,
+        pendingFocusRestore = null,
         showExitPrompt = false,
     )
 
-internal fun TuneFlowShellState.openAlbum(
-    albumId: String,
-    source: NavSection,
-): TuneFlowShellState =
+internal fun TuneFlowShellState.openAlbum(albumId: String): TuneFlowShellState =
     copy(
-        currentSection = source,
-        albumSourceSection = source,
-        selectedAlbumId = albumId,
-        selectedArtistId = null,
-        showNowPlaying = false,
+        backStack =
+            backStack +
+                ShellStackEntry(
+                    destination = ShellDestination.Album(albumId),
+                    returnFocus = BrowseFocusTarget(BrowseFocusTargetKind.Album, albumId),
+                ),
         autoFocusNowPlayingTransport = false,
+        pendingFocusRestore = null,
         showExitPrompt = false,
     )
 
-internal fun TuneFlowShellState.openArtist(
-    artistId: String,
-    source: NavSection,
-): TuneFlowShellState =
+internal fun TuneFlowShellState.openArtist(artistId: String): TuneFlowShellState =
     copy(
-        currentSection = source,
-        artistSourceSection = source,
-        selectedArtistId = artistId,
-        selectedAlbumId = null,
-        showNowPlaying = false,
+        backStack =
+            backStack +
+                ShellStackEntry(
+                    destination = ShellDestination.Artist(artistId),
+                    returnFocus = BrowseFocusTarget(BrowseFocusTargetKind.Artist, artistId),
+                ),
         autoFocusNowPlayingTransport = false,
+        pendingFocusRestore = null,
         showExitPrompt = false,
     )
 
 internal fun TuneFlowShellState.openNowPlaying(): TuneFlowShellState =
-    copy(showNowPlaying = true, autoFocusNowPlayingTransport = false, showExitPrompt = false)
+    if (currentDestination == ShellDestination.NowPlaying) {
+        this
+    } else {
+        copy(
+            backStack = backStack + ShellStackEntry(ShellDestination.NowPlaying),
+            autoFocusNowPlayingTransport = false,
+            pendingFocusRestore = null,
+            showExitPrompt = false,
+        )
+    }
 
 internal fun TuneFlowShellState.enableNowPlayingTransportFocus(): TuneFlowShellState =
-    copy(showNowPlaying = true, autoFocusNowPlayingTransport = true, showExitPrompt = false)
+    openNowPlaying().copy(autoFocusNowPlayingTransport = true)
 
 internal fun TuneFlowShellState.openHomeCategory(category: HomeCategoryKind): TuneFlowShellState =
     copy(
-        currentSection = NavSection.Home,
-        selectedHomeCategory = category,
-        selectedAlbumId = null,
-        selectedArtistId = null,
+        backStack =
+            backStack +
+                ShellStackEntry(
+                    destination = ShellDestination.HomeCategory(category),
+                    returnFocus = BrowseFocusTarget(BrowseFocusTargetKind.HomeCategory, category.name),
+                ),
         preselectedPlaylistId = null,
-        showNowPlaying = false,
         autoFocusNowPlayingTransport = false,
+        pendingFocusRestore = null,
         showExitPrompt = false,
     )
 
 internal fun TuneFlowShellState.openPlaylist(playlistId: String?): TuneFlowShellState =
     copy(
-        currentSection = NavSection.Playlists,
+        backStack =
+            if (currentDestination == ShellDestination.Playlists) {
+                backStack
+            } else {
+                backStack +
+                    ShellStackEntry(
+                        destination = ShellDestination.Playlists,
+                        returnFocus = playlistId?.let { BrowseFocusTarget(BrowseFocusTargetKind.Playlist, it) },
+                    )
+            },
         preselectedPlaylistId = playlistId,
-        selectedAlbumId = null,
-        selectedArtistId = null,
-        showNowPlaying = false,
         autoFocusNowPlayingTransport = false,
+        pendingFocusRestore = null,
         showExitPrompt = false,
     )
 
-internal fun TuneFlowShellState.closeNowPlaying(): TuneFlowShellState = copy(showNowPlaying = false)
-
-internal fun TuneFlowShellState.closeAlbum(): TuneFlowShellState = copy(selectedAlbumId = null, currentSection = albumSourceSection)
-
-internal fun TuneFlowShellState.closeArtist(): TuneFlowShellState = copy(selectedArtistId = null, currentSection = artistSourceSection)
-
-internal fun TuneFlowShellState.returnToHomeCategory(): TuneFlowShellState =
-    copy(
-        currentSection = NavSection.Home,
+internal fun TuneFlowShellState.popDestination(): TuneFlowShellState {
+    if (backStack.size <= 1) return this
+    val poppedEntry = backStack.last()
+    return copy(
+        backStack = backStack.dropLast(1),
         preselectedPlaylistId = null,
-        selectedAlbumId = null,
-        selectedArtistId = null,
-        showNowPlaying = false,
         autoFocusNowPlayingTransport = false,
+        pendingFocusRestore = poppedEntry.returnFocus,
         showExitPrompt = false,
     )
+}
 
-internal fun TuneFlowShellState.goHome(): TuneFlowShellState = copy(currentSection = NavSection.Home, selectedHomeCategory = null)
+internal fun TuneFlowShellState.goHome(): TuneFlowShellState = openSection(NavSection.Home)
+
+internal fun TuneFlowShellState.consumeFocusRestore(): TuneFlowShellState = copy(pendingFocusRestore = null)

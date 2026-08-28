@@ -13,12 +13,9 @@ import com.tuneflow.feature.playback.NowPlayingScreen
 
 @Composable
 internal fun ShellContent(
-    currentSection: NavSection,
-    selectedHomeCategory: com.tuneflow.feature.browse.HomeCategoryKind?,
-    selectedAlbumId: String?,
-    selectedArtistId: String?,
-    showNowPlaying: Boolean,
+    currentDestination: ShellDestination,
     preselectedPlaylistId: String?,
+    focusRestoreTarget: com.tuneflow.feature.browse.BrowseFocusTarget?,
     playbackQueue: PlaybackQueue,
     homeViewModel: HomeViewModel,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
@@ -32,8 +29,9 @@ internal fun ShellContent(
     onCycleStreamMode: () -> Unit,
     autoFocusNowPlayingTransport: Boolean,
     onNowPlayingAutoFocusConsumed: () -> Unit,
-    onOpenAlbum: (String, NavSection) -> Unit,
-    onOpenArtist: (String, NavSection) -> Unit,
+    onFocusRestoreConsumed: () -> Unit,
+    onOpenAlbum: (String) -> Unit,
+    onOpenArtist: (String) -> Unit,
     onOpenSection: (NavSection) -> Unit,
     onOpenHomeCategory: (com.tuneflow.feature.browse.HomeCategoryKind) -> Unit,
     onOpenPlaylist: (String?) -> Unit,
@@ -42,11 +40,9 @@ internal fun ShellContent(
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
 ) {
-    val screenKey = shellScreenKey(currentSection, selectedHomeCategory, selectedAlbumId, selectedArtistId, showNowPlaying)
-
-    Crossfade(targetState = screenKey, label = "shell-content") { targetScreen ->
-        when {
-            targetScreen == NOW_PLAYING_SCREEN_KEY -> {
+    Crossfade(targetState = currentDestination, label = "shell-content") { targetScreen ->
+        when (targetScreen) {
+            ShellDestination.NowPlaying -> {
                 NowPlayingScreen(
                     viewModel = playbackViewModel,
                     streamModeLabel = streamModeLabel,
@@ -55,27 +51,31 @@ internal fun ShellContent(
                     onAutoFocusConsumed = onNowPlayingAutoFocusConsumed,
                 )
             }
-            targetScreen.startsWith("album:") -> {
+            is ShellDestination.Album -> {
                 AlbumDetailScreen(
-                    albumId = targetScreen.removePrefix("album:"),
+                    albumId = targetScreen.albumId,
                     viewModel = albumDetailViewModel,
                     onPlayAlbum = onPlayTracks,
                     onShuffleAlbum = onShuffleTracks,
                 )
             }
-            targetScreen.startsWith("artist:") -> {
+            is ShellDestination.Artist -> {
                 ArtistDetailScreen(
-                    artistId = targetScreen.removePrefix("artist:"),
+                    artistId = targetScreen.artistId,
                     viewModel = artistDetailViewModel,
-                    onOpenAlbum = { onOpenAlbum(it, currentSection) },
+                    focusRestoreTarget = focusRestoreTarget,
+                    onFocusRestoreConsumed = onFocusRestoreConsumed,
+                    onOpenAlbum = onOpenAlbum,
                 )
             }
-            targetScreen == NavSection.Home.name -> {
+            ShellDestination.Home -> {
                 HomeScreen(
                     viewModel = homeViewModel,
                     playbackQueue = playbackQueue,
-                    onOpenAlbum = { onOpenAlbum(it, NavSection.Home) },
-                    onOpenArtist = { onOpenArtist(it, NavSection.Home) },
+                    focusRestoreTarget = focusRestoreTarget,
+                    onFocusRestoreConsumed = onFocusRestoreConsumed,
+                    onOpenAlbum = onOpenAlbum,
+                    onOpenArtist = onOpenArtist,
                     onOpenHomeCategory = onOpenHomeCategory,
                     onOpenAlbums = { onOpenSection(NavSection.Albums) },
                     onOpenPlaylists = onOpenPlaylist,
@@ -84,24 +84,27 @@ internal fun ShellContent(
                     onPlayTracks = onPlayTracks,
                 )
             }
-            targetScreen.startsWith("homeCategory:") -> {
-                val category = selectedHomeCategory ?: return@Crossfade
+            is ShellDestination.HomeCategory -> {
                 HomeCategoryScreen(
-                    category = category,
+                    category = targetScreen.category,
                     viewModel = homeCategoryViewModel,
-                    onOpenArtist = { onOpenArtist(it, NavSection.Home) },
-                    onOpenAlbum = { onOpenAlbum(it, NavSection.Home) },
+                    focusRestoreTarget = focusRestoreTarget,
+                    onFocusRestoreConsumed = onFocusRestoreConsumed,
+                    onOpenArtist = onOpenArtist,
+                    onOpenAlbum = onOpenAlbum,
                     onOpenPlaylist = onOpenPlaylist,
                     onPlayTracks = onPlayTracks,
                 )
             }
-            targetScreen == NavSection.Albums.name -> {
+            ShellDestination.Albums -> {
                 AlbumsScreen(
                     viewModel = albumsViewModel,
-                    onAlbumSelected = { onOpenAlbum(it, NavSection.Albums) },
+                    focusRestoreTarget = focusRestoreTarget,
+                    onFocusRestoreConsumed = onFocusRestoreConsumed,
+                    onAlbumSelected = onOpenAlbum,
                 )
             }
-            targetScreen == NavSection.Playlists.name -> {
+            ShellDestination.Playlists -> {
                 PlaylistsScreen(
                     viewModel = playlistsViewModel,
                     preselectedPlaylistId = preselectedPlaylistId,
@@ -111,11 +114,13 @@ internal fun ShellContent(
                     onShuffleTracks = onShuffleTracks,
                 )
             }
-            targetScreen == NavSection.Search.name -> {
+            ShellDestination.Search -> {
                 SearchScreen(
                     viewModel = searchViewModel,
-                    onOpenArtist = { onOpenArtist(it, NavSection.Search) },
-                    onOpenAlbum = { onOpenAlbum(it, NavSection.Search) },
+                    focusRestoreTarget = focusRestoreTarget,
+                    onFocusRestoreConsumed = onFocusRestoreConsumed,
+                    onOpenArtist = onOpenArtist,
+                    onOpenAlbum = onOpenAlbum,
                     onPlayTracks = onPlayTracks,
                 )
             }
