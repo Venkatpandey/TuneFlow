@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tuneflow.core.network.PlaylistDetail
 import com.tuneflow.core.network.PlaylistSummary
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.launch
 data class PlaylistsUiState(
     val isLoading: Boolean = false,
     val playlists: List<PlaylistSummary> = emptyList(),
+    val selectedPlaylistId: String? = null,
     val selected: PlaylistDetail? = null,
     val error: String? = null,
 )
@@ -20,6 +22,7 @@ data class PlaylistsUiState(
 class PlaylistsViewModel(private val repository: BrowseRepository) : ViewModel() {
     private val _uiState = MutableStateFlow(PlaylistsUiState())
     val uiState: StateFlow<PlaylistsUiState> = _uiState.asStateFlow()
+    private var playlistDetailJob: Job? = null
 
     init {
         loadPlaylists()
@@ -48,19 +51,25 @@ class PlaylistsViewModel(private val repository: BrowseRepository) : ViewModel()
     }
 
     fun loadPlaylistDetail(playlistId: String) {
-        viewModelScope.launch {
-            val result = repository.getPlaylistDetail(playlistId)
-            _uiState.update {
-                if (result.isSuccess) {
-                    it.copy(selected = result.getOrNull(), error = null)
-                } else {
-                    it.copy(selected = null, error = result.exceptionOrNull()?.message)
+        playlistDetailJob?.cancel()
+        _uiState.update { it.copy(selectedPlaylistId = playlistId, selected = null, error = null) }
+        playlistDetailJob =
+            viewModelScope.launch {
+                val result = repository.getPlaylistDetail(playlistId)
+                _uiState.update {
+                    if (it.selectedPlaylistId != playlistId) return@update it
+                    if (result.isSuccess) {
+                        it.copy(selected = result.getOrNull(), error = null)
+                    } else {
+                        it.copy(selectedPlaylistId = null, selected = null, error = result.exceptionOrNull()?.message)
+                    }
                 }
             }
-        }
     }
 
     fun clearSelection() {
-        _uiState.update { it.copy(selected = null, error = null) }
+        playlistDetailJob?.cancel()
+        playlistDetailJob = null
+        _uiState.update { it.copy(selectedPlaylistId = null, selected = null, error = null) }
     }
 }

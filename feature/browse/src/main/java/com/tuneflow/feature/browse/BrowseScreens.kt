@@ -2,6 +2,7 @@
 
 package com.tuneflow.feature.browse
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -380,12 +381,16 @@ fun PlaylistsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val firstPlaylistFocusRequester = remember { FocusRequester() }
     val playPlaylistFocusRequester = remember { FocusRequester() }
+    val playlistReturnFocusRequester = remember { FocusRequester() }
     val playlistListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     var initialPlaylistFocusRequested by rememberSaveable { mutableStateOf(false) }
     var detailActionFocusRequested by rememberSaveable(state.selected?.id) { mutableStateOf(false) }
+    var returnFocusPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    var restorePlaylistFocus by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(preselectedPlaylistId) {
         if (preselectedPlaylistId != null) {
+            returnFocusPlaylistId = preselectedPlaylistId
             viewModel.loadPlaylistDetail(preselectedPlaylistId)
             onPreselectedPlaylistConsumed()
         }
@@ -407,7 +412,26 @@ fun PlaylistsScreen(
         }
     }
 
+    val hasPlaylistDetailLayer = state.selectedPlaylistId != null
     val showDetail = state.selected != null
+
+    fun closePlaylistDetail() {
+        restorePlaylistFocus = true
+        viewModel.clearSelection()
+    }
+
+    BackHandler(enabled = hasPlaylistDetailLayer, onBack = ::closePlaylistDetail)
+
+    LaunchedEffect(hasPlaylistDetailLayer, restorePlaylistFocus, state.playlists) {
+        if (!hasPlaylistDetailLayer && restorePlaylistFocus) {
+            val targetIndex = state.playlists.indexOfFirst { it.id == returnFocusPlaylistId }
+            if (targetIndex >= 0) {
+                playlistListState.scrollToItem(targetIndex)
+                runCatching { playlistReturnFocusRequester.requestFocus() }
+            }
+            restorePlaylistFocus = false
+        }
+    }
 
     LaunchedEffect(state.selected?.id) {
         if (state.selected != null) {
@@ -452,12 +476,22 @@ fun PlaylistsScreen(
                     itemsIndexed(state.playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
                         PremiumPlaylistRow(
                             playlist = playlist,
-                            onClick = { viewModel.loadPlaylistDetail(playlist.id) },
+                            onClick = {
+                                returnFocusPlaylistId = playlist.id
+                                viewModel.loadPlaylistDetail(playlist.id)
+                            },
                             modifier =
                                 Modifier
                                     .boundaryLockedVerticalItem(
                                         index = index,
                                         lastIndex = state.playlists.lastIndex,
+                                    )
+                                    .then(
+                                        if (playlist.id == returnFocusPlaylistId) {
+                                            Modifier.focusRequester(playlistReturnFocusRequester)
+                                        } else {
+                                            Modifier
+                                        },
                                     )
                                     .then(
                                         if (index == 0) {

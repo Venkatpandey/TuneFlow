@@ -80,11 +80,17 @@ fun NowPlayingScreen(
         onDispose { viewModel.setActive(false) }
     }
 
+    fun closeQueue(target: QueueExitTarget = resolveQueueExitTarget(focusedQueueIndex, state.queue.items.size)) {
+        showQueue = false
+        requestStreamFocus = target == QueueExitTarget.StreamControls
+        requestTransportFocus = target == QueueExitTarget.TransportControls
+    }
+
     Box(
         modifier =
             modifier
                 .fillMaxSize()
-                .onPreviewKeyEvent { event -> handleNowPlayingKeyEvent(event, showQueue, { showQueue = false }, viewModel) },
+                .onPreviewKeyEvent { event -> handleNowPlayingKeyEvent(event, showQueue, ::closeQueue, viewModel) },
     ) {
         TuneFlowArtwork(
             model = item?.artUrl,
@@ -150,11 +156,7 @@ fun NowPlayingScreen(
                     title = "Track List",
                     state = state,
                     onSelectTrack = viewModel::playFromIndex,
-                    onQueueExit = { target ->
-                        showQueue = false
-                        requestStreamFocus = target == QueueExitTarget.StreamControls
-                        requestTransportFocus = target == QueueExitTarget.TransportControls
-                    },
+                    onQueueExit = ::closeQueue,
                     onFocusedIndexChanged = { focusedQueueIndex = it },
                     preferredExitTarget =
                         resolveQueueExitTarget(
@@ -210,9 +212,11 @@ private fun handleNowPlayingKeyEvent(
     viewModel: PlaybackViewModel,
 ): Boolean {
     if (
-        showQueue &&
-        event.type == KeyEventType.KeyDown &&
-        event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_BACK
+        resolveNowPlayingEscapeAction(
+            showQueue = showQueue,
+            isKeyDown = event.type == KeyEventType.KeyDown,
+            keyCode = event.nativeKeyEvent.keyCode,
+        ) == NowPlayingEscapeAction.CloseQueue
     ) {
         onCloseQueue()
         return true
@@ -220,6 +224,26 @@ private fun handleNowPlayingKeyEvent(
 
     return handleTransportMediaKey(event, viewModel)
 }
+
+internal enum class NowPlayingEscapeAction {
+    CloseQueue,
+    Propagate,
+}
+
+internal fun resolveNowPlayingEscapeAction(
+    showQueue: Boolean,
+    isKeyDown: Boolean,
+    keyCode: Int,
+): NowPlayingEscapeAction =
+    if (
+        showQueue &&
+        isKeyDown &&
+        keyCode == AndroidKeyEvent.KEYCODE_BACK
+    ) {
+        NowPlayingEscapeAction.CloseQueue
+    } else {
+        NowPlayingEscapeAction.Propagate
+    }
 
 @Composable
 private fun QueuePanel(
@@ -260,7 +284,6 @@ private fun QueuePanel(
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (event.nativeKeyEvent.keyCode) {
-                        AndroidKeyEvent.KEYCODE_BACK,
                         AndroidKeyEvent.KEYCODE_DPAD_LEFT,
                         -> {
                             onQueueExit(preferredExitTarget)
@@ -382,12 +405,12 @@ private fun QueueRow(
     }
 }
 
-private enum class QueueExitTarget {
+internal enum class QueueExitTarget {
     StreamControls,
     TransportControls,
 }
 
-private fun resolveQueueExitTarget(
+internal fun resolveQueueExitTarget(
     focusedIndex: Int,
     itemCount: Int,
 ): QueueExitTarget {
