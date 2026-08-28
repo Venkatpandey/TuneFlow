@@ -9,7 +9,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tuneflow.core.design.TuneFlowShapes
 
 @Composable
 internal fun ExitPromptBanner(
@@ -32,12 +32,12 @@ internal fun ExitPromptBanner(
         Box(
             modifier =
                 Modifier
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(TuneFlowShapes.panel)
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
                     .border(
                         width = 1.dp,
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = TuneFlowShapes.panel,
                     )
                     .padding(horizontal = 18.dp, vertical = 12.dp),
         ) {

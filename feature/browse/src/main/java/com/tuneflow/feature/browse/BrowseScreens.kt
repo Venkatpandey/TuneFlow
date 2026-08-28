@@ -230,7 +230,7 @@ fun AlbumDetailScreen(
                         Modifier
                             .width(292.dp)
                             .fillMaxSize()
-                            .clip(TuneFlowShapes.hero)
+                            .clip(TuneFlowShapes.container)
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
                             .padding(16.dp),
                 ) {
@@ -243,7 +243,7 @@ fun AlbumDetailScreen(
                             Modifier
                                 .fillMaxWidth()
                                 .height(248.dp)
-                                .clip(TuneFlowShapes.card)
+                                .clip(TuneFlowShapes.artwork)
                                 .align(Alignment.TopCenter),
                         contentScale = ContentScale.Crop,
                         placeholderText = album.title,
@@ -357,7 +357,7 @@ fun ArtistDetailScreen(
                         Modifier
                             .fillMaxWidth()
                             .height(208.dp)
-                            .clip(TuneFlowShapes.hero)
+                            .clip(TuneFlowShapes.container)
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f)),
                 ) {
                     TuneFlowArtwork(
@@ -563,7 +563,7 @@ fun PlaylistsScreen(
                     Modifier
                         .weight(1f)
                         .fillMaxSize()
-                        .clip(TuneFlowShapes.card)
+                        .clip(TuneFlowShapes.panel)
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
                         .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -627,7 +627,7 @@ fun PlaylistsScreen(
                     Modifier
                         .weight(1f)
                         .fillMaxSize()
-                        .clip(TuneFlowShapes.card)
+                        .clip(TuneFlowShapes.panel)
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
                         .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -1200,7 +1200,7 @@ private fun EmptyCategoryResults(message: String) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(TuneFlowShapes.card)
+                .clip(TuneFlowShapes.panel)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
                 .padding(20.dp),
     ) {
@@ -1238,6 +1238,7 @@ private fun PremiumArtistRow(
 ) {
     FocusScaleCard(
         modifier = modifier.fillMaxWidth(),
+        shape = TuneFlowShapes.row,
         onClick = onClick,
     ) {
         Row(
@@ -1249,7 +1250,7 @@ private fun PremiumArtistRow(
                 modifier =
                     Modifier
                         .size(width = 92.dp, height = 68.dp)
-                        .clip(TuneFlowShapes.card)
+                        .clip(TuneFlowShapes.artwork)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.66f)),
             ) {
                 TuneFlowArtwork(
@@ -1291,6 +1292,7 @@ private fun PremiumAlbumRow(
 ) {
     FocusScaleCard(
         modifier = modifier.fillMaxWidth(),
+        shape = TuneFlowShapes.row,
         onClick = onClick,
     ) {
         Row(
@@ -1302,7 +1304,7 @@ private fun PremiumAlbumRow(
                 modifier =
                     Modifier
                         .size(68.dp)
-                        .clip(TuneFlowShapes.card)
+                        .clip(TuneFlowShapes.artwork)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.66f)),
             ) {
                 TuneFlowArtwork(
@@ -1346,6 +1348,7 @@ private fun PremiumPlaylistRow(
 ) {
     FocusScaleCard(
         modifier = modifier.fillMaxWidth(),
+        shape = TuneFlowShapes.row,
         onClick = onClick,
     ) {
         Row(
@@ -1359,7 +1362,7 @@ private fun PremiumPlaylistRow(
                 modifier =
                     Modifier
                         .size(58.dp)
-                        .clip(TuneFlowShapes.card),
+                        .clip(TuneFlowShapes.artwork),
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -1496,6 +1499,7 @@ private fun EditingSearchField(
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
         keyboardOptions = KeyboardOptions.Default,
         visualTransformation = VisualTransformation.None,
+        shape = TuneFlowShapes.field,
         modifier =
             Modifier
                 .fillMaxWidth()
@@ -1639,7 +1643,7 @@ private fun PremiumAlbumCard(
                     Modifier
                         .fillMaxWidth()
                         .height(196.dp)
-                        .clip(TuneFlowShapes.card)
+                        .clip(TuneFlowShapes.artwork)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f)),
             ) {
                 TuneFlowArtwork(
@@ -1681,6 +1685,7 @@ private fun PremiumListRow(
 ) {
     FocusScaleCard(
         modifier = modifier.fillMaxWidth(),
+        shape = TuneFlowShapes.row,
         onClick = onClick,
     ) {
         Row(
@@ -1741,6 +1746,7 @@ private fun PremiumChip(
 ) {
     FocusScaleCard(
         modifier = modifier.width(172.dp),
+        shape = TuneFlowShapes.badge,
         onClick = onClick,
     ) {
         Text(
@@ -1912,7 +1918,7 @@ private fun AlbumCardSkeleton() {
                 Modifier
                     .fillMaxWidth()
                     .height(196.dp)
-                    .clip(TuneFlowShapes.card)
+                    .clip(TuneFlowShapes.artwork)
                     .shimmerEffect(),
         )
         Box(
@@ -1943,7 +1949,7 @@ private fun DetailArtworkSkeleton(
     Box(
         modifier =
             modifier
-                .clip(TuneFlowShapes.card)
+                .clip(TuneFlowShapes.container)
                 .shimmerEffect(),
     ) {
         Box(
@@ -1951,7 +1957,7 @@ private fun DetailArtworkSkeleton(
                 Modifier
                     .width(artworkWidth)
                     .height(artworkHeight)
-                    .clip(TuneFlowShapes.card)
+                    .clip(TuneFlowShapes.artwork)
                     .shimmerEffect()
                     .align(Alignment.TopCenter),
         )
@@ -1993,7 +1999,7 @@ private fun ListRowSkeleton() {
             Modifier
                 .fillMaxWidth()
                 .height(72.dp)
-                .clip(TuneFlowShapes.card)
+                .clip(TuneFlowShapes.row)
                 .shimmerEffect(),
     )
 }
@@ -2005,7 +2011,7 @@ private fun ChipSkeleton() {
             Modifier
                 .width(172.dp)
                 .height(56.dp)
-                .clip(TuneFlowShapes.button)
+                .clip(TuneFlowShapes.badge)
                 .shimmerEffect(),
     )
 }
@@ -2021,7 +2027,7 @@ private fun AlbumDetailSkeleton(modifier: Modifier = Modifier) {
                 Modifier
                     .width(292.dp)
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f), TuneFlowShapes.hero)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f), TuneFlowShapes.container)
                     .padding(16.dp),
             artworkWidth = 260.dp,
             artworkHeight = 248.dp,
@@ -2063,7 +2069,7 @@ private fun ArtistDetailSkeleton(modifier: Modifier = Modifier) {
                 Modifier
                     .fillMaxWidth()
                     .height(208.dp)
-                    .clip(TuneFlowShapes.hero)
+                    .clip(TuneFlowShapes.container)
                     .shimmerEffect(),
         )
         TextLineSkeleton(widthFraction = 0.28f, height = 34.dp)

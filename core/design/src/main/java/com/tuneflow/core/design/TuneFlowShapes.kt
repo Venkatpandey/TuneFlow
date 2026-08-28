@@ -1,14 +1,33 @@
 package com.tuneflow.core.design
 
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
 object TuneFlowShapes {
-    val card = RoundedCornerShape(8.dp)
-    val button = RoundedCornerShape(8.dp)
-    val row = RoundedCornerShape(4.dp)
-    val hero = RoundedCornerShape(12.dp)
-    val albumArt = RoundedCornerShape(12.dp)
-    val badge = RoundedCornerShape(8.dp)
-    val field = RoundedCornerShape(8.dp)
+    private val tightRectangle = RoundedCornerShape(8.dp)
+
+    val surface = tightRectangle
+    val container = tightRectangle
+    val card = tightRectangle
+    val button = tightRectangle
+    val row = tightRectangle
+    val field = tightRectangle
+    val panel = tightRectangle
+    val badge = tightRectangle
+    val artwork = tightRectangle
+
+    val avatar = CircleShape
+    val iconButton = CircleShape
+    val progressTrack = CircleShape
+
+    val material =
+        Shapes(
+            extraSmall = badge,
+            small = button,
+            medium = card,
+            large = container,
+            extraLarge = surface,
+        )
 }

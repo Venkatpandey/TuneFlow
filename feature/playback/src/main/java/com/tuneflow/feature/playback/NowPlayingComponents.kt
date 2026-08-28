@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -142,7 +141,7 @@ internal fun ArtworkCard(
             Modifier
                 .fillMaxWidth()
                 .height(artFrameHeight)
-                .clip(TuneFlowShapes.albumArt)
+                .clip(TuneFlowShapes.artwork)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
                 .animateContentSize()
                 .padding(10.dp),
@@ -152,7 +151,7 @@ internal fun ArtworkCard(
             modifier =
                 Modifier
                     .size(artSize)
-                    .clip(TuneFlowShapes.albumArt)
+                    .clip(TuneFlowShapes.artwork)
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
             contentAlignment = Alignment.Center,
         ) {
@@ -592,7 +591,7 @@ internal fun PlaybackIconButton(
                 .size(buttonSize)
                 .focusRequester(focusRequester)
                 .scale(scale)
-                .clip(CircleShape)
+                .clip(TuneFlowShapes.iconButton)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = if (focused) 0.22f else 0.08f))
                 .border(
                     width = if (focused) 3.dp else 1.dp,
@@ -602,7 +601,7 @@ internal fun PlaybackIconButton(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)
                         },
-                    shape = CircleShape,
+                    shape = TuneFlowShapes.iconButton,
                 )
                 .onFocusChanged { focusState -> focused = focusState.hasFocus }
                 .focusable()

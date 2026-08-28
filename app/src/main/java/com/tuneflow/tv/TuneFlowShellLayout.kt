@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tuneflow.core.design.TuneFlowArtwork
+import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.feature.playback.Lyrics
@@ -119,12 +118,12 @@ internal fun TuneFlowShellLayout(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(34.dp))
+                        .clip(TuneFlowShapes.surface)
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
                         .border(
                             width = 1.dp,
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                            shape = RoundedCornerShape(34.dp),
+                            shape = TuneFlowShapes.surface,
                         ),
             ) {
                 TuneFlowScaledContent(scaleFactor = ScreenScaleOption.Compact.factor) {
@@ -218,12 +217,12 @@ private fun NavRail(
             Modifier
                 .width(148.dp)
                 .fillMaxHeight()
-                .clip(RoundedCornerShape(28.dp))
+                .clip(TuneFlowShapes.container)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
-                    shape = RoundedCornerShape(28.dp),
+                    shape = TuneFlowShapes.container,
                 )
                 .padding(vertical = 20.dp, horizontal = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -238,9 +237,13 @@ private fun NavRail(
                 modifier =
                     Modifier
                         .size(52.dp)
-                        .clip(CircleShape)
+                        .clip(TuneFlowShapes.avatar)
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), CircleShape),
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                            TuneFlowShapes.avatar,
+                        ),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -305,7 +308,7 @@ private fun NavRailItem(
                 .fillMaxWidth()
                 .onFocusChanged { focusState -> focused = focusState.isFocused }
                 .focusable()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(TuneFlowShapes.row)
                 .background(
                     if (active) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
@@ -321,7 +324,7 @@ private fun NavRailItem(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
                         },
-                    shape = RoundedCornerShape(20.dp),
+                    shape = TuneFlowShapes.row,
                 )
                 .clickable(onClick = onClick)
                 .padding(horizontal = 16.dp, vertical = 16.dp),
@@ -371,7 +374,7 @@ internal fun NowPlayingRailWidget(
                         Modifier
                     },
                 )
-                .clip(RoundedCornerShape(22.dp))
+                .clip(TuneFlowShapes.card)
                 .background(
                     if (active) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
@@ -387,7 +390,7 @@ internal fun NowPlayingRailWidget(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(22.dp),
+                    shape = TuneFlowShapes.card,
                 )
                 .then(if (interactive) Modifier.clickable(onClick = onClick) else Modifier)
                 .padding(10.dp),
@@ -409,7 +412,7 @@ internal fun NowPlayingRailWidget(
                     Modifier
                         .fillMaxWidth()
                         .height(84.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(TuneFlowShapes.artwork)
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -448,7 +451,7 @@ internal fun NowPlayingRailWidget(
                     Modifier
                         .fillMaxWidth()
                         .height(4.dp)
-                        .clip(RoundedCornerShape(999.dp)),
+                        .clip(TuneFlowShapes.progressTrack),
                 trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
             )
             Text(
@@ -516,7 +519,7 @@ private fun PlaybackScreensaverOverlay(
                         .padding(vertical = 52.dp, horizontal = 64.dp)
                         .width(430.dp)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(28.dp))
+                        .clip(TuneFlowShapes.panel)
                         .background(Color.Black.copy(alpha = 0.34f))
                         .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),

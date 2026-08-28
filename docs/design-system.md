@@ -1,6 +1,6 @@
 # TuneFlow Design System
 ### Android TV / Fire TV — 10-Foot UI Guidelines
-> **Version:** 1.1 · **Platform:** Android TV (API 21+) · **Input:** D-pad remote only
+> **Version:** 1.2 · **Platform:** Android TV (API 21+) · **Input:** D-pad remote only
 
 ---
 
@@ -168,10 +168,10 @@ All content must be inset from screen edges to account for TV overscan and bezel
 | Card Type | Width | Height | Image Ratio | Corner Radius |
 |---|---|---|---|---|
 | Album card | 200dp | 240dp | 1:1 (square) | 8dp |
-| Artist card | 180dp | 220dp | 1:1 (circle) | 50% |
+| Artist card | 180dp | 220dp | 1:1 (square) | 8dp |
 | Playlist card | 200dp | 240dp | 1:1 (square) | 8dp |
-| Track row | Full width | 72dp | 1:1 (56dp thumb) | 4dp |
-| Featured hero | Full content width | 320dp | 16:9 | 12dp |
+| Track row | Full width | 72dp | 1:1 (56dp thumb) | 8dp |
+| Featured hero | Full content width | 320dp | 16:9 | 8dp |
 
 ---
 
@@ -378,14 +378,14 @@ All colors are defined for **dark theme only**. TuneFlow does not support a ligh
 
 ```
 ┌─────────────────────┐
-│                     │  ← Image: 180×180dp, circular (50% radius)
+│                     │  ← Image: 180×180dp, 8dp corner radius
 │    [Artist Photo]   │
 │                     │
 └─────────────────────┘
       Artist Name      ← typography.titleSmall, color.onSurface, centered, maxLines=1
 ```
 
-**Focus state:** Same as Album Card but applied to the circular image.
+**Focus state:** Same as Album Card and aligned to the 8dp artwork edge.
 
 ---
 
@@ -404,7 +404,7 @@ All colors are defined for **dark theme only**. TuneFlow does not support a ligh
 | Column | Width | Content |
 |---|---|---|
 | Track number | 40dp | `typography.caption`, `color.textDisabled`, right-aligned |
-| Thumbnail | 56dp | Square, 4dp corner radius |
+| Thumbnail | 56dp | Square, 8dp corner radius |
 | Title + metadata | Flexible (fill) | Title: `typography.bodyLarge`; Subtitle: `typography.bodyMedium` `color.textSecondary` |
 | Duration | 64dp | `typography.caption`, `color.textSecondary`, right-aligned |
 | Overflow menu | 40dp | 3-dot icon, only visible when row is focused |
@@ -451,7 +451,7 @@ All colors are defined for **dark theme only**. TuneFlow does not support a ligh
 - Icon: 24dp, centered at 36dp from left edge
 - Label: 16dp left of icon right edge
 - Padding: 16dp horizontal (expanded), 24dp horizontal (collapsed, icon centered)
-- Corner radius: 8dp (right side only, for selected state pill)
+- Corner radius: 8dp on all corners
 
 **States:**
 
@@ -660,7 +660,7 @@ Sort bar: Top of content area, horizontal list of sort options (A-Z, Year, Artis
 - Focus wraps: No horizontal wrap; D-pad Left on column 1 → sidebar
 
 **Sort bar:**
-- Items: Chips (pill-shaped), height 36dp, 16dp horizontal padding
+- Items: Chips with 8dp corners, height 36dp, 16dp horizontal padding
 - Selected chip: `color.primary` background, `color.textOnPrimary` text
 - Unselected chip: `color.surfaceVariant` background, `color.textSecondary` text
 - Focus: 2dp `color.focusBorder` border, 1.05× scale
@@ -738,7 +738,7 @@ Track list: Same as Album Detail track list
 **Background treatment:**
 - Full-screen blurred album art: `blur radius = 40dp`, `brightness = 0.3`
 - Overlay: `color.background` at 60% opacity on top of blur
-- Album art: 480×480dp, centered-left, 12dp corner radius, elevation shadow
+- Album art: 480×480dp, centered-left, 8dp corner radius, elevation shadow
 
 **Controls layout:**
 - Primary controls (prev/play/next): 72dp icon buttons, 32dp gap
@@ -956,7 +956,7 @@ IconButton(onClick = { /* ... */ }) {
 object TuneFlowTheme {
     val colors: TuneFlowColors = TuneFlowColors()
     val typography: TuneFlowTypography = TuneFlowTypography()
-    val shapes: TuneFlowShapes = TuneFlowShapes()
+    val shapes = TuneFlowShapes
     val spacing: TuneFlowSpacing = TuneFlowSpacing()
     val motion: TuneFlowMotion = TuneFlowMotion()
 }
@@ -1021,7 +1021,31 @@ data class TuneFlowTypography(
 )
 ```
 
-### 13.4 Spacing Tokens
+### 13.4 Shape Tokens
+
+`TuneFlowShapes` in `core/design` is the only source of truth for component shapes.
+Every rectangular surface uses the approved 8dp radius.
+
+| Token | Radius | Usage |
+|---|---:|---|
+| `surface` | 8dp | Root shell surfaces |
+| `container` | 8dp | Navigation and large content containers |
+| `card` | 8dp | Content cards and card states |
+| `button` | 8dp | Text and action buttons |
+| `row` | 8dp | Navigation, track, queue, and lyric rows |
+| `field` | 8dp | Editable fields and display-field states |
+| `panel` | 8dp | Detail, queue, lyric, loading, empty, and error panels |
+| `badge` | 8dp | Badges and compact status surfaces |
+| `artwork` | 8dp | Rectangular artwork and placeholders |
+
+Documented exceptions:
+
+- `avatar` and `iconButton` remain circular because their shape communicates identity or control type.
+- `progressTrack` remains pill-shaped because its shape communicates progress.
+- No other container, chip, selected state, loading state, or placeholder may use pill or ad hoc corner shapes.
+- `clip`, `background`, `border`, focus, selected, pressed, loading, empty, and error states must share their component token.
+
+### 13.5 Spacing Tokens
 
 ```kotlin
 data class TuneFlowSpacing(
@@ -1037,7 +1061,7 @@ data class TuneFlowSpacing(
 )
 ```
 
-### 13.5 Motion Tokens
+### 13.6 Motion Tokens
 
 ```kotlin
 data class TuneFlowMotion(
@@ -1052,7 +1076,7 @@ data class TuneFlowMotion(
 )
 ```
 
-### 13.6 Focus Modifier Pattern
+### 13.7 Focus Modifier Pattern
 
 ```kotlin
 // Reusable focus modifier for cards
@@ -1074,13 +1098,13 @@ fun Modifier.tuneFlowFocusCard(
             if (isFocused) Modifier.border(
                 width = motion.focusBorderWidth,
                 color = colors.focusBorder,
-                shape = RoundedCornerShape(8.dp)
+                shape = TuneFlowShapes.card
             ) else Modifier
         )
 }
 ```
 
-### 13.7 Naming Conventions
+### 13.8 Naming Conventions
 
 | Element | Convention | Example |
 |---|---|---|
