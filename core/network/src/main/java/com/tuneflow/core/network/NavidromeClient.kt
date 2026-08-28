@@ -1,6 +1,9 @@
 package com.tuneflow.core.network
 
+import com.google.gson.JsonParseException
+import com.google.gson.stream.MalformedJsonException
 import retrofit2.HttpException
+import java.io.EOFException
 import java.io.IOException
 
 @Suppress("TooManyFunctions")
@@ -177,6 +180,72 @@ open class NavidromeClient(private val session: SessionData) {
         }
     }
 
+    open suspend fun getOpenSubsonicExtensions(): NetworkResult<List<OpenSubsonicExtensionDto>> {
+        return safeCall {
+            val response =
+                api.getOpenSubsonicExtensions(
+                    username = session.username,
+                    token = session.token,
+                    salt = session.salt,
+                ).response
+
+            if (response.status != "ok") {
+                NetworkResult.Error(
+                    message = response.error?.message ?: "Failed to discover OpenSubsonic extensions.",
+                    code = response.error?.code,
+                )
+            } else {
+                NetworkResult.Success(response.openSubsonicExtensions)
+            }
+        }
+    }
+
+    open suspend fun getLyricsBySongId(songId: String): NetworkResult<List<StructuredLyricsDto>> {
+        return safeCall {
+            val response =
+                api.getLyricsBySongId(
+                    songId = songId,
+                    username = session.username,
+                    token = session.token,
+                    salt = session.salt,
+                ).response
+
+            if (response.status != "ok") {
+                NetworkResult.Error(
+                    message = response.error?.message ?: "Failed to load lyrics.",
+                    code = response.error?.code,
+                )
+            } else {
+                NetworkResult.Success(response.lyricsList?.structuredLyrics.orEmpty())
+            }
+        }
+    }
+
+    open suspend fun getLyrics(
+        artist: String,
+        title: String,
+    ): NetworkResult<LegacyLyricsDto?> {
+        return safeCall {
+            val response =
+                api.getLyrics(
+                    artist = artist,
+                    title = title,
+                    username = session.username,
+                    token = session.token,
+                    salt = session.salt,
+                ).response
+
+            if (response.status != "ok") {
+                NetworkResult.Error(
+                    message = response.error?.message ?: "Failed to load lyrics.",
+                    code = response.error?.code,
+                )
+            } else {
+                NetworkResult.Success(response.lyrics)
+            }
+        }
+    }
+
     open fun streamOptions(trackId: String): TrackStreamOptions {
         val base =
             "${session.serverUrl}/rest/stream.view" +
@@ -192,9 +261,31 @@ open class NavidromeClient(private val session: SessionData) {
         return try {
             block()
         } catch (ex: HttpException) {
-            NetworkResult.Error(ex.message ?: "HTTP error")
+            NetworkResult.Error(
+                message = ex.message ?: "HTTP error",
+                kind = NetworkErrorKind.Http,
+                httpCode = ex.code(),
+            )
+        } catch (ex: JsonParseException) {
+            NetworkResult.Error(
+                message = ex.message ?: "Malformed server response",
+                kind = NetworkErrorKind.Parsing,
+            )
+        } catch (ex: MalformedJsonException) {
+            NetworkResult.Error(
+                message = ex.message ?: "Malformed server response",
+                kind = NetworkErrorKind.Parsing,
+            )
+        } catch (ex: EOFException) {
+            NetworkResult.Error(
+                message = ex.message ?: "Incomplete server response",
+                kind = NetworkErrorKind.Parsing,
+            )
         } catch (ex: IOException) {
-            NetworkResult.Error(ex.message ?: "Network error")
+            NetworkResult.Error(
+                message = ex.message ?: "Network error",
+                kind = NetworkErrorKind.Network,
+            )
         }
     }
 }

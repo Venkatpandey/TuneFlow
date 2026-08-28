@@ -14,10 +14,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 
@@ -34,11 +37,14 @@ data class NowPlayingUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackViewModel(
     private val playerManager: PlaybackController,
+    private val lyricsProvider: LyricsProvider = EmptyLyricsProvider,
     private val positionTicker: Flow<Unit> = defaultTickerFlow(),
     private val scopeOverride: CoroutineScope? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(NowPlayingUiState())
     val uiState: StateFlow<NowPlayingUiState> = _uiState.asStateFlow()
+    private val _lyricsState = MutableStateFlow<LyricsUiState>(LyricsUiState.Idle)
+    val lyricsState: StateFlow<LyricsUiState> = _lyricsState.asStateFlow()
     private val isActive = MutableStateFlow(false)
 
     init {
@@ -77,6 +83,20 @@ class PlaybackViewModel(
                 _uiState.value = it
             }
         }
+        scope.launch {
+            playerManager.queue
+                .map { it.currentItem }
+                .distinctUntilChangedBy { it?.id }
+                .collectLatest { track ->
+                    if (track == null) {
+                        _lyricsState.value = LyricsUiState.Idle
+                        return@collectLatest
+                    }
+
+                    _lyricsState.value = LyricsUiState.Loading(track.id)
+                    _lyricsState.value = lyricsProvider.load(track).toUiState(track.id)
+                }
+        }
     }
 
     fun setActive(active: Boolean) {
@@ -107,6 +127,15 @@ class PlaybackViewModel(
 
     fun cyclePlaybackMode() = playerManager.cyclePlaybackMode()
 }
+
+private fun LyricsLoadResult.toUiState(trackId: String): LyricsUiState =
+    when (this) {
+        is LyricsLoadResult.Available -> LyricsUiState.Available(trackId, lyrics)
+        LyricsLoadResult.Empty -> LyricsUiState.Empty(trackId)
+        LyricsLoadResult.Unsupported -> LyricsUiState.Unsupported(trackId)
+        is LyricsLoadResult.NetworkFailure -> LyricsUiState.NetworkFailure(trackId, message)
+        is LyricsLoadResult.ParsingFailure -> LyricsUiState.ParsingFailure(trackId, message)
+    }
 
 private data class PlaybackSnapshot(
     val queue: PlaybackQueue,

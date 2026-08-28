@@ -27,6 +27,7 @@ import com.tuneflow.core.player.TuneFlowPlaybackService
 import com.tuneflow.feature.auth.AuthRepository
 import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.BrowseRepository
+import com.tuneflow.feature.playback.LyricsRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity() {
         val playbackPreferencesStore = PlaybackPreferencesStore(applicationContext)
         val authRepository = AuthRepository(sessionStore)
         val browseRepository = BrowseRepository(sessionStore)
+        val lyricsRepository = LyricsRepository(sessionStore)
         playerManager = PlayerGraph.get(applicationContext)
         playbackServiceIntent = Intent(this, TuneFlowPlaybackService::class.java)
         startService(playbackServiceIntent)
@@ -73,6 +75,7 @@ class MainActivity : ComponentActivity() {
                         sessionStore = sessionStore,
                         playbackPreferencesStore = playbackPreferencesStore,
                         searchHistoryStore = searchHistoryStore,
+                        lyricsRepository = lyricsRepository,
                         onExitApp = ::closeAppToSystem,
                     )
                 }
@@ -165,6 +168,7 @@ private fun TuneFlowShell(
     sessionStore: SessionStore,
     playbackPreferencesStore: PlaybackPreferencesStore,
     searchHistoryStore: SearchHistoryStore,
+    lyricsRepository: LyricsRepository,
     onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -180,7 +184,8 @@ private fun TuneFlowShell(
         viewModel(factory = playlistsViewModelFactory(browseRepository))
     val searchViewModel: com.tuneflow.feature.browse.SearchViewModel =
         viewModel(factory = searchViewModelFactory(browseRepository, searchHistoryStore))
-    val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel = viewModel(factory = playbackViewModelFactory(playerManager))
+    val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel =
+        viewModel(factory = playbackViewModelFactory(playerManager, lyricsRepository))
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
     val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)

@@ -14,6 +14,7 @@ import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.browse.HomeCategoryViewModel
 import com.tuneflow.feature.browse.PlaylistsViewModel
 import com.tuneflow.feature.browse.SearchViewModel
+import com.tuneflow.feature.playback.LyricsProvider
 import com.tuneflow.feature.playback.PlaybackViewModel
 
 fun authViewModelFactory(
@@ -60,7 +61,9 @@ fun searchViewModelFactory(
     initializer { SearchViewModel(repository, historyStore) }
 }
 
-fun playbackViewModelFactory(manager: TvPlayerManager) =
-    viewModelFactory {
-        initializer { PlaybackViewModel(manager) }
-    }
+fun playbackViewModelFactory(
+    manager: TvPlayerManager,
+    lyricsProvider: LyricsProvider,
+) = viewModelFactory {
+    initializer { PlaybackViewModel(manager, lyricsProvider) }
+}

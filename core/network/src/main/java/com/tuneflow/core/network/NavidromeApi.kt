@@ -162,6 +162,57 @@ data class Starred2Dto(
     val song: List<SongDto> = emptyList(),
 )
 
+data class OpenSubsonicExtensionsResponse(
+    val status: String,
+    val version: String,
+    val error: SubsonicError? = null,
+    val openSubsonicExtensions: List<OpenSubsonicExtensionDto> = emptyList(),
+)
+
+data class OpenSubsonicExtensionDto(
+    val name: String,
+    val versions: List<Int> = emptyList(),
+)
+
+data class LyricsBySongIdResponse(
+    val status: String,
+    val version: String,
+    val error: SubsonicError? = null,
+    val lyricsList: LyricsListDto? = null,
+)
+
+data class LyricsListDto(
+    val structuredLyrics: List<StructuredLyricsDto> = emptyList(),
+)
+
+data class StructuredLyricsDto(
+    val displayArtist: String? = null,
+    val displayTitle: String? = null,
+    val lang: String? = null,
+    val offset: Long? = null,
+    val synced: Boolean = false,
+    val kind: String? = null,
+    val line: List<LyricsLineDto> = emptyList(),
+)
+
+data class LyricsLineDto(
+    val start: Long? = null,
+    val value: String? = null,
+)
+
+data class LegacyLyricsResponse(
+    val status: String,
+    val version: String,
+    val error: SubsonicError? = null,
+    val lyrics: LegacyLyricsDto? = null,
+)
+
+data class LegacyLyricsDto(
+    val artist: String? = null,
+    val title: String? = null,
+    val value: String? = null,
+)
+
 interface NavidromeApi {
     @GET("rest/ping.view")
     suspend fun ping(
@@ -262,4 +313,37 @@ interface NavidromeApi {
         @Query("c") client: String = CLIENT_NAME,
         @Query("f") format: String = FORMAT,
     ): SubsonicEnvelope<SearchResponse>
+
+    @GET("rest/getOpenSubsonicExtensions.view")
+    suspend fun getOpenSubsonicExtensions(
+        @Query("u") username: String,
+        @Query("t") token: String,
+        @Query("s") salt: String,
+        @Query("v") version: String = API_VERSION,
+        @Query("c") client: String = CLIENT_NAME,
+        @Query("f") format: String = FORMAT,
+    ): SubsonicEnvelope<OpenSubsonicExtensionsResponse>
+
+    @GET("rest/getLyricsBySongId.view")
+    suspend fun getLyricsBySongId(
+        @Query("id") songId: String,
+        @Query("u") username: String,
+        @Query("t") token: String,
+        @Query("s") salt: String,
+        @Query("v") version: String = API_VERSION,
+        @Query("c") client: String = CLIENT_NAME,
+        @Query("f") format: String = FORMAT,
+    ): SubsonicEnvelope<LyricsBySongIdResponse>
+
+    @GET("rest/getLyrics.view")
+    suspend fun getLyrics(
+        @Query("artist") artist: String,
+        @Query("title") title: String,
+        @Query("u") username: String,
+        @Query("t") token: String,
+        @Query("s") salt: String,
+        @Query("v") version: String = API_VERSION,
+        @Query("c") client: String = CLIENT_NAME,
+        @Query("f") format: String = FORMAT,
+    ): SubsonicEnvelope<LegacyLyricsResponse>
 }
