@@ -272,22 +272,15 @@ private fun TuneFlowShell(
     }
 
     ShellBackHandler(
-        showNowPlaying = shellState.showNowPlaying,
-        selectedHomeCategory = shellState.selectedHomeCategory,
-        selectedAlbumId = shellState.selectedAlbumId,
-        selectedArtistId = shellState.selectedArtistId,
-        currentSection = shellState.currentSection,
-        onCloseNowPlaying = navigationActions::closeNowPlaying,
-        onCloseAlbum = navigationActions::closeAlbum,
-        onCloseArtist = navigationActions::closeArtist,
-        onReturnToHomeCategory = navigationActions::returnToHomeCategory,
+        state = shellState,
+        onPopDestination = navigationActions::popDestination,
         onGoHome = navigationActions::goHome,
         onRequestExit = ::requestAppExit,
     )
 
     TuneFlowShellLayout(
         currentSection = shellState.currentSection,
-        selectedHomeCategory = shellState.selectedHomeCategory,
+        currentDestination = shellState.currentDestination,
         showNowPlaying = shellState.showNowPlaying,
         username = session?.username.orEmpty(),
         currentTimeText = navClockText,
@@ -301,15 +294,15 @@ private fun TuneFlowShell(
         playlistsViewModel = playlistsViewModel,
         searchViewModel = searchViewModel,
         playbackViewModel = playbackViewModel,
-        selectedAlbumId = shellState.selectedAlbumId,
-        selectedArtistId = shellState.selectedArtistId,
         preselectedPlaylistId = shellState.preselectedPlaylistId,
+        focusRestoreTarget = shellState.pendingFocusRestore,
         streamModeLabel = if (preferDirectWithFallback) "FLAC" else "MP3",
         autoFocusNowPlayingTransport = shellState.autoFocusNowPlayingTransport,
         onSectionSelected = navigationActions::openSection,
         onNowPlaying = navigationActions::openNowPlaying,
         onCycleStreamMode = ::cycleStreamMode,
         onNowPlayingAutoFocusConsumed = { updateShellState { it.consumeNowPlayingTransportFocus() } },
+        onFocusRestoreConsumed = { updateShellState { it.consumeFocusRestore() } },
         onOpenAlbum = navigationActions::openAlbum,
         onOpenArtist = navigationActions::openArtist,
         onOpenSection = navigationActions::openSection,
