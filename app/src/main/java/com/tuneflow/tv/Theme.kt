@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tuneflow.core.design.TuneFlowShapes
 
 private val TuneFlowDarkScheme =
     darkColorScheme(
@@ -125,6 +126,7 @@ fun TuneFlowTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = TuneFlowDarkScheme,
         typography = TuneFlowTypography,
+        shapes = TuneFlowShapes.material,
         content = content,
     )
 }

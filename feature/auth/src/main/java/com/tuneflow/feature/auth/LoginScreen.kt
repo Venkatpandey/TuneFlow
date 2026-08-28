@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -59,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tuneflow.core.design.TuneFlowShapes
 
 private enum class LoginFieldKey { ServerUrl, Username, Password }
 
@@ -110,7 +110,7 @@ fun LoginScreen(
                             modifier =
                                 Modifier
                                     .size(112.dp)
-                                    .clip(RoundedCornerShape(24.dp)),
+                                    .clip(TuneFlowShapes.artwork),
                         )
                         Text(
                             text = "TuneFlow",
@@ -125,12 +125,12 @@ fun LoginScreen(
                         modifier =
                             Modifier
                                 .width(452.dp)
-                                .clip(RoundedCornerShape(24.dp))
+                                .clip(TuneFlowShapes.panel)
                                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.84f))
                                 .border(
                                     width = 1.dp,
                                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                                    shape = RoundedCornerShape(24.dp),
+                                    shape = TuneFlowShapes.panel,
                                 )
                                 .padding(22.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -313,6 +313,7 @@ private fun EditingLoginField(
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         visualTransformation = visualTransformation,
+        shape = TuneFlowShapes.field,
         modifier =
             Modifier
                 .fillMaxWidth()
@@ -363,7 +364,7 @@ private fun DisplayLoginField(
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
                 .scale(if (focused) 1.01f else 1f)
-                .clip(RoundedCornerShape(18.dp))
+                .clip(TuneFlowShapes.field)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
                 .border(
                     width = if (focused) 2.dp else 1.dp,
@@ -373,7 +374,7 @@ private fun DisplayLoginField(
                         } else {
                             MaterialTheme.colorScheme.outline
                         },
-                    shape = RoundedCornerShape(18.dp),
+                    shape = TuneFlowShapes.field,
                 )
                 .onFocusChanged { onFocusedChange(it.hasFocus) }
                 .focusable()
@@ -462,7 +463,7 @@ private fun LoginActionButton(
             Modifier
                 .fillMaxWidth()
                 .scale(scale)
-                .clip(RoundedCornerShape(18.dp))
+                .clip(TuneFlowShapes.button)
                 .background(
                     if (enabled) {
                         MaterialTheme.colorScheme.primary
@@ -480,7 +481,7 @@ private fun LoginActionButton(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = RoundedCornerShape(18.dp),
+                    shape = TuneFlowShapes.button,
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable(enabled = enabled)

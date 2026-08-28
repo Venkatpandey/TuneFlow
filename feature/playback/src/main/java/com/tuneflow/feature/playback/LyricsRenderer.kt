@@ -166,12 +166,12 @@ internal fun LyricsPanel(
             Modifier
                 .width(312.dp)
                 .fillMaxHeight()
-                .clip(TuneFlowShapes.card)
+                .clip(TuneFlowShapes.panel)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.76f))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
-                    shape = TuneFlowShapes.card,
+                    shape = TuneFlowShapes.panel,
                 )
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false

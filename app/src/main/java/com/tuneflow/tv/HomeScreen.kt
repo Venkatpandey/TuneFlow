@@ -437,7 +437,7 @@ private fun HomeHero(
             Modifier
                 .fillMaxWidth()
                 .height(246.dp)
-                .clip(TuneFlowShapes.hero)
+                .clip(TuneFlowShapes.container)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)),
     ) {
         if (currentItem?.artUrl != null) {
@@ -514,7 +514,7 @@ private fun HomeHero(
                 modifier =
                     Modifier
                         .size(168.dp)
-                        .clip(TuneFlowShapes.albumArt)
+                        .clip(TuneFlowShapes.artwork)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -667,7 +667,7 @@ private fun FavoriteTrackCard(
                     Modifier
                         .fillMaxWidth()
                         .height(196.dp)
-                        .clip(TuneFlowShapes.card)
+                        .clip(TuneFlowShapes.artwork)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
                 TuneFlowArtwork(
@@ -714,7 +714,7 @@ private fun HomeArtistCard(
                     Modifier
                         .fillMaxWidth()
                         .height(172.dp)
-                        .clip(TuneFlowShapes.card)
+                        .clip(TuneFlowShapes.artwork)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
                 TuneFlowArtwork(
@@ -754,7 +754,7 @@ private fun AlbumCardSkeleton() {
                 Modifier
                     .fillMaxWidth()
                     .height(196.dp)
-                    .clip(TuneFlowShapes.card)
+                    .clip(TuneFlowShapes.artwork)
                     .shimmerEffect(),
         )
         Box(
@@ -791,7 +791,7 @@ private fun ErrorBanner(message: String) {
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(TuneFlowShapes.card)
+                .clip(TuneFlowShapes.panel)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
                 .padding(28.dp),
     ) {
@@ -830,7 +830,7 @@ private fun HomeAlbumCard(
                     Modifier
                         .fillMaxWidth()
                         .height(196.dp)
-                        .clip(TuneFlowShapes.card)
+                        .clip(TuneFlowShapes.artwork)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
             ) {
                 TuneFlowArtwork(
@@ -911,7 +911,7 @@ private fun PlaylistArtCollage(playlist: PlaylistSummary) {
             Modifier
                 .fillMaxWidth()
                 .height(120.dp)
-                .clip(TuneFlowShapes.card)
+                .clip(TuneFlowShapes.artwork)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {

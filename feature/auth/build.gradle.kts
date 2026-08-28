@@ -33,6 +33,7 @@ android {
 
 dependencies {
     implementation(project(":core:network"))
+    implementation(project(":core:design"))
 
     implementation("androidx.compose.ui:ui:1.6.8")
     implementation("androidx.compose.material3:material3:1.2.1")

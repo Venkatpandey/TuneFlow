@@ -16,12 +16,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import com.tuneflow.core.design.TuneFlowShapes
 
 @Composable
 internal fun FocusScaleCard(
     modifier: Modifier = Modifier,
+    shape: Shape = TuneFlowShapes.card,
     onClick: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -30,7 +32,7 @@ internal fun FocusScaleCard(
         modifier =
             modifier
                 .scale(if (focused) 1.01f else 1f)
-                .clip(TuneFlowShapes.card)
+                .clip(shape)
                 .background(
                     if (focused) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
@@ -46,7 +48,7 @@ internal fun FocusScaleCard(
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
-                    shape = TuneFlowShapes.card,
+                    shape = shape,
                 )
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable()
