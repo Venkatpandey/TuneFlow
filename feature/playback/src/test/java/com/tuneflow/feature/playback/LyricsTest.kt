@@ -75,6 +75,15 @@ class LyricsTest {
         assertEquals(0, resolveActiveLyricLine(lyrics, 1_200L))
     }
 
+    @Test
+    fun unsynchronizedEstimate_clampsProgressAndProtectsUnknownDuration() {
+        assertEquals(0, estimateActiveLyricLine(lineCount = 5, positionMs = -1L, durationMs = 100_000L))
+        assertEquals(2, estimateActiveLyricLine(lineCount = 5, positionMs = 50_000L, durationMs = 100_000L))
+        assertEquals(4, estimateActiveLyricLine(lineCount = 5, positionMs = 200_000L, durationMs = 100_000L))
+        assertNull(estimateActiveLyricLine(lineCount = 5, positionMs = 10_000L, durationMs = 0L))
+        assertNull(estimateActiveLyricLine(lineCount = 0, positionMs = 10_000L, durationMs = 100_000L))
+    }
+
     private fun structured(
         kind: String?,
         synced: Boolean,

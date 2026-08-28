@@ -1,11 +1,16 @@
 package com.tuneflow.tv
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
+import android.view.KeyEvent
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +34,8 @@ import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.playback.LyricsRepository
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -38,6 +45,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var playerManager: com.tuneflow.core.player.TvPlayerManager
     private lateinit var playbackServiceIntent: Intent
     private var isAppExitInProgress = false
+    private val userActivityEvents = MutableSharedFlow<UserInputCategory>(extraBufferCapacity = 32)
+    private val wakeConsumedKeyCodes = mutableSetOf<Int>()
+    private var consumeWakeTouchGesture = false
+
+    @Volatile
+    private var screensaverActive = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,6 +89,8 @@ class MainActivity : ComponentActivity() {
                         playbackPreferencesStore = playbackPreferencesStore,
                         searchHistoryStore = searchHistoryStore,
                         lyricsRepository = lyricsRepository,
+                        userActivityEvents = userActivityEvents,
+                        onScreensaverActiveChanged = { screensaverActive = it },
                         onExitApp = ::closeAppToSystem,
                     )
                 }
@@ -87,6 +102,89 @@ class MainActivity : ComponentActivity() {
         super.onUserLeaveHint()
         closeAppToSystem()
     }
+
+    @SuppressLint("RestrictedApi")
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        return when {
+            event.keyCode in wakeConsumedKeyCodes -> {
+                if (event.action == KeyEvent.ACTION_UP) {
+                    wakeConsumedKeyCodes.remove(event.keyCode)
+                }
+                true
+            }
+            event.action != KeyEvent.ACTION_DOWN -> super.dispatchKeyEvent(event)
+            else -> {
+                userActivityEvents.tryEmit(classifyUserInput(event.keyCode))
+                when (resolveScreensaverKeyAction(screensaverActive, event.keyCode)) {
+                    ScreensaverKeyAction.RecordAndDispatch -> super.dispatchKeyEvent(event)
+                    ScreensaverKeyAction.WakeAndConsume -> {
+                        screensaverActive = false
+                        wakeConsumedKeyCodes += event.keyCode
+                        true
+                    }
+                    ScreensaverKeyAction.WakeAndDispatchMedia -> {
+                        screensaverActive = false
+                        if (handleScreensaverMediaKey(event.keyCode)) {
+                            wakeConsumedKeyCodes += event.keyCode
+                            true
+                        } else {
+                            super.dispatchKeyEvent(event)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean =
+        when {
+            consumeWakeTouchGesture -> {
+                if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    consumeWakeTouchGesture = false
+                }
+                true
+            }
+            event.actionMasked != MotionEvent.ACTION_DOWN -> super.dispatchTouchEvent(event)
+            else -> {
+                userActivityEvents.tryEmit(UserInputCategory.Touch)
+                if (screensaverActive) {
+                    screensaverActive = false
+                    consumeWakeTouchGesture = true
+                    true
+                } else {
+                    super.dispatchTouchEvent(event)
+                }
+            }
+        }
+
+    private fun handleScreensaverMediaKey(keyCode: Int): Boolean =
+        when (resolveMediaPlaybackAction(keyCode)) {
+            MediaPlaybackAction.Toggle -> {
+                if (playerManager.isPlaying.value) playerManager.pause() else playerManager.play()
+                true
+            }
+            MediaPlaybackAction.Play -> {
+                playerManager.play()
+                true
+            }
+            MediaPlaybackAction.Pause -> {
+                playerManager.pause()
+                true
+            }
+            MediaPlaybackAction.Next -> {
+                playerManager.next()
+                true
+            }
+            MediaPlaybackAction.Previous -> {
+                playerManager.previous()
+                true
+            }
+            MediaPlaybackAction.Stop -> {
+                playerManager.stopAndClear()
+                true
+            }
+            MediaPlaybackAction.DispatchToSystem -> false
+        }
 
     private fun closeAppToSystem() {
         if (isAppExitInProgress) return
@@ -162,6 +260,47 @@ private suspend fun cyclePlaybackStreamMode(
 }
 
 @Composable
+private fun rememberPlaybackScreensaverState(
+    playbackState: com.tuneflow.feature.playback.NowPlayingUiState,
+    userActivityEvents: Flow<UserInputCategory>,
+    onActiveChanged: (Boolean) -> Unit,
+): PlaybackScreensaverState {
+    val controller = remember { PlaybackScreensaverController() }
+    val state by controller.state.collectAsStateWithLifecycle()
+    val playbackEligible =
+        playbackState.queue.currentItem != null &&
+            (
+                playbackState.isPlaying ||
+                    (state.active && playbackState.playbackStatus.expectedToPlay)
+            )
+
+    SideEffect {
+        onActiveChanged(state.active)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { onActiveChanged(false) }
+    }
+
+    LaunchedEffect(userActivityEvents) {
+        userActivityEvents.collect { category -> controller.onUserActivity(category) }
+    }
+
+    LaunchedEffect(playbackEligible) {
+        controller.onPlaybackEligibilityChanged(playbackEligible)
+    }
+
+    LaunchedEffect(state.playbackEligible, state.active, state.lastUserActivityMs) {
+        if (state.playbackEligible && !state.active) {
+            delay(controller.remainingDelayMs())
+            controller.onDeadlineReached()
+        }
+    }
+
+    return state
+}
+
+@Composable
 private fun TuneFlowShell(
     browseRepository: BrowseRepository,
     playerManager: com.tuneflow.core.player.TvPlayerManager,
@@ -169,6 +308,8 @@ private fun TuneFlowShell(
     playbackPreferencesStore: PlaybackPreferencesStore,
     searchHistoryStore: SearchHistoryStore,
     lyricsRepository: LyricsRepository,
+    userActivityEvents: Flow<UserInputCategory>,
+    onScreensaverActiveChanged: (Boolean) -> Unit,
     onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -187,6 +328,13 @@ private fun TuneFlowShell(
     val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel =
         viewModel(factory = playbackViewModelFactory(playerManager, lyricsRepository))
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
+    val lyricsState by playbackViewModel.lyricsState.collectAsStateWithLifecycle()
+    val screensaverState =
+        rememberPlaybackScreensaverState(
+            playbackState = playbackState,
+            userActivityEvents = userActivityEvents,
+            onActiveChanged = onScreensaverActiveChanged,
+        )
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
     val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)
     var navWidgetPositionMs by remember { mutableLongStateOf(0L) }
@@ -291,6 +439,8 @@ private fun TuneFlowShell(
         currentTimeText = navClockText,
         playbackQueue = playbackState.queue,
         playbackPositionMs = navWidgetPositionMs,
+        screensaverActive = screensaverState.active,
+        lyricsState = lyricsState,
         homeViewModel = homeViewModel,
         albumsViewModel = albumsViewModel,
         homeCategoryViewModel = homeCategoryViewModel,

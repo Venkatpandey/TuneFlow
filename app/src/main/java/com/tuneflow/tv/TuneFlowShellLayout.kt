@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +43,9 @@ import androidx.compose.ui.unit.dp
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.player.PlaybackQueue
+import com.tuneflow.feature.playback.Lyrics
+import com.tuneflow.feature.playback.LyricsRenderer
+import com.tuneflow.feature.playback.LyricsUiState
 
 @Composable
 internal fun TuneFlowShellLayout(
@@ -52,6 +56,8 @@ internal fun TuneFlowShellLayout(
     currentTimeText: String,
     playbackQueue: PlaybackQueue,
     playbackPositionMs: Long,
+    screensaverActive: Boolean,
+    lyricsState: LyricsUiState,
     homeViewModel: HomeViewModel,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel,
@@ -185,6 +191,14 @@ internal fun TuneFlowShellLayout(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 28.dp),
         )
+
+        if (screensaverActive) {
+            PlaybackScreensaverOverlay(
+                playbackQueue = playbackQueue,
+                playbackPositionMs = playbackPositionMs,
+                lyricsState = lyricsState,
+            )
+        }
     }
 }
 
@@ -271,6 +285,7 @@ private fun NavRail(
             playbackPositionMs = playbackPositionMs,
             selected = isNowPlayingActive,
             onClick = onNowPlaying,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -323,14 +338,16 @@ private fun NavRailItem(
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun NowPlayingRailWidget(
+internal fun NowPlayingRailWidget(
     playbackQueue: PlaybackQueue,
     playbackPositionMs: Long,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    interactive: Boolean = true,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val active = selected || focused
+    val active = interactive && (selected || focused)
     val currentItem = playbackQueue.currentItem
     val durationMs = currentItem?.durationMs ?: 0L
     val positionMs = playbackPositionMs.coerceAtLeast(0L)
@@ -343,11 +360,17 @@ private fun NowPlayingRailWidget(
 
     Box(
         modifier =
-            Modifier
-                .fillMaxWidth()
+            modifier
                 .height(196.dp)
-                .onFocusChanged { focusState -> focused = focusState.isFocused }
-                .focusable()
+                .then(
+                    if (interactive) {
+                        Modifier
+                            .onFocusChanged { focusState -> focused = focusState.isFocused }
+                            .focusable()
+                    } else {
+                        Modifier
+                    },
+                )
                 .clip(RoundedCornerShape(22.dp))
                 .background(
                     if (active) {
@@ -366,7 +389,7 @@ private fun NowPlayingRailWidget(
                         },
                     shape = RoundedCornerShape(22.dp),
                 )
-                .clickable(onClick = onClick)
+                .then(if (interactive) Modifier.clickable(onClick = onClick) else Modifier)
                 .padding(10.dp),
     ) {
         Column(
@@ -429,7 +452,7 @@ private fun NowPlayingRailWidget(
                 trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
             )
             Text(
-                text = railFormatTime(positionMs),
+                text = "${railFormatTime(positionMs)} / ${railFormatTime(durationMs)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -438,6 +461,92 @@ private fun NowPlayingRailWidget(
         }
     }
 }
+
+@Composable
+private fun PlaybackScreensaverOverlay(
+    playbackQueue: PlaybackQueue,
+    playbackPositionMs: Long,
+    lyricsState: LyricsUiState,
+) {
+    val currentItem = playbackQueue.currentItem ?: return
+    val lyrics = resolveScreensaverLyrics(lyricsState, currentItem.id)
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+    ) {
+        TuneFlowArtwork(
+            model = currentItem.artUrl,
+            contentDescription = null,
+            width = 1280.dp,
+            height = 720.dp,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            alpha = 0.42f,
+            placeholderText = currentItem.title,
+            fallbackPainterResId = R.drawable.ic_tuneflow_brand,
+        )
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.58f)),
+        )
+
+        NowPlayingRailWidget(
+            playbackQueue = playbackQueue,
+            playbackPositionMs = playbackPositionMs,
+            selected = false,
+            onClick = {},
+            modifier =
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 44.dp, bottom = 40.dp)
+                    .width(190.dp),
+            interactive = false,
+        )
+
+        if (lyrics != null) {
+            Column(
+                modifier =
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(vertical = 52.dp, horizontal = 64.dp)
+                        .width(430.dp)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Color.Black.copy(alpha = 0.34f))
+                        .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    text = "Lyrics",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                LyricsRenderer(
+                    lyrics = lyrics,
+                    positionMs = playbackPositionMs,
+                    durationMs = currentItem.durationMs,
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    autoFollow = true,
+                    interactive = false,
+                    estimateUnsynchronized = true,
+                )
+            }
+        }
+    }
+}
+
+internal fun resolveScreensaverLyrics(
+    lyricsState: LyricsUiState,
+    currentTrackId: String,
+): Lyrics? =
+    (lyricsState as? LyricsUiState.Available)
+        ?.takeIf { it.trackId == currentTrackId }
+        ?.lyrics
 
 private fun railFormatTime(ms: Long): String {
     if (ms <= 0L) return "00:00"
