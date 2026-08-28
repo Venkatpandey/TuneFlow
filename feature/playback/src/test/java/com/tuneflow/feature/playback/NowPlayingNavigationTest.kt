@@ -9,24 +9,52 @@ class NowPlayingNavigationTest {
     fun backWithOpenQueue_closesQueue() {
         val action =
             resolveNowPlayingEscapeAction(
-                showQueue = true,
+                activePanel = NowPlayingPanel.TrackList,
                 isKeyDown = true,
                 keyCode = KeyEvent.KEYCODE_BACK,
             )
 
-        assertEquals(NowPlayingEscapeAction.CloseQueue, action)
+        assertEquals(NowPlayingEscapeAction.ClosePanel, action)
     }
 
     @Test
     fun backWithClosedQueue_propagatesToShell() {
         val action =
             resolveNowPlayingEscapeAction(
-                showQueue = false,
+                activePanel = NowPlayingPanel.None,
                 isKeyDown = true,
                 keyCode = KeyEvent.KEYCODE_BACK,
             )
 
         assertEquals(NowPlayingEscapeAction.Propagate, action)
+    }
+
+    @Test
+    fun panels_areMutuallyExclusiveAndActiveButtonClosesPanel() {
+        assertEquals(
+            NowPlayingPanel.Lyrics,
+            toggleNowPlayingPanel(NowPlayingPanel.TrackList, NowPlayingPanel.Lyrics),
+        )
+        assertEquals(
+            NowPlayingPanel.None,
+            toggleNowPlayingPanel(NowPlayingPanel.Lyrics, NowPlayingPanel.Lyrics),
+        )
+    }
+
+    @Test
+    fun backRestoresFocusToButtonThatOpenedPanel() {
+        assertEquals(
+            PanelFocusTarget.QueueButton,
+            resolvePanelFocusTarget(NowPlayingPanel.TrackList, lyricsAvailable = true),
+        )
+        assertEquals(
+            PanelFocusTarget.LyricsButton,
+            resolvePanelFocusTarget(NowPlayingPanel.Lyrics, lyricsAvailable = true),
+        )
+        assertEquals(
+            PanelFocusTarget.None,
+            resolvePanelFocusTarget(NowPlayingPanel.Lyrics, lyricsAvailable = false),
+        )
     }
 
     @Test

@@ -58,9 +58,11 @@ internal fun NowPlayingPrimaryColumn(
     artSize: Dp,
     artFrameHeight: Dp,
     streamModeLabel: String,
-    showQueue: Boolean,
+    activePanel: NowPlayingPanel,
+    hasLyrics: Boolean,
     onCycleStreamMode: () -> Unit,
     onToggleQueue: () -> Unit,
+    onToggleLyrics: () -> Unit,
     onCyclePlaybackMode: () -> Unit,
     onRetry: () -> Unit,
     onPrevious: () -> Unit,
@@ -69,8 +71,12 @@ internal fun NowPlayingPrimaryColumn(
     compactTransport: Boolean,
     autoFocusTransport: Boolean,
     autoFocusStreamMode: Boolean,
+    autoFocusQueue: Boolean,
+    autoFocusLyrics: Boolean,
     onAutoFocusConsumed: () -> Unit,
     onStreamModeFocusConsumed: () -> Unit,
+    onQueueFocusConsumed: () -> Unit,
+    onLyricsFocusConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -86,13 +92,19 @@ internal fun NowPlayingPrimaryColumn(
         StreamControlRow(
             streamModeLabel = streamModeLabel,
             bitrateLabel = item?.streamBitrateLabel ?: "--",
-            showQueue = showQueue,
+            activePanel = activePanel,
+            hasLyrics = hasLyrics,
             onCycleStreamMode = onCycleStreamMode,
             autoFocusStreamMode = autoFocusStreamMode,
             onStreamModeFocusConsumed = onStreamModeFocusConsumed,
             onToggleQueue = onToggleQueue,
+            onToggleLyrics = onToggleLyrics,
             playbackMode = state.playbackMode,
             onCyclePlaybackMode = onCyclePlaybackMode,
+            autoFocusQueue = autoFocusQueue,
+            autoFocusLyrics = autoFocusLyrics,
+            onQueueFocusConsumed = onQueueFocusConsumed,
+            onLyricsFocusConsumed = onLyricsFocusConsumed,
         )
 
         state.statusMessage?.let {
@@ -248,13 +260,19 @@ internal fun StreamModeButton(
 internal fun StreamControlRow(
     streamModeLabel: String,
     bitrateLabel: String,
-    showQueue: Boolean,
+    activePanel: NowPlayingPanel,
+    hasLyrics: Boolean,
     playbackMode: PlaybackMode,
     onCycleStreamMode: () -> Unit,
     autoFocusStreamMode: Boolean,
     onStreamModeFocusConsumed: () -> Unit,
     onToggleQueue: () -> Unit,
+    onToggleLyrics: () -> Unit,
     onCyclePlaybackMode: () -> Unit,
+    autoFocusQueue: Boolean,
+    autoFocusLyrics: Boolean,
+    onQueueFocusConsumed: () -> Unit,
+    onLyricsFocusConsumed: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         StreamModeButton(
@@ -269,9 +287,19 @@ internal fun StreamControlRow(
             onClick = onCyclePlaybackMode,
         )
         QueueToggleIconButton(
-            active = showQueue,
+            active = activePanel == NowPlayingPanel.TrackList,
             onClick = onToggleQueue,
+            requestFocus = autoFocusQueue,
+            onRequestedFocusApplied = onQueueFocusConsumed,
         )
+        if (hasLyrics) {
+            LyricsToggleButton(
+                active = activePanel == NowPlayingPanel.Lyrics,
+                onClick = onToggleLyrics,
+                requestFocus = autoFocusLyrics,
+                onRequestedFocusApplied = onLyricsFocusConsumed,
+            )
+        }
     }
 }
 
@@ -329,12 +357,33 @@ private fun PlaybackModeIconButton(
 private fun QueueToggleIconButton(
     active: Boolean,
     onClick: () -> Unit,
+    requestFocus: Boolean,
+    onRequestedFocusApplied: () -> Unit,
 ) {
     PlaybackStateIconButton(
         iconResId = if (active) R.drawable.tracklist_enabled else R.drawable.tracklist_disabled,
         contentDescription = if (active) "Hide track list" else "Show track list",
         active = active,
         onClick = onClick,
+        requestFocus = requestFocus,
+        onRequestedFocusApplied = onRequestedFocusApplied,
+    )
+}
+
+@Composable
+private fun LyricsToggleButton(
+    active: Boolean,
+    onClick: () -> Unit,
+    requestFocus: Boolean,
+    onRequestedFocusApplied: () -> Unit,
+) {
+    PlaybackTextButton(
+        label = "Lyrics",
+        accent = active,
+        onClick = onClick,
+        modifier = Modifier.width(96.dp).height(44.dp),
+        requestFocus = requestFocus,
+        onRequestedFocusApplied = onRequestedFocusApplied,
     )
 }
 
@@ -344,13 +393,24 @@ private fun PlaybackStateIconButton(
     contentDescription: String,
     active: Boolean,
     onClick: () -> Unit,
+    requestFocus: Boolean = false,
+    onRequestedFocusApplied: () -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(requestFocus) {
+        if (requestFocus) {
+            focusRequester.requestFocus()
+            onRequestedFocusApplied()
+        }
+    }
 
     Box(
         modifier =
             Modifier
                 .size(44.dp)
+                .focusRequester(focusRequester)
                 .scale(if (focused) 1.03f else 1f)
                 .clip(TuneFlowShapes.button)
                 .background(

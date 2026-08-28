@@ -58,6 +58,7 @@ import kotlinx.coroutines.delay
 import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 fun NowPlayingScreen(
     viewModel: PlaybackViewModel,
     streamModeLabel: String,
@@ -67,30 +68,64 @@ fun NowPlayingScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val lyricsState by viewModel.lyricsState.collectAsStateWithLifecycle()
     val item = state.queue.currentItem
-    var showQueue by rememberSaveable { mutableStateOf(false) }
+    val availableLyrics =
+        (lyricsState as? LyricsUiState.Available)
+            ?.takeIf { it.trackId == item?.id }
+            ?.lyrics
+    var activePanel by rememberSaveable { mutableStateOf(NowPlayingPanel.None) }
     var requestStreamFocus by rememberSaveable { mutableStateOf(false) }
     var requestTransportFocus by rememberSaveable { mutableStateOf(false) }
+    var requestQueueFocus by rememberSaveable { mutableStateOf(false) }
+    var requestLyricsFocus by rememberSaveable { mutableStateOf(false) }
     var focusedQueueIndex by rememberSaveable { mutableIntStateOf(0) }
-    val artSize by animateDpAsState(targetValue = if (showQueue) 152.dp else 180.dp, label = "now-playing-art-size")
-    val artFrameHeight by animateDpAsState(targetValue = if (showQueue) 176.dp else 200.dp, label = "now-playing-art-frame-height")
+    val panelVisible = activePanel != NowPlayingPanel.None
+    val artSize by animateDpAsState(targetValue = if (panelVisible) 152.dp else 180.dp, label = "now-playing-art-size")
+    val artFrameHeight by animateDpAsState(targetValue = if (panelVisible) 176.dp else 200.dp, label = "now-playing-art-frame-height")
 
     DisposableEffect(Unit) {
         viewModel.setActive(true)
         onDispose { viewModel.setActive(false) }
     }
 
-    fun closeQueue(target: QueueExitTarget = resolveQueueExitTarget(focusedQueueIndex, state.queue.items.size)) {
-        showQueue = false
+    LaunchedEffect(item?.id, availableLyrics) {
+        if (activePanel == NowPlayingPanel.Lyrics && availableLyrics == null) {
+            activePanel = NowPlayingPanel.None
+        }
+    }
+
+    fun clearRequestedFocus() {
+        requestStreamFocus = false
+        requestTransportFocus = false
+        requestQueueFocus = false
+        requestLyricsFocus = false
+    }
+
+    fun closeQueue(target: QueueExitTarget) {
+        activePanel = NowPlayingPanel.None
         requestStreamFocus = target == QueueExitTarget.StreamControls
         requestTransportFocus = target == QueueExitTarget.TransportControls
+    }
+
+    fun closePanelToButton() {
+        val closedPanel = activePanel
+        activePanel = NowPlayingPanel.None
+        when (resolvePanelFocusTarget(closedPanel, availableLyrics != null)) {
+            PanelFocusTarget.QueueButton -> requestQueueFocus = true
+            PanelFocusTarget.LyricsButton -> requestLyricsFocus = true
+            PanelFocusTarget.None -> Unit
+        }
     }
 
     Box(
         modifier =
             modifier
                 .fillMaxSize()
-                .onPreviewKeyEvent { event -> handleNowPlayingKeyEvent(event, showQueue, ::closeQueue, viewModel) },
+                .onPreviewKeyEvent {
+                        event ->
+                    handleNowPlayingKeyEvent(event, activePanel, ::closePanelToButton, viewModel)
+                },
     ) {
         TuneFlowArtwork(
             model = item?.artUrl,
@@ -128,42 +163,63 @@ fun NowPlayingScreen(
                 artSize = artSize,
                 artFrameHeight = artFrameHeight,
                 streamModeLabel = streamModeLabel,
-                showQueue = showQueue,
+                activePanel = activePanel,
+                hasLyrics = availableLyrics != null,
                 onCycleStreamMode = onCycleStreamMode,
                 onToggleQueue = {
-                    showQueue = !showQueue
-                    requestStreamFocus = false
-                    requestTransportFocus = false
+                    activePanel = toggleNowPlayingPanel(activePanel, NowPlayingPanel.TrackList)
+                    clearRequestedFocus()
+                },
+                onToggleLyrics = {
+                    activePanel = toggleNowPlayingPanel(activePanel, NowPlayingPanel.Lyrics)
+                    clearRequestedFocus()
                 },
                 onCyclePlaybackMode = viewModel::cyclePlaybackMode,
                 onRetry = viewModel::retry,
                 onPrevious = viewModel::previous,
                 onTogglePlayPause = viewModel::togglePlayPause,
                 onNext = viewModel::next,
-                compactTransport = showQueue,
+                compactTransport = panelVisible,
                 autoFocusTransport = autoFocusTransport || requestTransportFocus,
                 autoFocusStreamMode = requestStreamFocus,
+                autoFocusQueue = requestQueueFocus,
+                autoFocusLyrics = requestLyricsFocus,
                 onAutoFocusConsumed = onAutoFocusConsumed,
                 onStreamModeFocusConsumed = { requestStreamFocus = false },
+                onQueueFocusConsumed = { requestQueueFocus = false },
+                onLyricsFocusConsumed = { requestLyricsFocus = false },
             )
 
             AnimatedVisibility(
-                visible = showQueue,
+                visible = panelVisible,
                 enter = fadeIn() + slideInHorizontally(initialOffsetX = { it / 4 }),
                 exit = fadeOut() + slideOutHorizontally(targetOffsetX = { it / 4 }),
             ) {
-                QueuePanel(
-                    title = "Track List",
-                    state = state,
-                    onSelectTrack = viewModel::playFromIndex,
-                    onQueueExit = ::closeQueue,
-                    onFocusedIndexChanged = { focusedQueueIndex = it },
-                    preferredExitTarget =
-                        resolveQueueExitTarget(
-                            focusedIndex = focusedQueueIndex,
-                            itemCount = state.queue.items.size,
-                        ),
-                )
+                when (activePanel) {
+                    NowPlayingPanel.TrackList ->
+                        QueuePanel(
+                            title = "Track List",
+                            state = state,
+                            onSelectTrack = viewModel::playFromIndex,
+                            onQueueExit = ::closeQueue,
+                            onFocusedIndexChanged = { focusedQueueIndex = it },
+                            preferredExitTarget =
+                                resolveQueueExitTarget(
+                                    focusedIndex = focusedQueueIndex,
+                                    itemCount = state.queue.items.size,
+                                ),
+                        )
+                    NowPlayingPanel.Lyrics ->
+                        availableLyrics?.let { lyrics ->
+                            LyricsPanel(
+                                lyrics = lyrics,
+                                positionMs = state.positionMs,
+                                durationMs = state.durationMs,
+                                onExit = ::closePanelToButton,
+                            )
+                        }
+                    NowPlayingPanel.None -> Unit
+                }
             }
         }
     }
@@ -207,18 +263,18 @@ private fun handleTransportMediaKey(
 
 private fun handleNowPlayingKeyEvent(
     event: androidx.compose.ui.input.key.KeyEvent,
-    showQueue: Boolean,
-    onCloseQueue: () -> Unit,
+    activePanel: NowPlayingPanel,
+    onClosePanel: () -> Unit,
     viewModel: PlaybackViewModel,
 ): Boolean {
     if (
         resolveNowPlayingEscapeAction(
-            showQueue = showQueue,
+            activePanel = activePanel,
             isKeyDown = event.type == KeyEventType.KeyDown,
             keyCode = event.nativeKeyEvent.keyCode,
-        ) == NowPlayingEscapeAction.CloseQueue
+        ) == NowPlayingEscapeAction.ClosePanel
     ) {
-        onCloseQueue()
+        onClosePanel()
         return true
     }
 
@@ -226,21 +282,48 @@ private fun handleNowPlayingKeyEvent(
 }
 
 internal enum class NowPlayingEscapeAction {
-    CloseQueue,
+    ClosePanel,
     Propagate,
 }
 
+internal enum class NowPlayingPanel {
+    None,
+    TrackList,
+    Lyrics,
+}
+
+internal fun toggleNowPlayingPanel(
+    current: NowPlayingPanel,
+    requested: NowPlayingPanel,
+): NowPlayingPanel = if (current == requested) NowPlayingPanel.None else requested
+
+internal enum class PanelFocusTarget {
+    None,
+    QueueButton,
+    LyricsButton,
+}
+
+internal fun resolvePanelFocusTarget(
+    closedPanel: NowPlayingPanel,
+    lyricsAvailable: Boolean,
+): PanelFocusTarget =
+    when (closedPanel) {
+        NowPlayingPanel.TrackList -> PanelFocusTarget.QueueButton
+        NowPlayingPanel.Lyrics -> if (lyricsAvailable) PanelFocusTarget.LyricsButton else PanelFocusTarget.None
+        NowPlayingPanel.None -> PanelFocusTarget.None
+    }
+
 internal fun resolveNowPlayingEscapeAction(
-    showQueue: Boolean,
+    activePanel: NowPlayingPanel,
     isKeyDown: Boolean,
     keyCode: Int,
 ): NowPlayingEscapeAction =
     if (
-        showQueue &&
+        activePanel != NowPlayingPanel.None &&
         isKeyDown &&
         keyCode == AndroidKeyEvent.KEYCODE_BACK
     ) {
-        NowPlayingEscapeAction.CloseQueue
+        NowPlayingEscapeAction.ClosePanel
     } else {
         NowPlayingEscapeAction.Propagate
     }

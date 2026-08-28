@@ -32,6 +32,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:network"))
     implementation(project(":core:player"))
     implementation(project(":core:design"))
 

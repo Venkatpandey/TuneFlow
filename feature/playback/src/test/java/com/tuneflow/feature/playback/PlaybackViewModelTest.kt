@@ -5,7 +5,9 @@ import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlaybackStatus
 import com.tuneflow.core.player.QueueItem
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -133,6 +135,54 @@ class PlaybackViewModelTest {
 
             assertEquals(12_000L, vm.uiState.value.positionMs)
             assertEquals(180_000L, vm.uiState.value.durationMs)
+        }
+
+    @Test
+    fun trackChange_cancelsStaleLyricsAndNeverPublishesOldResult() =
+        runTest {
+            var firstRequestCancelled = false
+            val provider =
+                LyricsProvider { track ->
+                    if (track.id == "1") {
+                        try {
+                            delay(1_000L)
+                            LyricsLoadResult.Available(Lyrics(false, listOf(LyricLine("Old"))))
+                        } catch (error: CancellationException) {
+                            firstRequestCancelled = true
+                            throw error
+                        }
+                    } else {
+                        LyricsLoadResult.Available(Lyrics(false, listOf(LyricLine("New"))))
+                    }
+                }
+            val fake =
+                FakeController(
+                    isPlaying = true,
+                    queue =
+                        PlaybackQueue(
+                            items = listOf(QueueItem("1", "Old", "Artist", "Album", streamUrl = "s")),
+                        ),
+                )
+            val vm =
+                PlaybackViewModel(
+                    playerManager = fake,
+                    lyricsProvider = provider,
+                    positionTicker = flowOf(Unit),
+                    scopeOverride = backgroundScope,
+                )
+            runCurrent()
+
+            fake.updateQueue(
+                PlaybackQueue(
+                    items = listOf(QueueItem("2", "New", "Artist", "Album", streamUrl = "s")),
+                ),
+            )
+            runCurrent()
+
+            val state = vm.lyricsState.value as LyricsUiState.Available
+            assertEquals("2", state.trackId)
+            assertEquals("New", state.lyrics.lines.single().text)
+            assertTrue(firstRequestCancelled)
         }
 }
 
