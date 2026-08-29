@@ -14,6 +14,8 @@ class MappersTest {
                 album = null,
                 duration = null,
                 coverArt = null,
+                contentType = "audio/flac",
+                suffix = "flac",
             )
 
         val track = dto.toTrack()
@@ -21,6 +23,8 @@ class MappersTest {
         assertEquals("Unknown Artist", track.artist)
         assertEquals("Unknown Album", track.album)
         assertEquals(0, track.durationSec)
+        assertEquals("audio/flac", track.contentType)
+        assertEquals("flac", track.suffix)
     }
 
     @Test

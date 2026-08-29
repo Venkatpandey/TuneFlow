@@ -480,6 +480,8 @@ private fun LyricsToggleButton(
         accent = active,
         onClick = onClick,
         modifier = Modifier.width(96.dp).height(44.dp),
+        iconResId = R.drawable.ic_lyrics,
+        compact = true,
         requestFocus = requestFocus,
         onRequestedFocusApplied = onRequestedFocusApplied,
     )
