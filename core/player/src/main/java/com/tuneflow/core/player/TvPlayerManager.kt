@@ -7,6 +7,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,8 +45,14 @@ class TvPlayerManager(
     private val _playbackMode = MutableStateFlow(PlaybackMode.Default)
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     val player: ExoPlayer =
-        ExoPlayer.Builder(appContext)
+        ExoPlayer.Builder(
+            appContext,
+            DefaultRenderersFactory(appContext)
+                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+                .setEnableDecoderFallback(true),
+        )
             .setHandleAudioBecomingNoisy(true)
             .build().also { exo ->
                 exo.setAudioAttributes(
@@ -363,6 +371,7 @@ class TvPlayerManager(
                             fallbackStreamUrl = null,
                             streamFormatLabel = "MP3",
                             streamBitrateLabel = "Max",
+                            streamMimeType = MPEG_AUDIO_MIME_TYPE,
                         )
                     } else {
                         item
@@ -424,8 +433,18 @@ class TvPlayerManager(
             )
     }
 
-    private fun QueueItem.toMediaItem(): MediaItem {
-        return MediaItem.Builder()
+    private fun persist() {
+        scope.launch {
+            queueStore.save(
+                _queue.value.copy(currentPositionMs = player.currentPosition.coerceAtLeast(0L)),
+            )
+        }
+    }
+}
+
+internal fun QueueItem.toMediaItem(): MediaItem {
+    val builder =
+        MediaItem.Builder()
             .setUri(streamUrl)
             .setMediaId(id)
             .setMediaMetadata(
@@ -435,17 +454,17 @@ class TvPlayerManager(
                     .setAlbumTitle(album)
                     .build(),
             )
-            .build()
-    }
-
-    private fun persist() {
-        scope.launch {
-            queueStore.save(
-                _queue.value.copy(currentPositionMs = player.currentPosition.coerceAtLeast(0L)),
-            )
-        }
-    }
+    resolvedStreamMimeType()?.let(builder::setMimeType)
+    return builder.build()
 }
+
+internal fun QueueItem.resolvedStreamMimeType(): String? =
+    streamMimeType?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+        ?: when (streamFormatLabel.uppercase()) {
+            "FLAC" -> FLAC_AUDIO_MIME_TYPE
+            "MP3" -> MPEG_AUDIO_MIME_TYPE
+            else -> null
+        }
 
 private suspend fun kotlinx.coroutines.flow.Flow<PlaybackQueue?>.mapNotNullOnce(): PlaybackQueue? {
     return first()

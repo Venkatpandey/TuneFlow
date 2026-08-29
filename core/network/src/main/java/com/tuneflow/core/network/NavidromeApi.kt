@@ -67,6 +67,8 @@ data class SongDto(
     val duration: Int? = null,
     val track: Int? = null,
     @SerializedName("coverArt") val coverArt: String? = null,
+    val contentType: String? = null,
+    val suffix: String? = null,
 )
 
 data class PlaylistsResponse(

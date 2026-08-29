@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -108,48 +107,27 @@ private fun LyricLineRow(
     interactive: Boolean,
 ) {
     var focused by remember { mutableStateOf(false) }
-    Box(
+    Text(
+        text = text,
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(TuneFlowShapes.row)
-                .background(
-                    when {
-                        focused -> MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
-                        active -> MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
-                    },
-                )
-                .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color =
-                        if (focused || active) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = if (focused) 1f else 0.52f)
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
-                        },
-                    shape = TuneFlowShapes.row,
-                )
                 .onFocusChanged { focused = it.hasFocus }
                 .then(if (interactive) Modifier.focusable() else Modifier)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        Text(
-            text = text,
-            style =
-                if (active) {
-                    MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                } else {
-                    MaterialTheme.typography.titleMedium
-                },
-            color =
-                if (active) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-        )
-    }
+        style =
+            if (active || focused) {
+                MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            } else {
+                MaterialTheme.typography.titleMedium
+            },
+        color =
+            if (active || focused) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+    )
 }
 
 @Composable
@@ -208,6 +186,8 @@ internal fun LyricsPanel(
                 accent = autoFollow,
                 onClick = { autoFollow = true },
                 modifier = Modifier.width(104.dp).height(44.dp),
+                iconResId = R.drawable.ic_follow_lyrics,
+                compact = true,
                 requestFocus = true,
             )
         }

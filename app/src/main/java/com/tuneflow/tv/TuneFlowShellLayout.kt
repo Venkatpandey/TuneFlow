@@ -68,6 +68,8 @@ import com.tuneflow.feature.video.isFullscreen
 import kotlin.math.roundToInt
 import android.view.KeyEvent as AndroidKeyEvent
 
+internal const val NOW_PLAYING_WIDGET_HEIGHT_DP = 224
+
 @Composable
 internal fun TuneFlowShellLayout(
     currentSection: NavSection,
@@ -534,7 +536,7 @@ internal fun NowPlayingRailWidget(
     Box(
         modifier =
             modifier
-                .height(196.dp)
+                .height(NOW_PLAYING_WIDGET_HEIGHT_DP.dp)
                 .then(
                     if (interactive) {
                         Modifier

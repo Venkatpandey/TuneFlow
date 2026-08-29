@@ -96,6 +96,7 @@ android {
 }
 
 dependencies {
+    implementation(files("libs/media3-decoder-flac-1.4.1.aar"))
     implementation(project(":core:network"))
     implementation(project(":core:player"))
     implementation(project(":core:design"))

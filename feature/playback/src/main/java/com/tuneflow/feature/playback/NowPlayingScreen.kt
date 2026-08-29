@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -663,6 +664,8 @@ internal fun PlaybackTextButton(
     accent: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    iconResId: Int? = null,
+    compact: Boolean = false,
     requestFocus: Boolean = false,
     onRequestedFocusApplied: () -> Unit = {},
 ) {
@@ -704,13 +707,33 @@ internal fun PlaybackTextButton(
                 .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 15.dp),
-            color = if (accent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-        )
+        val contentColor = if (accent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        Row(
+            modifier =
+                Modifier.padding(
+                    horizontal = if (compact) 10.dp else 18.dp,
+                    vertical = if (compact) 8.dp else 15.dp,
+                ),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            iconResId?.let {
+                Icon(
+                    painter = painterResource(it),
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Text(
+                text = label,
+                color = contentColor,
+                style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleLarge,
+                fontWeight = if (compact) FontWeight.SemiBold else FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

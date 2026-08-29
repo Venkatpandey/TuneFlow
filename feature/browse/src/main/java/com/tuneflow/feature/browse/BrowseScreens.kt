@@ -129,7 +129,6 @@ fun AlbumsScreen(
     when {
         state.isLoading -> {
             Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (restoredAlbumId == null) ScreenInitialFocusAnchor()
                 SectionTitle(title = "Albums")
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 196.dp),
@@ -151,7 +150,6 @@ fun AlbumsScreen(
 
         else -> {
             Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (restoredAlbumId == null) ScreenInitialFocusAnchor()
                 SectionTitle(title = "Albums")
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 196.dp),
@@ -254,7 +252,6 @@ fun AlbumDetailScreen(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    ScreenInitialFocusAnchor()
                     Text(
                         text = album.title,
                         style = MaterialTheme.typography.headlineLarge,
@@ -509,7 +506,6 @@ fun PlaylistsScreen(
                     .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            ScreenInitialFocusAnchor()
             SectionTitle(title = "Playlists")
 
             if (state.isLoading && state.playlists.isEmpty()) {

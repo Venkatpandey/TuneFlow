@@ -30,6 +30,8 @@ import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
 import com.tuneflow.core.network.TrackStreamOptions
+import com.tuneflow.core.player.FLAC_AUDIO_MIME_TYPE
+import com.tuneflow.core.player.MPEG_AUDIO_MIME_TYPE
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlayerGraph
 import com.tuneflow.core.player.QueueItem
@@ -216,10 +218,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun com.tuneflow.core.network.TrackSummary.toQueueItem(
+internal fun com.tuneflow.core.network.TrackSummary.toQueueItem(
     streamOptions: TrackStreamOptions,
     preferDirectWithFallback: Boolean,
 ): QueueItem {
+    val directMimeType = directStreamMimeType()
+    val directFormatLabel = directStreamFormatLabel(directMimeType)
     return QueueItem(
         id = id,
         title = title,
@@ -228,11 +232,39 @@ private fun com.tuneflow.core.network.TrackSummary.toQueueItem(
         artUrl = artUrl,
         streamUrl = if (preferDirectWithFallback) streamOptions.directUrl else streamOptions.fallbackMp3Url,
         fallbackStreamUrl = if (preferDirectWithFallback) streamOptions.fallbackMp3Url else null,
-        streamFormatLabel = if (preferDirectWithFallback) "FLAC" else "MP3",
+        streamFormatLabel = if (preferDirectWithFallback) directFormatLabel else "MP3",
         streamBitrateLabel = if (preferDirectWithFallback) "Original" else "Max",
         durationMs = durationSec * 1000L,
+        streamMimeType = if (preferDirectWithFallback) directMimeType else MPEG_AUDIO_MIME_TYPE,
+        directStreamMimeType = directMimeType,
+        directStreamFormatLabel = directFormatLabel,
     )
 }
+
+private fun com.tuneflow.core.network.TrackSummary.directStreamMimeType(): String? {
+    val normalizedContentType = contentType?.trim()?.lowercase(Locale.ROOT)
+    return when (normalizedContentType) {
+        "audio/flac", "audio/x-flac" -> FLAC_AUDIO_MIME_TYPE
+        "audio/mp3", "audio/mpeg" -> MPEG_AUDIO_MIME_TYPE
+        else -> normalizedContentType?.takeIf { it.startsWith("audio/") }
+    } ?: when (suffix?.trim()?.trimStart('.')?.lowercase(Locale.ROOT)) {
+        "flac" -> FLAC_AUDIO_MIME_TYPE
+        "mp3" -> MPEG_AUDIO_MIME_TYPE
+        else -> null
+    }
+}
+
+private fun com.tuneflow.core.network.TrackSummary.directStreamFormatLabel(mimeType: String?): String =
+    suffix
+        ?.trim()
+        ?.trimStart('.')
+        ?.takeIf { it.isNotBlank() }
+        ?.uppercase(Locale.ROOT)
+        ?: when (mimeType) {
+            FLAC_AUDIO_MIME_TYPE -> "FLAC"
+            MPEG_AUDIO_MIME_TYPE -> "MP3"
+            else -> "FLAC"
+        }
 
 private suspend fun buildQueueItems(
     tracks: List<com.tuneflow.core.network.TrackSummary>,
@@ -266,8 +298,9 @@ private suspend fun cyclePlaybackStreamMode(
             item.copy(
                 streamUrl = if (nextPreferDirectWithFallback) streamOptions.directUrl else streamOptions.fallbackMp3Url,
                 fallbackStreamUrl = if (nextPreferDirectWithFallback) streamOptions.fallbackMp3Url else null,
-                streamFormatLabel = if (nextPreferDirectWithFallback) "FLAC" else "MP3",
+                streamFormatLabel = if (nextPreferDirectWithFallback) item.directStreamFormatLabel else "MP3",
                 streamBitrateLabel = if (nextPreferDirectWithFallback) "Original" else "Max",
+                streamMimeType = if (nextPreferDirectWithFallback) item.directStreamMimeType else MPEG_AUDIO_MIME_TYPE,
             )
         }
 

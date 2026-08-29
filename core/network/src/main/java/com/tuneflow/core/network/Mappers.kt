@@ -25,6 +25,8 @@ data class TrackSummary(
     val durationSec: Int,
     val coverArtId: String?,
     val artUrl: String? = null,
+    val contentType: String? = null,
+    val suffix: String? = null,
 )
 
 data class PlaylistSummary(
@@ -94,6 +96,8 @@ fun SongDto.toTrack(): TrackSummary {
         album = album.orEmpty().ifBlank { "Unknown Album" },
         durationSec = duration ?: 0,
         coverArtId = coverArt,
+        contentType = contentType,
+        suffix = suffix,
     )
 }
 
