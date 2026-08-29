@@ -55,6 +55,10 @@ class NowPlayingNavigationTest {
             PanelFocusTarget.None,
             resolvePanelFocusTarget(NowPlayingPanel.Lyrics, lyricsAvailable = false),
         )
+        assertEquals(
+            PanelFocusTarget.VideoButton,
+            resolvePanelFocusTarget(NowPlayingPanel.VideoCandidates, lyricsAvailable = true),
+        )
     }
 
     @Test

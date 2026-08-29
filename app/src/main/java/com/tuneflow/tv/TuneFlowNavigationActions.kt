@@ -25,6 +25,10 @@ internal class TuneFlowNavigationActions(
         updateShellState { it.openNowPlaying() }
     }
 
+    fun openNowPlayingWithTransportFocus() {
+        updateShellState { it.enableNowPlayingTransportFocus() }
+    }
+
     fun openHomeCategory(category: HomeCategoryKind) {
         updateShellState { it.openHomeCategory(category) }
     }

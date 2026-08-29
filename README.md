@@ -55,7 +55,24 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 - View read-only favorites from Navidrome starred items
 - Search with recent queries and live suggestions
 - Use play/pause/previous/next on the Now Playing screen
+- Browse up to 25 ranked YouTube matches for the current song, choose one, and play it full screen
+- Press Back to keep the selected video playing inside the Now Playing rail widget while browsing TuneFlow
 - Logout to switch users on the same TV
+
+## YouTube Video Setup
+
+The first video release supports YouTube only and plays only the current TuneFlow queue item. It does not create or retain a separate video playlist.
+
+1. Enable YouTube Data API v3 in a Google Cloud project.
+2. Create an API key restricted to YouTube Data API v3.
+3. Add Android application restrictions for package `com.tuneflow.tv` and each signing certificate SHA-1 used to build the app.
+4. Supply the key at build time without committing it:
+
+```bash
+TUNEFLOW_YOUTUBE_API_KEY=your_restricted_key ./gradlew :app:assembleDebug
+```
+
+Without a configured key, the `Video` action is disabled. Video search starts only after the user selects it and accepts the one-time disclosure. TuneFlow presents ranked matches for manual selection, opens the selected video full screen, and moves it into the album-art area of the Now Playing rail widget when you return to browse. Search does not apply YouTube SafeSearch or local maturity filtering; TuneFlow still requires videos to be public, embeddable, and playable in the device region. TuneFlow uses the official YouTube Data API and IFrame Player, leaves adaptive quality, controls, branding, links, and ads intact, and never extracts or downloads media URLs. Stopping or finishing video leaves the audio track paused and returns to Now Playing. Playback pauses when TuneFlow leaves the foreground.
 
 ## Streaming Quality
 
@@ -79,6 +96,7 @@ That means TuneFlow is designed to request the original stream as served by Navi
 - Passwords are not stored directly.
 - Session token data stays on-device.
 - Search history is stored locally on the TV for convenience.
+- YouTube search sends only current-song metadata. Navidrome credentials, server URL, queue contents, and listening history are not sent to YouTube.
 
 ## Developer Docs
 

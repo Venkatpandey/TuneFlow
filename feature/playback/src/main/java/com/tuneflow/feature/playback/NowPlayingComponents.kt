@@ -41,19 +41,64 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.QueueItem
+import com.tuneflow.feature.video.VideoActionButton
+import com.tuneflow.feature.video.VideoErrorCard
+import com.tuneflow.feature.video.VideoSessionActions
+import com.tuneflow.feature.video.VideoUiState
+import com.tuneflow.feature.video.hasVisiblePlayer
+import kotlin.math.roundToInt
+
+@Composable
+private fun VideoMiniViewport(onBoundsChanged: (IntRect) -> Unit) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(270.dp)
+                .onGloballyPositioned { coordinates ->
+                    val bounds = coordinates.boundsInRoot()
+                    onBoundsChanged(
+                        IntRect(
+                            left = bounds.left.roundToInt(),
+                            top = bounds.top.roundToInt(),
+                            right = bounds.right.roundToInt(),
+                            bottom = bounds.bottom.roundToInt(),
+                        ),
+                    )
+                }
+                .clip(TuneFlowShapes.container)
+                .background(androidx.compose.ui.graphics.Color.Black)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.30f),
+                    shape = TuneFlowShapes.container,
+                ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "Loading YouTube...",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
 
 @Composable
 internal fun NowPlayingPrimaryColumn(
     item: QueueItem?,
     state: NowPlayingUiState,
+    videoState: VideoUiState,
     artSize: Dp,
     artFrameHeight: Dp,
     streamModeLabel: String,
@@ -62,6 +107,10 @@ internal fun NowPlayingPrimaryColumn(
     onCycleStreamMode: () -> Unit,
     onToggleQueue: () -> Unit,
     onToggleLyrics: () -> Unit,
+    onVideoAction: () -> Unit,
+    onChooseAnotherVideo: () -> Unit,
+    onStopVideo: () -> Unit,
+    onVideoViewportBoundsChanged: (IntRect?) -> Unit,
     onCyclePlaybackMode: () -> Unit,
     onRetry: () -> Unit,
     onPrevious: () -> Unit,
@@ -72,39 +121,71 @@ internal fun NowPlayingPrimaryColumn(
     autoFocusStreamMode: Boolean,
     autoFocusQueue: Boolean,
     autoFocusLyrics: Boolean,
+    autoFocusVideo: Boolean,
     onAutoFocusConsumed: () -> Unit,
     onStreamModeFocusConsumed: () -> Unit,
     onQueueFocusConsumed: () -> Unit,
     onLyricsFocusConsumed: () -> Unit,
+    onVideoFocusConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    LaunchedEffect(videoState.hasVisiblePlayer) {
+        if (!videoState.hasVisiblePlayer) onVideoViewportBoundsChanged(null)
+    }
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        ArtworkCard(
-            item = item,
-            artSize = artSize,
-            artFrameHeight = artFrameHeight,
-        )
+        if (videoState.hasVisiblePlayer) {
+            VideoMiniViewport(onBoundsChanged = onVideoViewportBoundsChanged)
+        } else {
+            ArtworkCard(
+                item = item,
+                artSize = artSize,
+                artFrameHeight = artFrameHeight,
+            )
+        }
         TrackMetadata(item = item)
         StreamControlRow(
             streamModeLabel = streamModeLabel,
             bitrateLabel = item?.streamBitrateLabel ?: "--",
             activePanel = activePanel,
             hasLyrics = hasLyrics,
+            videoState = videoState,
+            videoEnabled = item != null,
             onCycleStreamMode = onCycleStreamMode,
             autoFocusStreamMode = autoFocusStreamMode,
             onStreamModeFocusConsumed = onStreamModeFocusConsumed,
             onToggleQueue = onToggleQueue,
             onToggleLyrics = onToggleLyrics,
+            onVideoAction = onVideoAction,
             playbackMode = state.playbackMode,
             onCyclePlaybackMode = onCyclePlaybackMode,
             autoFocusQueue = autoFocusQueue,
             autoFocusLyrics = autoFocusLyrics,
+            autoFocusVideo = autoFocusVideo,
             onQueueFocusConsumed = onQueueFocusConsumed,
             onLyricsFocusConsumed = onLyricsFocusConsumed,
+            onVideoFocusConsumed = onVideoFocusConsumed,
         )
+
+        (videoState as? VideoUiState.Error)?.let { error ->
+            VideoErrorCard(message = error.message, onRetry = onVideoAction)
+        }
+        (videoState as? VideoUiState.Unavailable)?.let { unavailable ->
+            Text(
+                text = unavailable.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (videoState.hasVisiblePlayer) {
+            VideoSessionActions(
+                onChooseAnother = onChooseAnotherVideo,
+                onStop = onStopVideo,
+            )
+        }
 
         state.statusMessage?.let {
             PlaybackStatusCard(
@@ -115,11 +196,11 @@ internal fun NowPlayingPrimaryColumn(
 
         Spacer(modifier = Modifier.weight(1f))
         PlaybackProgress(
-            positionMs = state.positionMs,
-            durationMs = state.durationMs,
+            positionMs = (videoState as? VideoUiState.Playing)?.positionMs ?: state.positionMs,
+            durationMs = (videoState as? VideoUiState.Playing)?.durationMs ?: state.durationMs,
         )
         TransportControls(
-            isPlaying = state.isPlaying,
+            isPlaying = (videoState as? VideoUiState.Playing)?.isPlaying ?: state.isPlaying,
             onPrevious = onPrevious,
             onTogglePlayPause = onTogglePlayPause,
             onNext = onNext,
@@ -261,17 +342,22 @@ internal fun StreamControlRow(
     bitrateLabel: String,
     activePanel: NowPlayingPanel,
     hasLyrics: Boolean,
+    videoState: VideoUiState,
+    videoEnabled: Boolean,
     playbackMode: PlaybackMode,
     onCycleStreamMode: () -> Unit,
     autoFocusStreamMode: Boolean,
     onStreamModeFocusConsumed: () -> Unit,
     onToggleQueue: () -> Unit,
     onToggleLyrics: () -> Unit,
+    onVideoAction: () -> Unit,
     onCyclePlaybackMode: () -> Unit,
     autoFocusQueue: Boolean,
     autoFocusLyrics: Boolean,
+    autoFocusVideo: Boolean,
     onQueueFocusConsumed: () -> Unit,
     onLyricsFocusConsumed: () -> Unit,
+    onVideoFocusConsumed: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         StreamModeButton(
@@ -299,6 +385,19 @@ internal fun StreamControlRow(
                 onRequestedFocusApplied = onLyricsFocusConsumed,
             )
         }
+        VideoActionButton(
+            state = videoState,
+            enabled =
+                videoEnabled &&
+                    videoState !is VideoUiState.Unavailable &&
+                    videoState !is VideoUiState.Searching &&
+                    videoState !is VideoUiState.Loading &&
+                    videoState !is VideoUiState.ConsentRequired,
+            requestFocusId = (videoState as? VideoUiState.Playing)?.focusRequestId ?: 0L,
+            requestFocus = autoFocusVideo,
+            onRequestedFocusApplied = onVideoFocusConsumed,
+            onClick = onVideoAction,
+        )
     }
 }
 

@@ -1,0 +1,108 @@
+@file:Suppress("MatchingDeclarationName")
+
+package com.tuneflow.feature.video
+
+import java.text.Normalizer
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.max
+
+object VideoCandidateRanker {
+    const val AUTOPLAY_THRESHOLD = 0.78
+
+    private val unwantedTerms =
+        setOf(
+            "cover",
+            "karaoke",
+            "reaction",
+            "tutorial",
+            "fan edit",
+            "lyric video",
+            "lyrics video",
+            "sped up",
+            "slowed",
+            "shorts",
+        )
+    private val variants = setOf("live", "remix", "acoustic", "instrumental")
+
+    fun rank(
+        query: VideoTrackQuery,
+        candidates: List<VideoCandidate>,
+    ): List<VideoCandidate> =
+        candidates
+            .map { it.copy(score = score(query, it)) }
+            .filter { it.score > 0.0 }
+            .sortedWith(compareByDescending<VideoCandidate>(VideoCandidate::score).thenBy(VideoCandidate::videoId))
+
+    fun shouldAutoplay(candidates: List<VideoCandidate>): Boolean {
+        val top = candidates.firstOrNull() ?: return false
+        val runnerUp = candidates.getOrNull(1)
+        return top.score >= AUTOPLAY_THRESHOLD &&
+            (runnerUp == null || top.score - runnerUp.score >= MIN_AUTOPLAY_MARGIN)
+    }
+
+    @Suppress("CyclomaticComplexMethod")
+    fun score(
+        query: VideoTrackQuery,
+        candidate: VideoCandidate,
+    ): Double {
+        val trackTitle = normalizeVideoText(query.title)
+        val trackArtist = normalizeVideoText(query.artist)
+        val candidateTitle = normalizeVideoText(candidate.title)
+        val candidatePublisher = normalizeVideoText(candidate.publisher)
+        if (trackTitle.isBlank() || trackArtist.isBlank()) return 0.0
+
+        var score = 0.0
+        score += if (candidateTitle.contains(trackTitle)) 0.38 else tokenSimilarity(trackTitle, candidateTitle) * 0.34
+        score +=
+            if (candidateTitle.contains(trackArtist) || candidatePublisher.contains(trackArtist)) {
+                0.30
+            } else {
+                max(
+                    tokenSimilarity(trackArtist, candidateTitle),
+                    tokenSimilarity(trackArtist, candidatePublisher),
+                ) * 0.22
+            }
+
+        if (query.durationMs > 0L && candidate.durationMs > 0L) {
+            val tolerance = max(DURATION_TOLERANCE_MS, (query.durationMs * DURATION_TOLERANCE_RATIO).toLong())
+            val difference = abs(query.durationMs - candidate.durationMs)
+            score += if (difference <= tolerance) 0.18 else -0.16
+        }
+        if (candidate.musicCategory) score += 0.08
+        if (candidateTitle.contains("official music video") || candidateTitle.contains("official video")) {
+            score += 0.04
+        }
+
+        unwantedTerms.forEach { term ->
+            if (candidateTitle.contains(term) && !trackTitle.contains(term)) score -= 0.30
+        }
+        variants.forEach { variant ->
+            if (candidateTitle.contains(variant) && !trackTitle.contains(variant)) score -= 0.24
+        }
+
+        return score.coerceIn(0.0, 1.0)
+    }
+
+    private fun tokenSimilarity(
+        expected: String,
+        actual: String,
+    ): Double {
+        val expectedTokens = expected.split(' ').filter(String::isNotBlank).toSet()
+        val actualTokens = actual.split(' ').filter(String::isNotBlank).toSet()
+        if (expectedTokens.isEmpty() || actualTokens.isEmpty()) return 0.0
+        return expectedTokens.intersect(actualTokens).size.toDouble() / expectedTokens.size.toDouble()
+    }
+
+    private const val DURATION_TOLERANCE_MS = 20_000L
+    private const val DURATION_TOLERANCE_RATIO = 0.10
+    private const val MIN_AUTOPLAY_MARGIN = 0.08
+}
+
+internal fun normalizeVideoText(value: String): String =
+    Normalizer.normalize(value, Normalizer.Form.NFKD)
+        .lowercase(Locale.ROOT)
+        .replace(Regex("\\p{M}+"), "")
+        .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+        .trim()
+        .replace(Regex("\\s+"), " ")
