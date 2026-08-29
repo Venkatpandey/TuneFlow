@@ -7,6 +7,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,8 +45,14 @@ class TvPlayerManager(
     private val _playbackMode = MutableStateFlow(PlaybackMode.Default)
     override val playbackMode: StateFlow<PlaybackMode> = _playbackMode.asStateFlow()
 
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     val player: ExoPlayer =
-        ExoPlayer.Builder(appContext)
+        ExoPlayer.Builder(
+            appContext,
+            DefaultRenderersFactory(appContext)
+                .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+                .setEnableDecoderFallback(true),
+        )
             .setHandleAudioBecomingNoisy(true)
             .build().also { exo ->
                 exo.setAudioAttributes(
