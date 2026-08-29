@@ -2,6 +2,7 @@ package com.tuneflow.tv
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.IntRect
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.feature.browse.AlbumDetailScreen
 import com.tuneflow.feature.browse.AlbumsScreen
@@ -25,10 +26,12 @@ internal fun ShellContent(
     playlistsViewModel: com.tuneflow.feature.browse.PlaylistsViewModel,
     searchViewModel: com.tuneflow.feature.browse.SearchViewModel,
     playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
+    videoViewModel: com.tuneflow.feature.video.VideoViewModel,
     streamModeLabel: String,
     onCycleStreamMode: () -> Unit,
     autoFocusNowPlayingTransport: Boolean,
     onNowPlayingAutoFocusConsumed: () -> Unit,
+    onVideoViewportBoundsChanged: (IntRect?) -> Unit,
     onFocusRestoreConsumed: () -> Unit,
     onOpenAlbum: (String) -> Unit,
     onOpenArtist: (String) -> Unit,
@@ -45,10 +48,12 @@ internal fun ShellContent(
             ShellDestination.NowPlaying -> {
                 NowPlayingScreen(
                     viewModel = playbackViewModel,
+                    videoViewModel = videoViewModel,
                     streamModeLabel = streamModeLabel,
                     onCycleStreamMode = onCycleStreamMode,
                     autoFocusTransport = autoFocusNowPlayingTransport,
                     onAutoFocusConsumed = onNowPlayingAutoFocusConsumed,
+                    onVideoViewportBoundsChanged = onVideoViewportBoundsChanged,
                 )
             }
             is ShellDestination.Album -> {

@@ -102,6 +102,7 @@ dependencies {
     implementation(project(":feature:auth"))
     implementation(project(":feature:browse"))
     implementation(project(":feature:playback"))
+    implementation(project(":feature:video"))
 
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.1")

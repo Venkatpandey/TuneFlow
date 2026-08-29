@@ -1,5 +1,7 @@
 package com.tuneflow.tv
 
+import android.widget.FrameLayout
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,6 +25,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,18 +37,36 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.player.PlaybackQueue
+import com.tuneflow.core.player.QueueItem
 import com.tuneflow.feature.playback.Lyrics
 import com.tuneflow.feature.playback.LyricsRenderer
 import com.tuneflow.feature.playback.LyricsUiState
+import com.tuneflow.feature.video.VideoUiState
+import com.tuneflow.feature.video.VideoViewModel
+import com.tuneflow.feature.video.YouTubePlayerSurface
+import com.tuneflow.feature.video.hasVisiblePlayer
+import com.tuneflow.feature.video.isFullscreen
+import kotlin.math.roundToInt
+import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
 internal fun TuneFlowShellLayout(
@@ -65,6 +87,9 @@ internal fun TuneFlowShellLayout(
     playlistsViewModel: com.tuneflow.feature.browse.PlaylistsViewModel,
     searchViewModel: com.tuneflow.feature.browse.SearchViewModel,
     playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
+    videoViewModel: VideoViewModel,
+    videoState: VideoUiState,
+    videoOverlayHost: FrameLayout,
     preselectedPlaylistId: String?,
     focusRestoreTarget: com.tuneflow.feature.browse.BrowseFocusTarget?,
     streamModeLabel: String,
@@ -85,10 +110,31 @@ internal fun TuneFlowShellLayout(
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     showExitPrompt: Boolean,
 ) {
+    var videoViewportBounds by remember { mutableStateOf<IntRect?>(null) }
+    var videoRailViewportBounds by remember { mutableStateOf<IntRect?>(null) }
+    var rootSize by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
+    BackHandler(enabled = videoState.isFullscreen) {
+        videoViewModel.exitFullscreen()
+    }
+
     Box(
         modifier =
             Modifier
                 .fillMaxSize()
+                .onSizeChanged { rootSize = it }
+                .onPreviewKeyEvent { event ->
+                    if (
+                        videoState.hasVisiblePlayer &&
+                        event.type == KeyEventType.KeyDown &&
+                        event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_STOP
+                    ) {
+                        videoViewModel.stopVideo()
+                        true
+                    } else {
+                        false
+                    }
+                }
                 .background(MaterialTheme.colorScheme.background),
     ) {
         androidx.compose.foundation.Image(
@@ -133,7 +179,10 @@ internal fun TuneFlowShellLayout(
                         NavRail(
                             currentSection = currentSection,
                             playbackQueue = playbackQueue,
-                            playbackPositionMs = playbackPositionMs,
+                            playbackPositionMs =
+                                (videoState as? VideoUiState.Playing)?.positionMs ?: playbackPositionMs,
+                            videoVisible = videoState.hasVisiblePlayer,
+                            onVideoViewportBoundsChanged = { videoRailViewportBounds = it },
                             onSectionSelected = onSectionSelected,
                             onNowPlaying = onNowPlaying,
                             isNowPlayingActive = showNowPlaying,
@@ -162,10 +211,12 @@ internal fun TuneFlowShellLayout(
                                 playlistsViewModel = playlistsViewModel,
                                 searchViewModel = searchViewModel,
                                 playbackViewModel = playbackViewModel,
+                                videoViewModel = videoViewModel,
                                 streamModeLabel = streamModeLabel,
                                 onCycleStreamMode = onCycleStreamMode,
                                 autoFocusNowPlayingTransport = autoFocusNowPlayingTransport,
                                 onNowPlayingAutoFocusConsumed = onNowPlayingAutoFocusConsumed,
+                                onVideoViewportBoundsChanged = { videoViewportBounds = it },
                                 onFocusRestoreConsumed = onFocusRestoreConsumed,
                                 onOpenAlbum = onOpenAlbum,
                                 onOpenArtist = onOpenArtist,
@@ -198,14 +249,129 @@ internal fun TuneFlowShellLayout(
                 lyricsState = lyricsState,
             )
         }
+
+        val playerContainerBounds =
+            if (videoState.isFullscreen) {
+                IntRect(0, 0, rootSize.width, rootSize.height)
+            } else if (currentDestination == ShellDestination.NowPlaying) {
+                videoViewportBounds ?: videoRailViewportBounds
+            } else {
+                videoRailViewportBounds
+            }
+        val playerBounds = playerContainerBounds?.let(::fitYouTubePlayerBounds)
+        FullscreenVideoBackdrop(visible = videoState.isFullscreen)
+        if (videoState.hasVisiblePlayer && playerBounds != null && playerBounds.width > 0 && playerBounds.height > 0) {
+            val playerModifier =
+                with(density) {
+                    Modifier
+                        .offset { IntOffset(playerBounds.left, playerBounds.top) }
+                        .size(playerBounds.width.toDp(), playerBounds.height.toDp())
+                }
+            Box(
+                modifier =
+                    playerModifier
+                        .background(Color.Black),
+            )
+            YouTubePlayerSurface(
+                player = videoViewModel.youtubePlayer,
+                host = videoOverlayHost,
+                bounds = playerBounds,
+                requestFocus = videoState.isFullscreen,
+                onKeyEvent = { event ->
+                    handleVideoOverlayMediaKey(event, videoViewModel, playbackViewModel)
+                },
+            )
+        }
     }
 }
+
+@Composable
+private fun FullscreenVideoBackdrop(visible: Boolean) {
+    if (visible) Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+}
+
+internal fun fitYouTubePlayerBounds(container: IntRect): IntRect {
+    if (container.width <= 0 || container.height <= 0) return container
+    val widthAtContainerHeight =
+        (container.height.toLong() * YOUTUBE_PLAYER_ASPECT_WIDTH / YOUTUBE_PLAYER_ASPECT_HEIGHT).toInt()
+    val fittedWidth: Int
+    val fittedHeight: Int
+    if (widthAtContainerHeight <= container.width) {
+        fittedWidth = widthAtContainerHeight
+        fittedHeight = container.height
+    } else {
+        fittedWidth = container.width
+        fittedHeight =
+            (container.width.toLong() * YOUTUBE_PLAYER_ASPECT_HEIGHT / YOUTUBE_PLAYER_ASPECT_WIDTH).toInt()
+    }
+    val left = container.left + (container.width - fittedWidth) / 2
+    val top = container.top + (container.height - fittedHeight) / 2
+    return IntRect(
+        left = left,
+        top = top,
+        right = left + fittedWidth,
+        bottom = top + fittedHeight,
+    )
+}
+
+private const val YOUTUBE_PLAYER_ASPECT_WIDTH = 16L
+private const val YOUTUBE_PLAYER_ASPECT_HEIGHT = 9L
+
+private fun handleVideoOverlayMediaKey(
+    event: AndroidKeyEvent,
+    videoViewModel: VideoViewModel,
+    playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
+): Boolean {
+    if (event.action != AndroidKeyEvent.ACTION_DOWN) return false
+    val dpadResult = handleVideoDpadKey(event, videoViewModel)
+    return dpadResult
+        ?: when (event.keyCode) {
+            AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> videoViewModel.togglePlayPause()
+            AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> videoViewModel.play()
+            AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> videoViewModel.pause()
+            AndroidKeyEvent.KEYCODE_MEDIA_STOP -> {
+                videoViewModel.stopVideo()
+                true
+            }
+            AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> videoViewModel.seekBy(10_000L)
+            AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> videoViewModel.seekBy(-10_000L)
+            AndroidKeyEvent.KEYCODE_MEDIA_NEXT -> {
+                videoViewModel.closeForQueueChange()
+                playbackViewModel.next()
+                true
+            }
+            AndroidKeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                videoViewModel.closeForQueueChange()
+                playbackViewModel.previous()
+                true
+            }
+            else -> false
+        }
+}
+
+private fun handleVideoDpadKey(
+    event: AndroidKeyEvent,
+    videoViewModel: VideoViewModel,
+): Boolean? =
+    when (event.keyCode) {
+        AndroidKeyEvent.KEYCODE_DPAD_CENTER,
+        AndroidKeyEvent.KEYCODE_ENTER,
+        AndroidKeyEvent.KEYCODE_NUMPAD_ENTER,
+        -> if (event.repeatCount == 0) videoViewModel.togglePlayPause() else true
+        AndroidKeyEvent.KEYCODE_DPAD_LEFT -> videoViewModel.seekBy(-5_000L)
+        AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> videoViewModel.seekBy(5_000L)
+        AndroidKeyEvent.KEYCODE_DPAD_UP -> videoViewModel.adjustVolume(5)
+        AndroidKeyEvent.KEYCODE_DPAD_DOWN -> videoViewModel.adjustVolume(-5)
+        else -> null
+    }
 
 @Composable
 private fun NavRail(
     currentSection: NavSection,
     playbackQueue: PlaybackQueue,
     playbackPositionMs: Long,
+    videoVisible: Boolean,
+    onVideoViewportBoundsChanged: (IntRect?) -> Unit,
     onSectionSelected: (NavSection) -> Unit,
     onNowPlaying: () -> Unit,
     isNowPlayingActive: Boolean,
@@ -286,6 +452,8 @@ private fun NavRail(
         NowPlayingRailWidget(
             playbackQueue = playbackQueue,
             playbackPositionMs = playbackPositionMs,
+            videoVisible = videoVisible,
+            onVideoViewportBoundsChanged = onVideoViewportBoundsChanged,
             selected = isNowPlayingActive,
             onClick = onNowPlaying,
             modifier = Modifier.fillMaxWidth(),
@@ -348,6 +516,8 @@ internal fun NowPlayingRailWidget(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     interactive: Boolean = true,
+    videoVisible: Boolean = false,
+    onVideoViewportBoundsChanged: (IntRect?) -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
     val active = interactive && (selected || focused)
@@ -407,26 +577,11 @@ internal fun NowPlayingRailWidget(
                 overflow = TextOverflow.Ellipsis,
             )
 
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(84.dp)
-                        .clip(TuneFlowShapes.artwork)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                TuneFlowArtwork(
-                    model = currentItem?.artUrl,
-                    contentDescription = currentItem?.title,
-                    width = 128.dp,
-                    height = 92.dp,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    placeholderText = currentItem?.title ?: "Nothing playing",
-                    fallbackPainterResId = R.drawable.ic_tuneflow_brand,
-                )
-            }
+            RailArtworkViewport(
+                currentItem = currentItem,
+                videoVisible = videoVisible,
+                onVideoViewportBoundsChanged = onVideoViewportBoundsChanged,
+            )
 
             RailMarqueeText(
                 text = currentItem?.title ?: "Nothing playing",
@@ -561,6 +716,54 @@ private fun railFormatTime(ms: Long): String {
         "%d:%02d:%02d".format(hours, minutes, seconds)
     } else {
         "%02d:%02d".format(minutes, seconds)
+    }
+}
+
+@Composable
+private fun RailArtworkViewport(
+    currentItem: QueueItem?,
+    videoVisible: Boolean,
+    onVideoViewportBoundsChanged: (IntRect?) -> Unit,
+) {
+    LaunchedEffect(videoVisible) {
+        if (!videoVisible) onVideoViewportBoundsChanged(null)
+    }
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(84.dp)
+                .onGloballyPositioned { coordinates ->
+                    if (videoVisible) {
+                        val bounds = coordinates.boundsInRoot()
+                        onVideoViewportBoundsChanged(
+                            IntRect(
+                                left = bounds.left.roundToInt(),
+                                top = bounds.top.roundToInt(),
+                                right = bounds.right.roundToInt(),
+                                bottom = bounds.bottom.roundToInt(),
+                            ),
+                        )
+                    }
+                }
+                .clip(TuneFlowShapes.artwork)
+                .background(
+                    if (videoVisible) Color.Black else MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (!videoVisible) {
+            TuneFlowArtwork(
+                model = currentItem?.artUrl,
+                contentDescription = currentItem?.title,
+                width = 128.dp,
+                height = 92.dp,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                placeholderText = currentItem?.title ?: "Nothing playing",
+                fallbackPainterResId = R.drawable.ic_tuneflow_brand,
+            )
+        }
     }
 }
 

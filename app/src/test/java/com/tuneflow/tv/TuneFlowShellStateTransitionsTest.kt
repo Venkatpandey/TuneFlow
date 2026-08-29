@@ -5,6 +5,7 @@ import com.tuneflow.feature.browse.BrowseFocusTargetKind
 import com.tuneflow.feature.browse.HomeCategoryKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TuneFlowShellStateTransitionsTest {
@@ -40,6 +41,14 @@ class TuneFlowShellStateTransitionsTest {
 
         assertEquals(ShellDestination.Artist("artist-1"), returnedState.currentDestination)
         assertEquals(artistState.backStack, returnedState.backStack)
+    }
+
+    @Test
+    fun nowPlayingTransportFocusCanBeRequestedWhenAlreadyOpen() {
+        val state = TuneFlowShellState().openNowPlaying().enableNowPlayingTransportFocus()
+
+        assertTrue(state.showNowPlaying)
+        assertTrue(state.autoFocusNowPlayingTransport)
     }
 
     @Test

@@ -50,10 +50,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.feature.video.VideoCandidatePicker
+import com.tuneflow.feature.video.VideoDisclosureOverlay
+import com.tuneflow.feature.video.VideoUiState
+import com.tuneflow.feature.video.VideoViewModel
+import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.delay
 import android.view.KeyEvent as AndroidKeyEvent
 
@@ -61,14 +67,17 @@ import android.view.KeyEvent as AndroidKeyEvent
 @Suppress("CyclomaticComplexMethod")
 fun NowPlayingScreen(
     viewModel: PlaybackViewModel,
+    videoViewModel: VideoViewModel,
     streamModeLabel: String,
     onCycleStreamMode: () -> Unit,
     autoFocusTransport: Boolean,
     onAutoFocusConsumed: () -> Unit,
+    onVideoViewportBoundsChanged: (IntRect?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val lyricsState by viewModel.lyricsState.collectAsStateWithLifecycle()
+    val videoState by videoViewModel.uiState.collectAsStateWithLifecycle()
     val item = state.queue.currentItem
     val availableLyrics =
         (lyricsState as? LyricsUiState.Available)
@@ -79,6 +88,7 @@ fun NowPlayingScreen(
     var requestTransportFocus by rememberSaveable { mutableStateOf(false) }
     var requestQueueFocus by rememberSaveable { mutableStateOf(false) }
     var requestLyricsFocus by rememberSaveable { mutableStateOf(false) }
+    var requestVideoFocus by rememberSaveable { mutableStateOf(false) }
     var focusedQueueIndex by rememberSaveable { mutableIntStateOf(0) }
     val panelVisible = activePanel != NowPlayingPanel.None
     val artSize by animateDpAsState(targetValue = if (panelVisible) 152.dp else 180.dp, label = "now-playing-art-size")
@@ -86,11 +96,22 @@ fun NowPlayingScreen(
 
     DisposableEffect(Unit) {
         viewModel.setActive(true)
-        onDispose { viewModel.setActive(false) }
+        onDispose {
+            onVideoViewportBoundsChanged(null)
+            viewModel.setActive(false)
+        }
     }
 
     LaunchedEffect(item?.id, availableLyrics) {
         if (activePanel == NowPlayingPanel.Lyrics && availableLyrics == null) {
+            activePanel = NowPlayingPanel.None
+        }
+    }
+
+    LaunchedEffect(videoState) {
+        if (videoState is VideoUiState.Candidates) {
+            activePanel = NowPlayingPanel.VideoCandidates
+        } else if (activePanel == NowPlayingPanel.VideoCandidates) {
             activePanel = NowPlayingPanel.None
         }
     }
@@ -100,6 +121,7 @@ fun NowPlayingScreen(
         requestTransportFocus = false
         requestQueueFocus = false
         requestLyricsFocus = false
+        requestVideoFocus = false
     }
 
     fun closeQueue(target: QueueExitTarget) {
@@ -114,6 +136,7 @@ fun NowPlayingScreen(
         when (resolvePanelFocusTarget(closedPanel, availableLyrics != null)) {
             PanelFocusTarget.QueueButton -> requestQueueFocus = true
             PanelFocusTarget.LyricsButton -> requestLyricsFocus = true
+            PanelFocusTarget.VideoButton -> requestVideoFocus = true
             PanelFocusTarget.None -> Unit
         }
     }
@@ -124,7 +147,14 @@ fun NowPlayingScreen(
                 .fillMaxSize()
                 .onPreviewKeyEvent {
                         event ->
-                    handleNowPlayingKeyEvent(event, activePanel, ::closePanelToButton, viewModel)
+                    handleNowPlayingKeyEvent(
+                        event = event,
+                        activePanel = activePanel,
+                        videoActive = videoState.hasVisiblePlayer,
+                        onClosePanel = ::closePanelToButton,
+                        viewModel = viewModel,
+                        videoViewModel = videoViewModel,
+                    )
                 },
     ) {
         TuneFlowArtwork(
@@ -160,6 +190,7 @@ fun NowPlayingScreen(
                         .fillMaxHeight(),
                 item = item,
                 state = state,
+                videoState = videoState,
                 artSize = artSize,
                 artFrameHeight = artFrameHeight,
                 streamModeLabel = streamModeLabel,
@@ -174,20 +205,45 @@ fun NowPlayingScreen(
                     activePanel = toggleNowPlayingPanel(activePanel, NowPlayingPanel.Lyrics)
                     clearRequestedFocus()
                 },
+                onVideoAction = {
+                    if (videoState is VideoUiState.Candidates) {
+                        activePanel = NowPlayingPanel.VideoCandidates
+                    } else {
+                        videoViewModel.onVideoAction()
+                    }
+                    clearRequestedFocus()
+                },
+                onChooseAnotherVideo = {
+                    clearRequestedFocus()
+                    activePanel = NowPlayingPanel.VideoCandidates
+                    videoViewModel.chooseAnother()
+                },
+                onStopVideo = videoViewModel::stopVideo,
+                onVideoViewportBoundsChanged = onVideoViewportBoundsChanged,
                 onCyclePlaybackMode = viewModel::cyclePlaybackMode,
                 onRetry = viewModel::retry,
-                onPrevious = viewModel::previous,
-                onTogglePlayPause = viewModel::togglePlayPause,
-                onNext = viewModel::next,
+                onPrevious = {
+                    if (videoState.hasVisiblePlayer) videoViewModel.closeForQueueChange()
+                    viewModel.previous()
+                },
+                onTogglePlayPause = {
+                    if (!videoViewModel.togglePlayPause()) viewModel.togglePlayPause()
+                },
+                onNext = {
+                    if (videoState.hasVisiblePlayer) videoViewModel.closeForQueueChange()
+                    viewModel.next()
+                },
                 compactTransport = panelVisible,
                 autoFocusTransport = autoFocusTransport || requestTransportFocus,
                 autoFocusStreamMode = requestStreamFocus,
                 autoFocusQueue = requestQueueFocus,
                 autoFocusLyrics = requestLyricsFocus,
+                autoFocusVideo = requestVideoFocus,
                 onAutoFocusConsumed = onAutoFocusConsumed,
                 onStreamModeFocusConsumed = { requestStreamFocus = false },
                 onQueueFocusConsumed = { requestQueueFocus = false },
                 onLyricsFocusConsumed = { requestLyricsFocus = false },
+                onVideoFocusConsumed = { requestVideoFocus = false },
             )
 
             AnimatedVisibility(
@@ -218,9 +274,25 @@ fun NowPlayingScreen(
                                 onExit = ::closePanelToButton,
                             )
                         }
+                    NowPlayingPanel.VideoCandidates ->
+                        VideoCandidatePicker(
+                            candidates = (videoState as? VideoUiState.Candidates)?.candidates.orEmpty(),
+                            onSelect = videoViewModel::selectCandidate,
+                        )
                     NowPlayingPanel.None -> Unit
                 }
             }
+        }
+
+        if (videoState is VideoUiState.ConsentRequired) {
+            VideoDisclosureOverlay(
+                onAccept = videoViewModel::acceptDisclosure,
+                onCancel = {
+                    videoViewModel.cancelDisclosure()
+                    clearRequestedFocus()
+                    requestVideoFocus = true
+                },
+            )
         }
     }
 }
@@ -261,21 +333,50 @@ private fun handleTransportMediaKey(
     }
 }
 
+@Suppress("ReturnCount")
 private fun handleNowPlayingKeyEvent(
     event: androidx.compose.ui.input.key.KeyEvent,
     activePanel: NowPlayingPanel,
+    videoActive: Boolean,
     onClosePanel: () -> Unit,
     viewModel: PlaybackViewModel,
+    videoViewModel: VideoViewModel,
 ): Boolean {
-    if (
+    when (
         resolveNowPlayingEscapeAction(
             activePanel = activePanel,
             isKeyDown = event.type == KeyEventType.KeyDown,
             keyCode = event.nativeKeyEvent.keyCode,
-        ) == NowPlayingEscapeAction.ClosePanel
+        )
     ) {
-        onClosePanel()
-        return true
+        NowPlayingEscapeAction.ClosePanel -> {
+            onClosePanel()
+            return true
+        }
+        NowPlayingEscapeAction.Propagate -> Unit
+    }
+
+    if (event.type == KeyEventType.KeyDown && videoActive) {
+        return when (event.nativeKeyEvent.keyCode) {
+            AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> videoViewModel.togglePlayPause()
+            AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> videoViewModel.play()
+            AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> videoViewModel.pause()
+            AndroidKeyEvent.KEYCODE_MEDIA_STOP -> {
+                videoViewModel.stopVideo()
+                true
+            }
+            AndroidKeyEvent.KEYCODE_MEDIA_NEXT -> {
+                videoViewModel.closeForQueueChange()
+                viewModel.next()
+                true
+            }
+            AndroidKeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                videoViewModel.closeForQueueChange()
+                viewModel.previous()
+                true
+            }
+            else -> false
+        }
     }
 
     return handleTransportMediaKey(event, viewModel)
@@ -290,6 +391,7 @@ internal enum class NowPlayingPanel {
     None,
     TrackList,
     Lyrics,
+    VideoCandidates,
 }
 
 internal fun toggleNowPlayingPanel(
@@ -301,6 +403,7 @@ internal enum class PanelFocusTarget {
     None,
     QueueButton,
     LyricsButton,
+    VideoButton,
 }
 
 internal fun resolvePanelFocusTarget(
@@ -310,6 +413,7 @@ internal fun resolvePanelFocusTarget(
     when (closedPanel) {
         NowPlayingPanel.TrackList -> PanelFocusTarget.QueueButton
         NowPlayingPanel.Lyrics -> if (lyricsAvailable) PanelFocusTarget.LyricsButton else PanelFocusTarget.None
+        NowPlayingPanel.VideoCandidates -> PanelFocusTarget.VideoButton
         NowPlayingPanel.None -> PanelFocusTarget.None
     }
 

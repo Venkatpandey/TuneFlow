@@ -5,6 +5,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
+import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
@@ -18,6 +20,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tuneflow.core.network.PlaybackPreferencesStore
@@ -33,6 +38,8 @@ import com.tuneflow.feature.auth.AuthRepository
 import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.playback.LyricsRepository
+import com.tuneflow.feature.video.VideoViewModel
+import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -65,6 +72,13 @@ class MainActivity : ComponentActivity() {
         playbackServiceIntent = Intent(this, TuneFlowPlaybackService::class.java)
         startService(playbackServiceIntent)
 
+        val videoOverlayHost =
+            FrameLayout(this).apply {
+                visibility = View.GONE
+                clipChildren = true
+                clipToPadding = true
+            }
+
         setContent {
             TuneFlowTheme {
                 val authViewModel: com.tuneflow.feature.auth.AuthViewModel =
@@ -89,6 +103,7 @@ class MainActivity : ComponentActivity() {
                         playbackPreferencesStore = playbackPreferencesStore,
                         searchHistoryStore = searchHistoryStore,
                         lyricsRepository = lyricsRepository,
+                        videoOverlayHost = videoOverlayHost,
                         userActivityEvents = userActivityEvents,
                         onScreensaverActiveChanged = { screensaverActive = it },
                         onExitApp = ::closeAppToSystem,
@@ -96,6 +111,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        addContentView(
+            videoOverlayHost,
+            FrameLayout.LayoutParams(1, 1),
+        )
     }
 
     override fun onUserLeaveHint() {
@@ -262,13 +281,15 @@ private suspend fun cyclePlaybackStreamMode(
 @Composable
 private fun rememberPlaybackScreensaverState(
     playbackState: com.tuneflow.feature.playback.NowPlayingUiState,
+    videoVisible: Boolean,
     userActivityEvents: Flow<UserInputCategory>,
     onActiveChanged: (Boolean) -> Unit,
 ): PlaybackScreensaverState {
     val controller = remember { PlaybackScreensaverController() }
     val state by controller.state.collectAsStateWithLifecycle()
     val playbackEligible =
-        playbackState.queue.currentItem != null &&
+        !videoVisible &&
+            playbackState.queue.currentItem != null &&
             (
                 playbackState.isPlaying ||
                     (state.active && playbackState.playbackStatus.expectedToPlay)
@@ -301,6 +322,19 @@ private fun rememberPlaybackScreensaverState(
 }
 
 @Composable
+private fun ObserveVideoLifecycle(videoViewModel: VideoViewModel) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, videoViewModel) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_STOP) videoViewModel.onAppBackgrounded()
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+}
+
+@Composable
 private fun TuneFlowShell(
     browseRepository: BrowseRepository,
     playerManager: com.tuneflow.core.player.TvPlayerManager,
@@ -308,6 +342,7 @@ private fun TuneFlowShell(
     playbackPreferencesStore: PlaybackPreferencesStore,
     searchHistoryStore: SearchHistoryStore,
     lyricsRepository: LyricsRepository,
+    videoOverlayHost: FrameLayout,
     userActivityEvents: Flow<UserInputCategory>,
     onScreensaverActiveChanged: (Boolean) -> Unit,
     onExitApp: () -> Unit,
@@ -327,14 +362,19 @@ private fun TuneFlowShell(
         viewModel(factory = searchViewModelFactory(browseRepository, searchHistoryStore))
     val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel =
         viewModel(factory = playbackViewModelFactory(playerManager, lyricsRepository))
+    val videoViewModel: VideoViewModel =
+        viewModel(factory = videoViewModelFactory(androidx.compose.ui.platform.LocalContext.current, playerManager))
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val lyricsState by playbackViewModel.lyricsState.collectAsStateWithLifecycle()
+    val videoState by videoViewModel.uiState.collectAsStateWithLifecycle()
     val screensaverState =
         rememberPlaybackScreensaverState(
             playbackState = playbackState,
+            videoVisible = videoState.hasVisiblePlayer,
             userActivityEvents = userActivityEvents,
             onActiveChanged = onScreensaverActiveChanged,
         )
+    ObserveVideoLifecycle(videoViewModel)
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
     val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)
     var navWidgetPositionMs by remember { mutableLongStateOf(0L) }
@@ -355,6 +395,12 @@ private fun TuneFlowShell(
                 updateShellState = { transform -> updateShellState(transform) },
             )
         }
+
+    LaunchedEffect(videoViewModel, navigationActions) {
+        videoViewModel.returnToNowPlayingEvents.collect {
+            navigationActions.openNowPlayingWithTransportFocus()
+        }
+    }
 
     fun playTracks(
         tracks: List<com.tuneflow.core.network.TrackSummary>,
@@ -449,6 +495,9 @@ private fun TuneFlowShell(
         playlistsViewModel = playlistsViewModel,
         searchViewModel = searchViewModel,
         playbackViewModel = playbackViewModel,
+        videoViewModel = videoViewModel,
+        videoState = videoState,
+        videoOverlayHost = videoOverlayHost,
         preselectedPlaylistId = shellState.preselectedPlaylistId,
         focusRestoreTarget = shellState.pendingFocusRestore,
         streamModeLabel = if (preferDirectWithFallback) "FLAC" else "MP3",

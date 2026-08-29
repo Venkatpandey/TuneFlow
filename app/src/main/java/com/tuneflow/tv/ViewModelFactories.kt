@@ -1,5 +1,6 @@
 package com.tuneflow.tv
 
+import android.content.Context
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.tuneflow.core.network.SearchHistoryStore
@@ -16,6 +17,12 @@ import com.tuneflow.feature.browse.PlaylistsViewModel
 import com.tuneflow.feature.browse.SearchViewModel
 import com.tuneflow.feature.playback.LyricsProvider
 import com.tuneflow.feature.playback.PlaybackViewModel
+import com.tuneflow.feature.video.SharedPreferencesVideoConsentStore
+import com.tuneflow.feature.video.VideoPlaybackCoordinator
+import com.tuneflow.feature.video.VideoProviderRegistry
+import com.tuneflow.feature.video.VideoViewModel
+import com.tuneflow.feature.video.YouTubeEmbeddedPlayer
+import com.tuneflow.feature.video.YouTubeVideoProvider
 
 fun authViewModelFactory(
     repository: AuthRepository,
@@ -66,4 +73,20 @@ fun playbackViewModelFactory(
     lyricsProvider: LyricsProvider,
 ) = viewModelFactory {
     initializer { PlaybackViewModel(manager, lyricsProvider) }
+}
+
+fun videoViewModelFactory(
+    context: Context,
+    manager: TvPlayerManager,
+) = viewModelFactory {
+    initializer {
+        val player = YouTubeEmbeddedPlayer()
+        VideoViewModel(
+            providers = VideoProviderRegistry(listOf(YouTubeVideoProvider.configured(context))),
+            audio = manager,
+            youtubePlayer = player,
+            coordinator = VideoPlaybackCoordinator(manager),
+            consentStore = SharedPreferencesVideoConsentStore(context),
+        )
+    }
 }

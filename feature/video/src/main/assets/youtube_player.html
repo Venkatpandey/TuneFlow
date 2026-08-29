@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <style>
+        html, body, #player {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            background: transparent;
+            overflow: hidden;
+        }
+        #player, #player iframe {
+            border: 0;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+<div id="player"></div>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+    let player = null;
+    let requestedVideoId = null;
+    let requestedStartSeconds = 0;
+    let playingDiagnosticsEmitted = false;
+
+    function emit(name, payload) {
+        if (window.TuneFlowVideoBridge) {
+            window.TuneFlowVideoBridge.onEvent(name, JSON.stringify(payload || {}));
+        }
+    }
+
+    function onYouTubeIframeAPIReady() {
+        emit('apiReady', {});
+        if (requestedVideoId) createPlayer();
+    }
+
+    function loadVideo(videoId, startSeconds) {
+        requestedVideoId = videoId;
+        requestedStartSeconds = Math.max(0, Number(startSeconds) || 0);
+        playingDiagnosticsEmitted = false;
+        if (window.YT && window.YT.Player) createPlayer();
+    }
+
+    function createPlayer() {
+        if (player && player.destroy) player.destroy();
+        player = new YT.Player('player', {
+            width: '100%',
+            height: '100%',
+            videoId: requestedVideoId,
+            playerVars: {
+                autoplay: 0,
+                controls: 1,
+                disablekb: 0,
+                playsinline: 1,
+                rel: 0,
+                origin: window.location.origin
+            },
+            events: {
+                onReady: function(event) {
+                    emit('ready', {
+                        positionSeconds: event.target.getCurrentTime() || 0,
+                        durationSeconds: event.target.getDuration() || 0
+                    });
+                    emitDiagnostics('ready');
+                },
+                onStateChange: function(event) {
+                    emit('state', {
+                        code: event.data,
+                        positionSeconds: player.getCurrentTime() || 0,
+                        durationSeconds: player.getDuration() || 0
+                    });
+                    if (event.data === YT.PlayerState.PLAYING && !playingDiagnosticsEmitted) {
+                        playingDiagnosticsEmitted = true;
+                        setTimeout(function() { emitDiagnostics('playing'); }, 1500);
+                    }
+                },
+                onError: function(event) { emit('error', { code: event.data }); },
+                onAutoplayBlocked: function() { emit('autoplayBlocked', {}); }
+            }
+        });
+    }
+
+    function emitDiagnostics(stage) {
+        if (!player || !player.getIframe) return;
+        const iframe = player.getIframe();
+        const rect = iframe.getBoundingClientRect();
+        emit('diagnostic', {
+            stage: stage,
+            viewportWidth: window.innerWidth,
+            viewportHeight: window.innerHeight,
+            iframeWidth: Math.round(rect.width),
+            iframeHeight: Math.round(rect.height),
+            quality: player.getPlaybackQuality ? player.getPlaybackQuality() : '',
+            availableQuality: player.getAvailableQualityLevels ? player.getAvailableQualityLevels() : []
+        });
+    }
+
+    function playVideo() { if (player && player.playVideo) player.playVideo(); }
+    function pauseVideo() { if (player && player.pauseVideo) player.pauseVideo(); }
+    function focusPlayer() {
+        if (!player || !player.getIframe) return;
+        const iframe = player.getIframe();
+        iframe.tabIndex = 0;
+        iframe.focus();
+    }
+    function adjustVolume(delta) {
+        if (!player || !player.getVolume || !player.setVolume) return;
+        player.setVolume(Math.max(0, Math.min(100, player.getVolume() + Number(delta || 0))));
+    }
+    function seekVideo(seconds) {
+        if (player && player.seekTo) player.seekTo(Math.max(0, Number(seconds) || 0), true);
+    }
+
+    setInterval(function() {
+        if (!player || !player.getCurrentTime) return;
+        emit('time', {
+            positionSeconds: player.getCurrentTime() || 0,
+            durationSeconds: player.getDuration() || 0
+        });
+    }, 1000);
+</script>
+</body>
+</html>
