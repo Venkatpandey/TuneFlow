@@ -40,12 +40,24 @@ internal fun mapSmartTubeSearchItems(
     items
         .asSequence()
         .filterNotNull()
-        .filter { it.type == MediaItem.TYPE_VIDEO }
+        .filter { isPlayableSmartTubeSearchResult(it.type, it.videoId) }
         .filterNot { it.isLive || it.isUpcoming || it.isShorts }
         .mapNotNull(::mapSmartTubeItem)
         .distinctBy(YouTubeNativeSearchResult::videoId)
         .take(limit)
         .toList()
+
+internal fun isPlayableSmartTubeSearchResult(
+    type: Int,
+    videoId: String?,
+): Boolean =
+    when (type) {
+        MediaItem.TYPE_VIDEO,
+        MediaItem.TYPE_MUSIC,
+        MediaItem.TYPE_UNDEFINED,
+        -> videoId?.matches(YOUTUBE_VIDEO_ID) == true
+        else -> false
+    }
 
 private fun mapSmartTubeItem(item: MediaItem): YouTubeNativeSearchResult? {
     return mapSmartTubeFields(
@@ -122,6 +134,7 @@ private fun parseAbbreviatedNumber(token: String): Double? {
 }
 
 private const val MAX_RESULTS = 25
+private val YOUTUBE_VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
 private val DETAIL_SEPARATOR = Regex("[•·]")
 private val VIEW_MARKERS = listOf("view", "aufruf", "vue", "visualiz", "watched")
 private val THOUSAND_MARKERS = listOf("k view", "k aufruf", "tsd")

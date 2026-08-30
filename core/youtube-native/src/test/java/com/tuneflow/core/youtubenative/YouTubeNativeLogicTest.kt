@@ -1,8 +1,11 @@
 package com.tuneflow.core.youtubenative
 
 import com.google.android.exoplayer2.Player
+import com.liskovsoft.mediaserviceinterfaces.data.MediaItem
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class YouTubeNativeLogicTest {
@@ -23,6 +26,17 @@ class YouTubeNativeLogicTest {
         assertEquals("Artist VEVO", mapped?.channel)
         assertEquals(1_200_000L, mapped?.viewCount)
         assertEquals(180_000L, mapped?.durationMs)
+    }
+
+    @Test
+    fun acceptsModernLockupVideoIdsWithoutAcceptingChannelsOrPlaylists() {
+        assertTrue(isPlayableSmartTubeSearchResult(MediaItem.TYPE_VIDEO, "dQw4w9WgXcQ"))
+        assertTrue(isPlayableSmartTubeSearchResult(MediaItem.TYPE_MUSIC, "QzDspCMFUAs"))
+        assertTrue(isPlayableSmartTubeSearchResult(MediaItem.TYPE_UNDEFINED, "VEDn-LPkWek"))
+        assertFalse(isPlayableSmartTubeSearchResult(MediaItem.TYPE_CHANNEL, "dQw4w9WgXcQ"))
+        assertFalse(isPlayableSmartTubeSearchResult(MediaItem.TYPE_PLAYLIST, "dQw4w9WgXcQ"))
+        assertFalse(isPlayableSmartTubeSearchResult(MediaItem.TYPE_UNDEFINED, "UCQ06Qg3tc4vGvvG3TY5scNg"))
+        assertFalse(isPlayableSmartTubeSearchResult(MediaItem.TYPE_UNDEFINED, null))
     }
 
     @Test
