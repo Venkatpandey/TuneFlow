@@ -1,6 +1,6 @@
 # SmartTube-native YouTube experiment
 
-This module is a private experiment for local builds and learning. TuneFlow packages it in normal debug and release variants, and native playback is the default when initialization succeeds. The official YouTube IFrame backend remains the runtime fallback. This integration has not been validated for public distribution.
+This module provides SmartTube-native YouTube search and playback for normal debug and release variants. This integration has not been validated for public distribution.
 
 The public boundary is intentionally narrow: `YouTubeNativeSearchClient`, `YouTubeNativePlayer`, `YouTubeNativePlayerState`, `YouTubeQuality`, and `YouTubeVideoFormat`. The native implementation uses SmartTube's Innertube format resolver and its separate ExoPlayer 2.10 fork. It does not interact with TuneFlow's Media3 audio player.
 

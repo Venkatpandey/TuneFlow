@@ -71,7 +71,6 @@ internal fun updatedVideoHistory(
 
 fun VideoHistoryEntry.toVideoCandidate(): VideoCandidate =
     VideoCandidate(
-        providerId = VideoProviderId.YouTube,
         videoId = videoId,
         title = title,
         publisher = publisher,

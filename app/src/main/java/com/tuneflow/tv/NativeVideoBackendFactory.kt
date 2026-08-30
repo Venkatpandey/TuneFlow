@@ -6,16 +6,15 @@ import com.tuneflow.core.youtubenative.SmartTubeYouTubeNativePlayer
 import com.tuneflow.core.youtubenative.SmartTubeYouTubeNativeSearchClient
 import com.tuneflow.core.youtubenative.YouTubeNativePlayerState
 import com.tuneflow.core.youtubenative.YouTubeQuality
-import com.tuneflow.feature.video.EmbeddedVideoPlayerSpec
-import com.tuneflow.feature.video.EmbeddedVideoPlayerState
-import com.tuneflow.feature.video.ExperimentalNativeVideoBackend
+import com.tuneflow.feature.video.NativeVideoBackend
 import com.tuneflow.feature.video.NativeVideoControlState
+import com.tuneflow.feature.video.NativeVideoPlayer
+import com.tuneflow.feature.video.NativeVideoPlayerState
+import com.tuneflow.feature.video.NativeVideoSpec
 import com.tuneflow.feature.video.VideoCandidate
 import com.tuneflow.feature.video.VideoCaptionOption
-import com.tuneflow.feature.video.VideoProviderId
 import com.tuneflow.feature.video.VideoQualityOption
 import com.tuneflow.feature.video.VideoSessionKey
-import com.tuneflow.feature.video.VideoSurfacePlayer
 import com.tuneflow.feature.video.VideoTrackQuery
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,17 +26,15 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-internal fun createExperimentalNativeVideoBackend(context: Context): ExperimentalNativeVideoBackend =
-    SmartTubeNativeVideoBackend(context.applicationContext)
+internal fun createNativeVideoBackend(context: Context): NativeVideoBackend = SmartTubeNativeVideoBackend(context.applicationContext)
 
-private class SmartTubeNativeVideoBackend(context: Context) : ExperimentalNativeVideoBackend {
+private class SmartTubeNativeVideoBackend(context: Context) : NativeVideoBackend {
     private val searchClient = SmartTubeYouTubeNativeSearchClient(context)
-    override val player: VideoSurfacePlayer = SmartTubeNativeSurfacePlayer(context)
+    override val player: NativeVideoPlayer = SmartTubeNativePlayerAdapter(context)
 
     override suspend fun search(query: VideoTrackQuery): List<VideoCandidate> =
         searchClient.search(query.artist, query.title).map { result ->
             VideoCandidate(
-                providerId = VideoProviderId.YouTube,
                 videoId = result.videoId,
                 title = result.title,
                 publisher = result.channel,
@@ -51,12 +48,11 @@ private class SmartTubeNativeVideoBackend(context: Context) : ExperimentalNative
         }
 }
 
-private class SmartTubeNativeSurfacePlayer(context: Context) : VideoSurfacePlayer {
-    override val isNative: Boolean = true
+private class SmartTubeNativePlayerAdapter(context: Context) : NativeVideoPlayer {
     private val delegate = SmartTubeYouTubeNativePlayer(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val _state = MutableStateFlow<EmbeddedVideoPlayerState>(EmbeddedVideoPlayerState.Idle)
-    override val state: StateFlow<EmbeddedVideoPlayerState> = _state.asStateFlow()
+    private val _state = MutableStateFlow<NativeVideoPlayerState>(NativeVideoPlayerState.Idle)
+    override val state: StateFlow<NativeVideoPlayerState> = _state.asStateFlow()
     private val _nativeControls = MutableStateFlow(NativeVideoControlState(available = true))
     override val nativeControls: StateFlow<NativeVideoControlState> = _nativeControls.asStateFlow()
     private var session: VideoSessionKey? = null
@@ -65,7 +61,7 @@ private class SmartTubeNativeSurfacePlayer(context: Context) : VideoSurfacePlaye
         scope.launch {
             delegate.state.collect { nativeState ->
                 val activeSession = session
-                _state.value = nativeState.toEmbeddedState(activeSession)
+                _state.value = nativeState.toNativePlayerState(activeSession)
             }
         }
         scope.launch {
@@ -97,10 +93,10 @@ private class SmartTubeNativeSurfacePlayer(context: Context) : VideoSurfacePlaye
 
     override fun prepare(
         session: VideoSessionKey,
-        spec: EmbeddedVideoPlayerSpec,
+        spec: NativeVideoSpec,
     ) {
         this.session = session
-        _state.value = EmbeddedVideoPlayerState.Loading(session)
+        _state.value = NativeVideoPlayerState.Loading(session)
         delegate.prepare(spec.videoId)
     }
 
@@ -113,7 +109,7 @@ private class SmartTubeNativeSurfacePlayer(context: Context) : VideoSurfacePlaye
     override fun release() {
         delegate.release()
         session = null
-        _state.value = EmbeddedVideoPlayerState.Idle
+        _state.value = NativeVideoPlayerState.Idle
     }
 
     override fun createSurfaceView(context: Context): View = delegate.createView(context)
@@ -139,19 +135,19 @@ private class SmartTubeNativeSurfacePlayer(context: Context) : VideoSurfacePlaye
     override fun selectCaption(id: String?) = delegate.selectCaption(id)
 }
 
-private fun YouTubeNativePlayerState.toEmbeddedState(session: VideoSessionKey?): EmbeddedVideoPlayerState {
-    if (session == null) return EmbeddedVideoPlayerState.Idle
+private fun YouTubeNativePlayerState.toNativePlayerState(session: VideoSessionKey?): NativeVideoPlayerState {
+    if (session == null) return NativeVideoPlayerState.Idle
     return when (this) {
-        YouTubeNativePlayerState.Idle -> EmbeddedVideoPlayerState.Idle
+        YouTubeNativePlayerState.Idle -> NativeVideoPlayerState.Idle
         is YouTubeNativePlayerState.Resolving,
         is YouTubeNativePlayerState.Preparing,
-        -> EmbeddedVideoPlayerState.Loading(session)
-        is YouTubeNativePlayerState.Ready -> EmbeddedVideoPlayerState.Ready(session, durationMs)
-        is YouTubeNativePlayerState.Playing -> EmbeddedVideoPlayerState.Playing(session, positionMs, durationMs)
-        is YouTubeNativePlayerState.Paused -> EmbeddedVideoPlayerState.Paused(session, positionMs, durationMs)
-        is YouTubeNativePlayerState.Buffering -> EmbeddedVideoPlayerState.Buffering(session, positionMs, durationMs)
-        is YouTubeNativePlayerState.Ended -> EmbeddedVideoPlayerState.Ended(session, positionMs, durationMs)
-        is YouTubeNativePlayerState.Error -> EmbeddedVideoPlayerState.Error(session, message)
+        -> NativeVideoPlayerState.Loading(session)
+        is YouTubeNativePlayerState.Ready -> NativeVideoPlayerState.Ready(session, durationMs)
+        is YouTubeNativePlayerState.Playing -> NativeVideoPlayerState.Playing(session, positionMs, durationMs)
+        is YouTubeNativePlayerState.Paused -> NativeVideoPlayerState.Paused(session, positionMs, durationMs)
+        is YouTubeNativePlayerState.Buffering -> NativeVideoPlayerState.Buffering(session, positionMs, durationMs)
+        is YouTubeNativePlayerState.Ended -> NativeVideoPlayerState.Ended(session, positionMs, durationMs)
+        is YouTubeNativePlayerState.Error -> NativeVideoPlayerState.Error(session, message)
     }
 }
 

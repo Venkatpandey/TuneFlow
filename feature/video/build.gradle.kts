@@ -6,20 +6,12 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
-val youtubeApiKey =
-    providers.gradleProperty("TUNEFLOW_YOUTUBE_API_KEY")
-        .orElse(providers.environmentVariable("TUNEFLOW_YOUTUBE_API_KEY"))
-        .getOrElse("")
-        .replace("\\", "\\\\")
-        .replace("\"", "\\\"")
-
 android {
     namespace = "com.tuneflow.feature.video"
     compileSdk = 35
 
     defaultConfig {
         minSdk = 25
-        buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
     }
 
     compileOptions {
@@ -33,7 +25,6 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 
     composeOptions {

@@ -61,7 +61,7 @@ import java.text.NumberFormat
 
 @Composable
 fun NativeVideoPlayerSurface(
-    player: VideoSurfacePlayer,
+    player: NativeVideoPlayer,
     host: FrameLayout,
     bounds: IntRect,
     requestFocus: Boolean,
@@ -73,7 +73,7 @@ fun NativeVideoPlayerSurface(
     val view = remember(player, host) { player.createSurfaceView(host.context) }
     val controlsView =
         remember(player, host, requestFocus) {
-            if (player.isNative && requestFocus) {
+            if (requestFocus) {
                 ComposeView(host.context).apply {
                     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                     setContent {
@@ -168,7 +168,7 @@ fun NativeVideoPlayerSurface(
 @Composable
 @Suppress("CyclomaticComplexMethod")
 private fun NativeVideoControlsOverlay(
-    player: VideoSurfacePlayer,
+    player: NativeVideoPlayer,
     onExitFullscreen: () -> Unit,
     onChooseAnother: () -> Unit,
     onStop: () -> Unit,
@@ -270,11 +270,11 @@ private fun NativeVideoControlsOverlay(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     VideoTextButton(
-                        label = if (playerState is EmbeddedVideoPlayerState.Playing) "Pause" else "Play",
+                        label = if (playerState is NativeVideoPlayerState.Playing) "Pause" else "Play",
                         enabled = true,
                         accent = true,
                         onClick = {
-                            if (playerState is EmbeddedVideoPlayerState.Playing) player.pause() else player.play()
+                            if (playerState is NativeVideoPlayerState.Playing) player.pause() else player.play()
                             activityToken += 1
                         },
                         modifier = Modifier.focusRequester(playFocusRequester).width(108.dp).height(44.dp),
@@ -393,22 +393,22 @@ internal fun nativeControlAction(
         else -> NativeControlAction.None
     }
 
-private fun EmbeddedVideoPlayerState.positionMsForControls(): Long =
+private fun NativeVideoPlayerState.positionMsForControls(): Long =
     when (this) {
-        is EmbeddedVideoPlayerState.Playing -> positionMs
-        is EmbeddedVideoPlayerState.Paused -> positionMs
-        is EmbeddedVideoPlayerState.Buffering -> positionMs
-        is EmbeddedVideoPlayerState.Ended -> positionMs
+        is NativeVideoPlayerState.Playing -> positionMs
+        is NativeVideoPlayerState.Paused -> positionMs
+        is NativeVideoPlayerState.Buffering -> positionMs
+        is NativeVideoPlayerState.Ended -> positionMs
         else -> 0L
     }
 
-private fun EmbeddedVideoPlayerState.durationMsForControls(): Long =
+private fun NativeVideoPlayerState.durationMsForControls(): Long =
     when (this) {
-        is EmbeddedVideoPlayerState.Ready -> durationMs
-        is EmbeddedVideoPlayerState.Playing -> durationMs
-        is EmbeddedVideoPlayerState.Paused -> durationMs
-        is EmbeddedVideoPlayerState.Buffering -> durationMs
-        is EmbeddedVideoPlayerState.Ended -> durationMs
+        is NativeVideoPlayerState.Ready -> durationMs
+        is NativeVideoPlayerState.Playing -> durationMs
+        is NativeVideoPlayerState.Paused -> durationMs
+        is NativeVideoPlayerState.Buffering -> durationMs
+        is NativeVideoPlayerState.Ended -> durationMs
         else -> 0L
     }
 

@@ -47,7 +47,6 @@ class NativeVideoBehaviorTest {
         title: String,
         score: Double = 0.0,
     ) = VideoCandidate(
-        providerId = VideoProviderId.YouTube,
         videoId = id,
         title = title,
         publisher = "Artist",

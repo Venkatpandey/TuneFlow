@@ -62,13 +62,9 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 
 ## YouTube Video Setup
 
-The private video experiment supports YouTube through the SmartTube-native search and player integration. It starts every selected video from the beginning, pauses audio immediately, and does not use a WebView playback fallback. The remote play/pause key controls video while a video session is active and returns to audio control after video stops.
+The private video experiment supports YouTube through the SmartTube-native search and player integration. It starts every selected video from the beginning and pauses audio immediately. The remote play/pause key controls video while a video session is active and returns to audio control after video stops.
 
-The native search works without a Google API key. A restricted YouTube Data API v3 key can optionally provide search fallback if the native search fails:
-
-```bash
-TUNEFLOW_YOUTUBE_API_KEY=your_restricted_key ./gradlew :app:assembleDebug
-```
+Native search works without a Google API key.
 
 Video search starts only after the user selects it and accepts the one-time disclosure. TuneFlow ranks matches using title, artist, duration, category, publisher, and view count. The native player defaults to the highest supported quality, preserves the video's aspect ratio, and exposes quality and caption controls. Stopping, finishing, or failing video leaves audio paused and returns control to audio. Playback pauses when TuneFlow leaves the foreground.
 

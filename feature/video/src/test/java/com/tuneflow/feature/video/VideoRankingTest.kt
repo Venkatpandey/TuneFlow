@@ -107,7 +107,6 @@ class VideoRankingTest {
         durationMs: Long,
         viewCount: Long = 0L,
     ) = VideoCandidate(
-        providerId = VideoProviderId.YouTube,
         videoId = id,
         title = title,
         publisher = publisher,

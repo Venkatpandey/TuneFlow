@@ -19,9 +19,7 @@ import com.tuneflow.feature.playback.LyricsProvider
 import com.tuneflow.feature.playback.PlaybackViewModel
 import com.tuneflow.feature.video.SharedPreferencesVideoConsentStore
 import com.tuneflow.feature.video.VideoHistoryStore
-import com.tuneflow.feature.video.VideoProviderRegistry
 import com.tuneflow.feature.video.VideoViewModel
-import com.tuneflow.feature.video.YouTubeVideoProvider
 
 fun authViewModelFactory(
     repository: AuthRepository,
@@ -83,10 +81,9 @@ fun videoViewModelFactory(
 ) = viewModelFactory {
     initializer {
         VideoViewModel(
-            providers = VideoProviderRegistry(listOf(YouTubeVideoProvider.configured(context))),
             audio = manager,
             consentStore = SharedPreferencesVideoConsentStore(context),
-            nativeBackend = createExperimentalNativeVideoBackend(context),
+            nativeBackend = createNativeVideoBackend(context),
             historyStore = historyStore,
         )
     }
