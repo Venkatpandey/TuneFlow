@@ -62,6 +62,7 @@ import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.feature.browse.BrowseFocusTarget
 import com.tuneflow.feature.browse.BrowseFocusTargetKind
 import com.tuneflow.feature.browse.HomeCategoryKind
+import com.tuneflow.feature.video.VideoHistoryEntry
 import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
@@ -78,11 +79,14 @@ fun HomeScreen(
     onOpenPlaylists: (String?) -> Unit,
     onOpenSearch: () -> Unit,
     onOpenNowPlaying: () -> Unit,
+    onOpenVideoHistory: () -> Unit,
+    onPlayVideo: (VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<TrackSummary>, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val homeListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val videoHistoryRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val favoritesRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val artistsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val albumsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
@@ -133,10 +137,25 @@ fun HomeScreen(
             state.playlists.isEmpty() &&
             state.favorites.albums.isEmpty() &&
             state.favorites.tracks.isEmpty() &&
-            state.artists.isEmpty()
+            state.artists.isEmpty() &&
+            state.videoHistory.isEmpty()
         ) {
             item {
                 ErrorBanner(message = state.error.orEmpty())
+            }
+        }
+
+        if (state.videoHistory.isNotEmpty()) {
+            item { SectionHeading("Recently played videos") }
+            item {
+                HomeContentRow(
+                    items = state.videoHistory,
+                    listState = videoHistoryRowState,
+                    key = { _, video -> video.videoId },
+                    onShowAll = onOpenVideoHistory,
+                ) { video ->
+                    HomeVideoCard(video = video, onClick = { onPlayVideo(video) })
+                }
             }
         }
 
@@ -284,7 +303,11 @@ private fun HomeUiState.focusLocation(target: BrowseFocusTarget): HomeFocusLocat
     val sections = focusSections()
     val sectionIndex = sections.indexOfFirst { it.matches(target) }
     if (sectionIndex < 0) return null
-    val contentStartIndex = 2 + isLoading.toItemCount() + showsFatalError().toItemCount()
+    val contentStartIndex =
+        2 +
+            isLoading.toItemCount() +
+            showsFatalError().toItemCount() +
+            (videoHistory.isNotEmpty()).toItemCount() * 2
     val section = sections[sectionIndex]
     return HomeFocusLocation(
         category = section.category,
@@ -370,7 +393,8 @@ private fun HomeUiState.showsFatalError(): Boolean =
         playlists.isEmpty() &&
         favorites.albums.isEmpty() &&
         favorites.tracks.isEmpty() &&
-        artists.isEmpty()
+        artists.isEmpty() &&
+        videoHistory.isEmpty()
 
 private fun Boolean.toItemCount(): Int = if (this) 1 else 0
 
@@ -692,6 +716,52 @@ private fun FavoriteTrackCard(
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeVideoCard(
+    video: VideoHistoryEntry,
+    onClick: () -> Unit,
+) {
+    FocusCard(
+        modifier = Modifier.width(280.dp),
+        onClick = onClick,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(144.dp)
+                        .clip(TuneFlowShapes.artwork)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f)),
+            ) {
+                TuneFlowArtwork(
+                    model = video.thumbnailUrl,
+                    contentDescription = video.title,
+                    width = 256.dp,
+                    height = 144.dp,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = video.title,
+                )
+            }
+            Text(
+                text = video.title,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = video.publisher,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }

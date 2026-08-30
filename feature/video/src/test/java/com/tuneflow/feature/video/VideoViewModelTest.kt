@@ -121,7 +121,7 @@ class VideoViewModelTest {
         }
 
     @Test
-    fun nativeReadyHandsOffPositionAndBackgroundPauses() =
+    fun nativeSelectionStopsAudioAndAlwaysStartsVideoAtZero() =
         runTest {
             val audio = VideoViewModelFakeAudio()
             val provider = FakeVideoProvider(searchDelayMs = 0L, resultCount = 2)
@@ -132,19 +132,21 @@ class VideoViewModelTest {
             viewModel.requestVideo()
             runCurrent()
             viewModel.selectCandidate((viewModel.uiState.value as VideoUiState.Candidates).candidates.first())
+            assertEquals(1, audio.pauseCalls)
             nativePlayer.emitReady(180_000L)
             runCurrent()
             nativePlayer.emitPlaying(10_000L, 180_000L)
             runCurrent()
 
-            assertEquals(10_000L, nativePlayer.seekPositionMs)
+            assertEquals(0L, nativePlayer.seekPositionMs)
+            assertEquals(1, nativePlayer.playCalls)
             assertEquals(1, audio.pauseCalls)
             viewModel.onAppBackgrounded()
             assertEquals(1, nativePlayer.pauseCalls)
         }
 
     @Test
-    fun nativeFailureRestoresAudioAndFallsBackToIframe() =
+    fun nativeFailureStaysNativeAndDoesNotResumeAudio() =
         runTest {
             val audio = VideoViewModelFakeAudio()
             val provider = FakeVideoProvider(searchDelayMs = 0L, resultCount = 2)
@@ -160,10 +162,61 @@ class VideoViewModelTest {
             nativePlayer.emitError("Native resolver failed.")
             runCurrent()
 
-            assertTrue(viewModel.surfacePlayer.value is YouTubeEmbeddedPlayer)
-            assertTrue(viewModel.uiState.value is VideoUiState.Loading)
-            assertEquals(1, audio.playCalls)
+            assertEquals(nativePlayer, viewModel.surfacePlayer.value)
+            assertTrue(viewModel.uiState.value is VideoUiState.Error)
+            assertEquals(0, audio.playCalls)
             assertTrue(nativePlayer.releaseCalls >= 1)
+        }
+
+    @Test
+    fun loadingVideoConsumesPlayPauseUntilVideoStops() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val provider = FakeVideoProvider(searchDelayMs = 0L, resultCount = 2)
+            val nativePlayer = FakeNativeSurfacePlayer()
+            val viewModel = createViewModel(audio, provider, backgroundScope, FakeNativeBackend(nativePlayer))
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+            viewModel.selectCandidate((viewModel.uiState.value as VideoUiState.Candidates).candidates.first())
+
+            assertTrue(viewModel.togglePlayPause())
+            assertEquals(1, nativePlayer.playCalls)
+            assertEquals(0, audio.playCalls)
+
+            viewModel.stopVideo()
+
+            assertFalse(viewModel.togglePlayPause())
+        }
+
+    @Test
+    fun firstPlayingStateRecordsVideoOnce() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val provider = FakeVideoProvider(searchDelayMs = 0L, resultCount = 2)
+            val nativePlayer = FakeNativeSurfacePlayer()
+            val historyStore = RecordingVideoHistoryStore()
+            val viewModel =
+                createViewModel(
+                    audio,
+                    provider,
+                    backgroundScope,
+                    FakeNativeBackend(nativePlayer),
+                    historyStore,
+                )
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+            val candidate = (viewModel.uiState.value as VideoUiState.Candidates).candidates.first()
+            viewModel.selectCandidate(candidate)
+            nativePlayer.emitPlaying(0L, 180_000L)
+            runCurrent()
+            nativePlayer.emitPlaying(1_000L, 180_000L)
+            runCurrent()
+
+            assertEquals(listOf(candidate.videoId), historyStore.recordedIds)
         }
 
     @Test
@@ -189,27 +242,29 @@ class VideoViewModelTest {
         audio: VideoViewModelFakeAudio,
         provider: VideoProvider,
         scope: CoroutineScope,
-        nativeBackend: ExperimentalNativeVideoBackend? = null,
+        nativeBackend: ExperimentalNativeVideoBackend = FakeNativeBackend(FakeNativeSurfacePlayer(), provider),
+        historyStore: VideoHistoryStore = EmptyVideoHistoryStore,
     ): VideoViewModel =
         VideoViewModel(
             providers = VideoProviderRegistry(listOf(provider)),
             audio = audio,
-            youtubePlayer = YouTubeEmbeddedPlayer(),
-            coordinator = VideoPlaybackCoordinator(audio),
             consentStore = AcceptedConsentStore,
-            scopeOverride = scope,
             nativeBackend = nativeBackend,
+            historyStore = historyStore,
+            scopeOverride = scope,
         )
 }
 
 private class FakeNativeBackend(
     override val player: VideoSurfacePlayer,
+    private val searchProvider: VideoProvider? = null,
 ) : ExperimentalNativeVideoBackend {
     override suspend fun search(query: VideoTrackQuery): List<VideoCandidate> =
-        listOf(
-            nativeCandidate("native-1", query),
-            nativeCandidate("native-2", query),
-        )
+        searchProvider?.search(query)
+            ?: listOf(
+                nativeCandidate("native-1", query),
+                nativeCandidate("native-2", query),
+            )
 
     private fun nativeCandidate(
         id: String,
@@ -231,6 +286,7 @@ private class FakeNativeSurfacePlayer : VideoSurfacePlayer {
     override val state: StateFlow<EmbeddedVideoPlayerState> = mutableState
     private var session: VideoSessionKey? = null
     var seekPositionMs: Long? = null
+    var playCalls = 0
     var pauseCalls = 0
     var releaseCalls = 0
 
@@ -242,7 +298,9 @@ private class FakeNativeSurfacePlayer : VideoSurfacePlayer {
         mutableState.value = EmbeddedVideoPlayerState.Loading(session)
     }
 
-    override fun play() = Unit
+    override fun play() {
+        playCalls += 1
+    }
 
     override fun pause() {
         pauseCalls += 1
@@ -280,6 +338,15 @@ private class FakeNativeSurfacePlayer : VideoSurfacePlayer {
         durationMs: Long,
     ) {
         mutableState.value = EmbeddedVideoPlayerState.Playing(requireNotNull(session), positionMs, durationMs)
+    }
+}
+
+private class RecordingVideoHistoryStore : VideoHistoryStore {
+    override val history: StateFlow<List<VideoHistoryEntry>> = MutableStateFlow(emptyList())
+    val recordedIds = mutableListOf<String>()
+
+    override fun record(candidate: VideoCandidate) {
+        recordedIds += candidate.videoId
     }
 }
 

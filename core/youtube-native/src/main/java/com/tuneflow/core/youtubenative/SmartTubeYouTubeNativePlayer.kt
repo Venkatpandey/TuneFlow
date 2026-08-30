@@ -103,7 +103,11 @@ class SmartTubeYouTubeNativePlayer(
                 _availableCaptions.value = resolved.captions
                 applyRequestedQuality()
                 _state.value = YouTubeNativePlayerState.Preparing(videoId, resolved.sourceKind)
-                ensurePlayer().prepare(mediaSourceFactory.create(resolved))
+                ensurePlayer().apply {
+                    seekTo(0L)
+                    playWhenReady = true
+                    prepare(mediaSourceFactory.create(resolved))
+                }
             } catch (error: NativeResolverException) {
                 publishError(videoId, error.kind, error.message)
             } catch (error: Exception) {

@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.progressSemantics
 import androidx.compose.material3.LinearProgressIndicator
@@ -61,7 +60,7 @@ import kotlinx.coroutines.delay
 import java.text.NumberFormat
 
 @Composable
-fun YouTubePlayerSurface(
+fun NativeVideoPlayerSurface(
     player: VideoSurfacePlayer,
     host: FrameLayout,
     bounds: IntRect,
@@ -346,7 +345,10 @@ private fun NativeVideoControlsOverlay(
                                 modifier = Modifier.fillMaxWidth().height(40.dp),
                             )
                         }
-                        items(controls.captions, key = VideoCaptionOption::id) { option ->
+                        itemsIndexed(
+                            controls.captions,
+                            key = { index, option -> "${option.id}:$index" },
+                        ) { _, option ->
                             VideoTextButton(
                                 label = option.label,
                                 enabled = true,
@@ -499,7 +501,7 @@ fun VideoCandidatePicker(
         Text(
             text = "Choose a YouTube video",
             style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = Color.White,
         )
         Text(
             text = "${candidates.size} matches. Select one to play full screen.",
@@ -713,7 +715,7 @@ private fun VideoTextButton(
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = Color.White,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

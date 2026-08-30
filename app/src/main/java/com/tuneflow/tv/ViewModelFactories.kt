@@ -18,10 +18,9 @@ import com.tuneflow.feature.browse.SearchViewModel
 import com.tuneflow.feature.playback.LyricsProvider
 import com.tuneflow.feature.playback.PlaybackViewModel
 import com.tuneflow.feature.video.SharedPreferencesVideoConsentStore
-import com.tuneflow.feature.video.VideoPlaybackCoordinator
+import com.tuneflow.feature.video.VideoHistoryStore
 import com.tuneflow.feature.video.VideoProviderRegistry
 import com.tuneflow.feature.video.VideoViewModel
-import com.tuneflow.feature.video.YouTubeEmbeddedPlayer
 import com.tuneflow.feature.video.YouTubeVideoProvider
 
 fun authViewModelFactory(
@@ -31,10 +30,12 @@ fun authViewModelFactory(
     initializer { AuthViewModel(repository, sessionStore) }
 }
 
-fun homeViewModelFactory(repository: BrowseRepository) =
-    viewModelFactory {
-        initializer { HomeViewModel(repository) }
-    }
+fun homeViewModelFactory(
+    repository: BrowseRepository,
+    historyStore: VideoHistoryStore,
+) = viewModelFactory {
+    initializer { HomeViewModel(repository, historyStore) }
+}
 
 fun albumsViewModelFactory(repository: BrowseRepository) =
     viewModelFactory {
@@ -78,16 +79,15 @@ fun playbackViewModelFactory(
 fun videoViewModelFactory(
     context: Context,
     manager: TvPlayerManager,
+    historyStore: VideoHistoryStore,
 ) = viewModelFactory {
     initializer {
-        val player = YouTubeEmbeddedPlayer()
         VideoViewModel(
             providers = VideoProviderRegistry(listOf(YouTubeVideoProvider.configured(context))),
             audio = manager,
-            youtubePlayer = player,
-            coordinator = VideoPlaybackCoordinator(manager),
             consentStore = SharedPreferencesVideoConsentStore(context),
             nativeBackend = createExperimentalNativeVideoBackend(context),
+            historyStore = historyStore,
         )
     }
 }

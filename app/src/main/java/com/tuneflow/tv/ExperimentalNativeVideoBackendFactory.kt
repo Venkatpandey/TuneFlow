@@ -27,8 +27,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-internal fun createExperimentalNativeVideoBackend(context: Context): ExperimentalNativeVideoBackend? =
-    runCatching { SmartTubeNativeVideoBackend(context.applicationContext) }.getOrNull()
+internal fun createExperimentalNativeVideoBackend(context: Context): ExperimentalNativeVideoBackend =
+    SmartTubeNativeVideoBackend(context.applicationContext)
 
 private class SmartTubeNativeVideoBackend(context: Context) : ExperimentalNativeVideoBackend {
     private val searchClient = SmartTubeYouTubeNativeSearchClient(context)
@@ -84,7 +84,10 @@ private class SmartTubeNativeSurfacePlayer(context: Context) : VideoSurfacePlaye
                             VideoQualityOption("highest", "Highest supported"),
                         ) + formats.map { VideoQualityOption("${it.height}", "${it.height}p") }.distinctBy(VideoQualityOption::id),
                     selectedQualityId = quality.toControlId(),
-                    captions = captions.map { VideoCaptionOption(it.id, it.label) },
+                    captions =
+                        captions
+                            .map { VideoCaptionOption(it.id, it.label) }
+                            .distinctBy(VideoCaptionOption::id),
                     selectedCaptionId = captionId,
                     activeFormatLabel = active?.displayLabel,
                 )

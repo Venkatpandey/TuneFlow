@@ -40,6 +40,8 @@ internal fun ShellContent(
     onOpenPlaylist: (String?) -> Unit,
     onPreselectedPlaylistConsumed: () -> Unit,
     onOpenNowPlaying: () -> Unit,
+    onOpenVideoHistory: () -> Unit,
+    onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
 ) {
@@ -86,7 +88,15 @@ internal fun ShellContent(
                     onOpenPlaylists = onOpenPlaylist,
                     onOpenSearch = { onOpenSection(NavSection.Search) },
                     onOpenNowPlaying = onOpenNowPlaying,
+                    onOpenVideoHistory = onOpenVideoHistory,
+                    onPlayVideo = onPlayVideo,
                     onPlayTracks = onPlayTracks,
+                )
+            }
+            ShellDestination.VideoHistory -> {
+                VideoHistoryScreen(
+                    viewModel = homeViewModel,
+                    onPlayVideo = onPlayVideo,
                 )
             }
             is ShellDestination.HomeCategory -> {

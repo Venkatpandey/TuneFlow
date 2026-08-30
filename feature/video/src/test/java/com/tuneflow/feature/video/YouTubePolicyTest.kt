@@ -52,20 +52,6 @@ class YouTubePolicyTest {
         assertFalse(VideoDomainPolicy.isAllowedResourceHost("adult.example"))
         assertFalse(VideoDomainPolicy.isApprovedExternalHost("example.com"))
     }
-
-    @Test
-    fun softwareAv1CompatibilityScriptIsLimitedToOfficialPlayerOrigins() {
-        assertTrue(AV1_CODEC_COMPATIBILITY_SCRIPT.contains("MediaSource.isTypeSupported"))
-        assertTrue(AV1_CODEC_COMPATIBILITY_SCRIPT.contains("mediaCapabilities.decodingInfo"))
-        assertTrue(
-            YOUTUBE_PLAYER_ORIGINS ==
-                setOf(
-                    "https://www.youtube.com",
-                    "https://www.youtube-nocookie.com",
-                ),
-        )
-        assertFalse(YOUTUBE_PLAYER_ORIGINS.contains("*"))
-    }
 }
 
 private fun String.queryParameter(name: String): String? =
