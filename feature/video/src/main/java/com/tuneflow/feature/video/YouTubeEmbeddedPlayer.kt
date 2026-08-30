@@ -72,6 +72,10 @@ class YouTubeEmbeddedPlayer : EmbeddedVideoPlayer {
         evaluateJavascript("focusPlayer()")
     }
 
+    fun clearPlayerFocus() {
+        evaluateJavascript("clearPlayerFocus()")
+    }
+
     fun adjustVolume(delta: Int) {
         evaluateJavascript("adjustVolume($delta)")
     }

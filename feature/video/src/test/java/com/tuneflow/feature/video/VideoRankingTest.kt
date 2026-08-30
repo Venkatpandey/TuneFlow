@@ -56,6 +56,21 @@ class VideoRankingTest {
         assertEquals("a", ranked.first().videoId)
     }
 
+    @Test
+    fun artistPublisherRanksAboveEquivalentFanUpload() {
+        val ranked =
+            VideoCandidateRanker.rank(
+                query,
+                listOf(
+                    candidate("fan", "Depeche Mode - Enjoy the Silence", "Music Fan Uploads", 250_000L),
+                    candidate("artist", "Enjoy the Silence", "DepecheModeVEVO", 250_000L),
+                ),
+            )
+
+        assertEquals("artist", ranked.first().videoId)
+        assertTrue(ranked.first().score > ranked.last().score)
+    }
+
     private fun candidate(
         id: String,
         title: String,

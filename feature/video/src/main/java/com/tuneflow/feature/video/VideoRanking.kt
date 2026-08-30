@@ -55,13 +55,14 @@ object VideoCandidateRanker {
         var score = 0.0
         score += if (candidateTitle.contains(trackTitle)) 0.38 else tokenSimilarity(trackTitle, candidateTitle) * 0.34
         score +=
-            if (candidateTitle.contains(trackArtist) || candidatePublisher.contains(trackArtist)) {
-                0.30
-            } else {
-                max(
-                    tokenSimilarity(trackArtist, candidateTitle),
-                    tokenSimilarity(trackArtist, candidatePublisher),
-                ) * 0.22
+            when {
+                publisherMatchesArtist(trackArtist, candidatePublisher) -> 0.34
+                candidateTitle.contains(trackArtist) -> 0.26
+                else ->
+                    max(
+                        tokenSimilarity(trackArtist, candidateTitle),
+                        tokenSimilarity(trackArtist, candidatePublisher),
+                    ) * 0.22
             }
 
         if (query.durationMs > 0L && candidate.durationMs > 0L) {
@@ -94,9 +95,20 @@ object VideoCandidateRanker {
         return expectedTokens.intersect(actualTokens).size.toDouble() / expectedTokens.size.toDouble()
     }
 
+    private fun publisherMatchesArtist(
+        artist: String,
+        publisher: String,
+    ): Boolean {
+        if (publisher.contains(artist)) return true
+        val compactArtist = artist.replace(" ", "")
+        val compactPublisher = publisher.replace(" ", "")
+        return compactArtist.length >= MIN_COMPACT_ARTIST_LENGTH && compactPublisher.startsWith(compactArtist)
+    }
+
     private const val DURATION_TOLERANCE_MS = 20_000L
     private const val DURATION_TOLERANCE_RATIO = 0.10
     private const val MIN_AUTOPLAY_MARGIN = 0.08
+    private const val MIN_COMPACT_ARTIST_LENGTH = 4
 }
 
 internal fun normalizeVideoText(value: String): String =

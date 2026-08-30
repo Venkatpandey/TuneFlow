@@ -71,8 +71,13 @@ fun YouTubePlayerSurface(
         host.visibility = View.VISIBLE
         host.bringToFront()
         view.setOnKeyListener { _, _, event -> currentOnKeyEvent.value(event) }
+        view.onFocusChangeListener =
+            View.OnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) player.focusPlayer() else player.clearPlayerFocus()
+            }
         onDispose {
             view.setOnKeyListener(null)
+            view.onFocusChangeListener = null
             host.removeView(view)
             host.visibility = View.GONE
             player.disposeWebView(view)
@@ -110,6 +115,7 @@ fun YouTubePlayerSurface(
             view.requestFocus()
             player.focusPlayer()
         } else {
+            player.clearPlayerFocus()
             view.clearFocus()
         }
         onDispose { }

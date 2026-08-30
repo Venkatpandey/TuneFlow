@@ -1,8 +1,12 @@
 package com.tuneflow.feature.video
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.URI
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 class YouTubePolicyTest {
     private val query =
@@ -29,6 +33,8 @@ class YouTubePolicyTest {
         assertTrue(url.contains("maxResults=25"))
         assertTrue(url.contains("regionCode=DE"))
         assertFalse(url.contains("key="))
+        assertEquals("Song & Dance Artist", url.queryParameter("q"))
+        assertFalse(url.contains("official+music+video"))
     }
 
     @Test
@@ -59,3 +65,11 @@ class YouTubePolicyTest {
         assertFalse(YOUTUBE_PLAYER_ORIGINS.contains("*"))
     }
 }
+
+private fun String.queryParameter(name: String): String? =
+    URI(this).rawQuery
+        .split('&')
+        .map { it.split('=', limit = 2) }
+        .firstOrNull { it.firstOrNull() == name }
+        ?.getOrNull(1)
+        ?.let { URLDecoder.decode(it, StandardCharsets.UTF_8.name()) }

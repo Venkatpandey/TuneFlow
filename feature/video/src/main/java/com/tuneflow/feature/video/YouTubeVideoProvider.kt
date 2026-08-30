@@ -155,7 +155,7 @@ internal object YouTubeRequests {
     private const val API_ROOT = "https://www.googleapis.com/youtube/v3"
 
     fun search(query: VideoTrackQuery): String {
-        val searchText = "${query.artist} ${query.title} official music video".trim()
+        val searchText = listOf(query.title, query.artist).joinToString(" ") { it.trim() }.trim()
         val parameters =
             linkedMapOf(
                 "part" to "snippet",
