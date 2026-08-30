@@ -26,6 +26,7 @@ class YouTubePolicyTest {
 
         assertTrue(url.startsWith("https://www.googleapis.com/youtube/v3/search?"))
         assertTrue(url.contains("type=video"))
+        assertTrue(url.contains("order=viewCount"))
         assertTrue(url.contains("safeSearch=none"))
         assertFalse(url.contains("safeSearch=strict"))
         assertTrue(url.contains("videoEmbeddable=true"))
@@ -35,6 +36,7 @@ class YouTubePolicyTest {
         assertFalse(url.contains("key="))
         assertEquals("Song & Dance Artist", url.queryParameter("q"))
         assertFalse(url.contains("official+music+video"))
+        assertTrue(YouTubeRequests.details(listOf("video")).contains("statistics"))
     }
 
     @Test

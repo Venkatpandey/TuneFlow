@@ -30,7 +30,9 @@ class YouTubeProviderContractTest {
             val safeCandidate = candidates.first()
             assertEquals("Artist & Song", safeCandidate.title)
             assertEquals(250_000L, safeCandidate.durationMs)
+            assertEquals(123_456_789L, safeCandidate.viewCount)
             assertTrue(safeCandidate.musicCategory)
+            assertEquals(0L, candidates.last().viewCount)
             assertEquals("test-key", connections.first().getRequestProperty("X-goog-api-key"))
             assertEquals("com.tuneflow.tv", connections.first().getRequestProperty("X-Android-Package"))
             assertEquals("ABC123", connections.first().getRequestProperty("X-Android-Cert"))
@@ -63,13 +65,15 @@ class YouTubeProviderContractTest {
                 "id":"safe",
                 "snippet":{"title":"Artist &amp; Song","channelTitle":"Publisher","categoryId":"10","liveBroadcastContent":"none","thumbnails":{"high":{"url":"https://i.ytimg.com/safe.jpg"}}},
                 "contentDetails":{"duration":"PT4M10S","contentRating":{},"regionRestriction":{}},
-                "status":{"embeddable":true,"privacyStatus":"public"}
+                "status":{"embeddable":true,"privacyStatus":"public"},
+                "statistics":{"viewCount":"123456789"}
               },
               {
                 "id":"age",
                 "snippet":{"title":"Age restricted","channelTitle":"Publisher","categoryId":"10","liveBroadcastContent":"none"},
                 "contentDetails":{"duration":"PT4M10S","contentRating":{"ytRating":"ytAgeRestricted"}},
-                "status":{"embeddable":true,"privacyStatus":"public"}
+                "status":{"embeddable":true,"privacyStatus":"public"},
+                "statistics":{"viewCount":"unknown"}
               },
               {
                 "id":"live",

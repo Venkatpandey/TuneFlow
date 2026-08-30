@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import java.text.NumberFormat
 
 @Composable
 fun YouTubePlayerSurface(
@@ -359,7 +360,9 @@ private fun VideoCandidateRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "YouTube • ${candidate.publisher} • ${formatVideoDuration(candidate.durationMs)}",
+                text =
+                    "${formatVideoViewCount(candidate.viewCount)} • ${candidate.publisher} • " +
+                        formatVideoDuration(candidate.durationMs),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -426,3 +429,5 @@ private fun formatVideoDuration(durationMs: Long): String {
     val seconds = (durationMs / 1000L).coerceAtLeast(0L)
     return "%d:%02d".format(seconds / 60L, seconds % 60L)
 }
+
+private fun formatVideoViewCount(viewCount: Long): String = "${NumberFormat.getIntegerInstance().format(viewCount.coerceAtLeast(0L))} views"

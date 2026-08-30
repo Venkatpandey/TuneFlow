@@ -5,6 +5,7 @@ package com.tuneflow.feature.video
 import java.text.Normalizer
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.log10
 import kotlin.math.max
 
 object VideoCandidateRanker {
@@ -32,7 +33,11 @@ object VideoCandidateRanker {
         candidates
             .map { it.copy(score = score(query, it)) }
             .filter { it.score > 0.0 }
-            .sortedWith(compareByDescending<VideoCandidate>(VideoCandidate::score).thenBy(VideoCandidate::videoId))
+            .sortedWith(
+                compareByDescending<VideoCandidate>(VideoCandidate::score)
+                    .thenByDescending(VideoCandidate::viewCount)
+                    .thenBy(VideoCandidate::videoId),
+            )
 
     fun shouldAutoplay(candidates: List<VideoCandidate>): Boolean {
         val top = candidates.firstOrNull() ?: return false
@@ -52,9 +57,9 @@ object VideoCandidateRanker {
         val candidatePublisher = normalizeVideoText(candidate.publisher)
         if (trackTitle.isBlank() || trackArtist.isBlank()) return 0.0
 
-        var score = 0.0
-        score += if (candidateTitle.contains(trackTitle)) 0.38 else tokenSimilarity(trackTitle, candidateTitle) * 0.34
-        score +=
+        var matchScore = 0.0
+        matchScore += if (candidateTitle.contains(trackTitle)) 0.38 else tokenSimilarity(trackTitle, candidateTitle) * 0.34
+        matchScore +=
             when {
                 publisherMatchesArtist(trackArtist, candidatePublisher) -> 0.34
                 candidateTitle.contains(trackArtist) -> 0.26
@@ -68,21 +73,27 @@ object VideoCandidateRanker {
         if (query.durationMs > 0L && candidate.durationMs > 0L) {
             val tolerance = max(DURATION_TOLERANCE_MS, (query.durationMs * DURATION_TOLERANCE_RATIO).toLong())
             val difference = abs(query.durationMs - candidate.durationMs)
-            score += if (difference <= tolerance) 0.18 else -0.16
+            matchScore += if (difference <= tolerance) 0.18 else -0.16
         }
-        if (candidate.musicCategory) score += 0.08
+        if (candidate.musicCategory) matchScore += 0.08
         if (candidateTitle.contains("official music video") || candidateTitle.contains("official video")) {
-            score += 0.04
+            matchScore += 0.04
         }
 
         unwantedTerms.forEach { term ->
-            if (candidateTitle.contains(term) && !trackTitle.contains(term)) score -= 0.30
+            if (candidateTitle.contains(term) && !trackTitle.contains(term)) matchScore -= 0.30
         }
         variants.forEach { variant ->
-            if (candidateTitle.contains(variant) && !trackTitle.contains(variant)) score -= 0.24
+            if (candidateTitle.contains(variant) && !trackTitle.contains(variant)) matchScore -= 0.24
         }
 
-        return score.coerceIn(0.0, 1.0)
+        val popularityScore =
+            (log10(candidate.viewCount.coerceAtLeast(0L).toDouble() + 1.0) / MAX_VIEW_COUNT_LOG10)
+                .coerceIn(0.0, 1.0)
+        return (
+            matchScore.coerceIn(0.0, 1.0) * MATCH_WEIGHT +
+                popularityScore * POPULARITY_WEIGHT
+        ).coerceIn(0.0, 1.0)
     }
 
     private fun tokenSimilarity(
@@ -109,6 +120,9 @@ object VideoCandidateRanker {
     private const val DURATION_TOLERANCE_RATIO = 0.10
     private const val MIN_AUTOPLAY_MARGIN = 0.08
     private const val MIN_COMPACT_ARTIST_LENGTH = 4
+    private const val MATCH_WEIGHT = 0.94
+    private const val POPULARITY_WEIGHT = 0.06
+    private const val MAX_VIEW_COUNT_LOG10 = 10.5
 }
 
 internal fun normalizeVideoText(value: String): String =

@@ -71,11 +71,41 @@ class VideoRankingTest {
         assertTrue(ranked.first().score > ranked.last().score)
     }
 
+    @Test
+    fun higherViewCountBreaksEquivalentMatchTie() {
+        val ranked =
+            VideoCandidateRanker.rank(
+                query,
+                listOf(
+                    candidate("less-played", "Enjoy the Silence", "Depeche Mode", 250_000L, 1_000_000L),
+                    candidate("most-played", "Enjoy the Silence", "Depeche Mode", 250_000L, 900_000_000L),
+                ),
+            )
+
+        assertEquals("most-played", ranked.first().videoId)
+        assertTrue(ranked.first().score > ranked.last().score)
+    }
+
+    @Test
+    fun artistPublisherStillBeatsMorePlayedFanUpload() {
+        val ranked =
+            VideoCandidateRanker.rank(
+                query,
+                listOf(
+                    candidate("fan", "Depeche Mode - Enjoy the Silence", "Music Fan Uploads", 250_000L, 9_000_000_000L),
+                    candidate("artist", "Enjoy the Silence", "DepecheModeVEVO", 250_000L, 1_000_000L),
+                ),
+            )
+
+        assertEquals("artist", ranked.first().videoId)
+    }
+
     private fun candidate(
         id: String,
         title: String,
         publisher: String,
         durationMs: Long,
+        viewCount: Long = 0L,
     ) = VideoCandidate(
         providerId = VideoProviderId.YouTube,
         videoId = id,
@@ -84,5 +114,6 @@ class VideoRankingTest {
         thumbnailUrl = null,
         durationMs = durationMs,
         musicCategory = true,
+        viewCount = viewCount,
     )
 }

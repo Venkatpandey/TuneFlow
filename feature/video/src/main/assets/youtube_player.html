@@ -79,6 +79,9 @@
                         setTimeout(function() { emitDiagnostics('playing'); }, 1500);
                     }
                 },
+                onPlaybackQualityChange: function(event) {
+                    emit('diagnostic', { stage: 'qualityChange', quality: event.data || '' });
+                },
                 onError: function(event) { emit('error', { code: event.data }); },
                 onAutoplayBlocked: function() { emit('autoplayBlocked', {}); }
             }
@@ -94,9 +97,7 @@
             viewportWidth: window.innerWidth,
             viewportHeight: window.innerHeight,
             iframeWidth: Math.round(rect.width),
-            iframeHeight: Math.round(rect.height),
-            quality: player.getPlaybackQuality ? player.getPlaybackQuality() : '',
-            availableQuality: player.getAvailableQualityLevels ? player.getAvailableQualityLevels() : []
+            iframeHeight: Math.round(rect.height)
         });
     }
 
