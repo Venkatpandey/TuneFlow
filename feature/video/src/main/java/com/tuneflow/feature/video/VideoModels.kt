@@ -1,6 +1,9 @@
 package com.tuneflow.feature.video
 
+import android.content.Context
+import android.view.View
 import com.tuneflow.core.player.QueueItem
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 enum class VideoProviderId {
@@ -110,6 +113,56 @@ interface EmbeddedVideoPlayer {
 
     fun release()
 }
+
+data class VideoQualityOption(
+    val id: String,
+    val label: String,
+)
+
+data class VideoCaptionOption(
+    val id: String,
+    val label: String,
+)
+
+data class NativeVideoControlState(
+    val available: Boolean = false,
+    val qualities: List<VideoQualityOption> = emptyList(),
+    val selectedQualityId: String = "highest",
+    val captions: List<VideoCaptionOption> = emptyList(),
+    val selectedCaptionId: String? = null,
+    val activeFormatLabel: String? = null,
+)
+
+interface VideoSurfacePlayer : EmbeddedVideoPlayer {
+    val isNative: Boolean
+        get() = false
+    val nativeControls: StateFlow<NativeVideoControlState>
+        get() = EMPTY_NATIVE_CONTROLS
+
+    fun createSurfaceView(context: Context): View
+
+    fun disposeSurfaceView(view: View)
+
+    fun onSurfaceBoundsChanged(view: View) = Unit
+
+    fun focusPlayer()
+
+    fun clearPlayerFocus()
+
+    fun adjustVolume(delta: Int)
+
+    fun selectQuality(id: String) = Unit
+
+    fun selectCaption(id: String?) = Unit
+}
+
+interface ExperimentalNativeVideoBackend {
+    val player: VideoSurfacePlayer
+
+    suspend fun search(query: VideoTrackQuery): List<VideoCandidate>
+}
+
+private val EMPTY_NATIVE_CONTROLS = MutableStateFlow(NativeVideoControlState())
 
 enum class VideoPresentationMode {
     Mini,

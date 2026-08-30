@@ -21,6 +21,7 @@ class VideoViewModel(
     private val coordinator: VideoPlaybackCoordinator,
     private val consentStore: VideoConsentStore,
     private val scopeOverride: CoroutineScope? = null,
+    private val nativeBackend: ExperimentalNativeVideoBackend? = null,
 ) : ViewModel() {
     private val scope: CoroutineScope
         get() = scopeOverride ?: viewModelScope
@@ -28,13 +29,15 @@ class VideoViewModel(
     private val provider = providers.provider(VideoProviderId.YouTube)
     private val _uiState =
         kotlinx.coroutines.flow.MutableStateFlow<VideoUiState>(
-            if (provider == null) {
+            if (provider == null && nativeBackend == null) {
                 VideoUiState.Unavailable("Set TUNEFLOW_YOUTUBE_API_KEY to enable video.")
             } else {
                 VideoUiState.Idle
             },
         )
     val uiState: kotlinx.coroutines.flow.StateFlow<VideoUiState> = _uiState
+    private val _surfacePlayer = kotlinx.coroutines.flow.MutableStateFlow<VideoSurfacePlayer>(youtubePlayer)
+    val surfacePlayer: kotlinx.coroutines.flow.StateFlow<VideoSurfacePlayer> = _surfacePlayer
     private val returnToNowPlayingChannel = Channel<Unit>(capacity = Channel.BUFFERED)
     val returnToNowPlayingEvents: Flow<Unit> = returnToNowPlayingChannel.receiveAsFlow()
 
@@ -51,7 +54,12 @@ class VideoViewModel(
                 .collect { trackId -> onTrackChanged(trackId) }
         }
         scope.launch {
-            youtubePlayer.state.collect(::onPlayerState)
+            youtubePlayer.state.collect { onPlayerState(youtubePlayer, it) }
+        }
+        nativeBackend?.player?.let { nativePlayer ->
+            scope.launch {
+                nativePlayer.state.collect { onPlayerState(nativePlayer, it) }
+            }
         }
     }
 
@@ -70,7 +78,7 @@ class VideoViewModel(
 
     @Suppress("ReturnCount")
     fun requestVideo() {
-        val currentProvider = provider ?: return
+        if (provider == null && nativeBackend == null) return
         val track = audio.queue.value.currentItem ?: return
         generation += 1
         val requestGeneration = generation
@@ -78,7 +86,7 @@ class VideoViewModel(
             _uiState.value = VideoUiState.ConsentRequired(track.id, requestGeneration)
             return
         }
-        search(track.id, requestGeneration, currentProvider)
+        search(track.id, requestGeneration)
     }
 
     @Suppress("ReturnCount")
@@ -86,8 +94,8 @@ class VideoViewModel(
         val state = _uiState.value as? VideoUiState.ConsentRequired ?: return
         if (audio.queue.value.currentItem?.id != state.trackId) return
         consentStore.accept()
-        val currentProvider = provider ?: return
-        search(state.trackId, state.generation, currentProvider)
+        if (provider == null && nativeBackend == null) return
+        search(state.trackId, state.generation)
     }
 
     fun cancelDisclosure() {
@@ -98,9 +106,8 @@ class VideoViewModel(
 
     @Suppress("ReturnCount")
     fun selectCandidate(candidate: VideoCandidate) {
-        val currentProvider = provider ?: return
         val track = audio.queue.value.currentItem ?: return
-        if (candidate.providerId != currentProvider.id) return
+        if (candidate.providerId != VideoProviderId.YouTube) return
         activeCandidate = candidate
         val session = VideoSessionKey(track.id, generation)
         _uiState.value =
@@ -110,7 +117,9 @@ class VideoViewModel(
                 candidate = candidate,
                 presentation = VideoPresentationMode.Fullscreen,
             )
-        youtubePlayer.prepare(session, currentProvider.createPlayerSpec(candidate))
+        val selectedPlayer = nativeBackend?.player ?: youtubePlayer
+        _surfacePlayer.value = selectedPlayer
+        selectedPlayer.prepare(session, EmbeddedVideoPlayerSpec(VideoProviderId.YouTube, candidate.videoId))
     }
 
     fun chooseAnother() {
@@ -158,31 +167,31 @@ class VideoViewModel(
 
     fun togglePlayPause(): Boolean {
         val state = _uiState.value as? VideoUiState.Playing ?: return false
-        if (state.isPlaying) youtubePlayer.pause() else youtubePlayer.play()
+        if (state.isPlaying) activePlayer().pause() else activePlayer().play()
         return true
     }
 
     fun play(): Boolean {
         if (_uiState.value !is VideoUiState.Playing) return false
-        youtubePlayer.play()
+        activePlayer().play()
         return true
     }
 
     fun pause(): Boolean {
         if (_uiState.value !is VideoUiState.Playing) return false
-        youtubePlayer.pause()
+        activePlayer().pause()
         return true
     }
 
     fun seekBy(deltaMs: Long): Boolean {
         val state = _uiState.value as? VideoUiState.Playing ?: return false
-        youtubePlayer.seekTo((state.positionMs + deltaMs).coerceIn(0L, state.durationMs.coerceAtLeast(0L)))
+        activePlayer().seekTo((state.positionMs + deltaMs).coerceIn(0L, state.durationMs.coerceAtLeast(0L)))
         return true
     }
 
     fun adjustVolume(delta: Int): Boolean {
         if (_uiState.value !is VideoUiState.Playing) return false
-        youtubePlayer.adjustVolume(delta)
+        activePlayer().adjustVolume(delta)
         return true
     }
 
@@ -205,13 +214,12 @@ class VideoViewModel(
     }
 
     fun onAppBackgrounded() {
-        if (_uiState.value is VideoUiState.Playing) youtubePlayer.pause()
+        if (_uiState.value is VideoUiState.Playing) activePlayer().pause()
     }
 
     private fun search(
         trackId: String,
         requestGeneration: Long,
-        currentProvider: VideoProvider,
     ) {
         val track = audio.queue.value.currentItem?.takeIf { it.id == trackId } ?: return
         searchJob?.cancel()
@@ -225,9 +233,15 @@ class VideoViewModel(
         searchJob =
             scope.launch {
                 try {
+                    val discovered =
+                        nativeBackend?.let { backend ->
+                            runCatching { backend.search(query) }.getOrElse {
+                                provider?.search(query) ?: throw YouTubeSearchException("Native YouTube search failed.")
+                            }
+                        } ?: provider?.search(query).orEmpty()
                     val ranked =
                         VideoCandidateRanker
-                            .rank(query, currentProvider.search(query))
+                            .rank(query, filterUnwantedVideoCandidates(query, discovered))
                             .take(YOUTUBE_SEARCH_RESULT_LIMIT)
                     if (!isCurrent(trackId, requestGeneration)) return@launch
                     lastCandidates = ranked
@@ -239,7 +253,11 @@ class VideoViewModel(
                                 "No playable YouTube match found.",
                             )
                     } else {
-                        _uiState.value = VideoUiState.Candidates(trackId, requestGeneration, ranked)
+                        if (VideoCandidateRanker.shouldAutoplay(ranked)) {
+                            selectCandidate(ranked.first())
+                        } else {
+                            _uiState.value = VideoUiState.Candidates(trackId, requestGeneration, ranked)
+                        }
                     }
                 } catch (_: TimeoutCancellationException) {
                     publishSearchError(trackId, requestGeneration, "YouTube search timed out.")
@@ -265,7 +283,8 @@ class VideoViewModel(
         val activeTrackId = _uiState.value.trackId
         if (activeTrackId == null || activeTrackId == trackId) return
         searchJob?.cancel()
-        youtubePlayer.release()
+        activePlayer().release()
+        _surfacePlayer.value = youtubePlayer
         coordinator.discard()
         activeCandidate = null
         lastCandidates = emptyList()
@@ -273,14 +292,18 @@ class VideoViewModel(
         _uiState.value = availableIdleState()
     }
 
-    private fun onPlayerState(playerState: EmbeddedVideoPlayerState) {
+    private fun onPlayerState(
+        source: VideoSurfacePlayer,
+        playerState: EmbeddedVideoPlayerState,
+    ) {
+        if (source !== activePlayer()) return
         when (playerState) {
             is EmbeddedVideoPlayerState.Ready -> onPlayerReady(playerState)
             is EmbeddedVideoPlayerState.Playing -> updatePlayingState(playerState, isPlaying = true)
             is EmbeddedVideoPlayerState.Paused -> updatePlayingState(playerState, isPlaying = false)
             is EmbeddedVideoPlayerState.Buffering -> updatePlayingState(playerState, isPlaying = currentVideoWasPlaying())
             is EmbeddedVideoPlayerState.Ended -> onPlayerEnded(playerState)
-            is EmbeddedVideoPlayerState.Error -> onPlayerError(playerState)
+            is EmbeddedVideoPlayerState.Error -> onPlayerError(source, playerState)
             EmbeddedVideoPlayerState.Idle,
             is EmbeddedVideoPlayerState.Loading,
             -> Unit
@@ -292,6 +315,7 @@ class VideoViewModel(
         val startPosition = coordinator.startVideo(state.session.trackId)
         if (startPosition == null) {
             onPlayerError(
+                activePlayer(),
                 EmbeddedVideoPlayerState.Error(
                     state.session,
                     "The audio track changed before YouTube was ready.",
@@ -300,8 +324,8 @@ class VideoViewModel(
             return
         }
         val position = startPosition.coerceIn(0L, state.durationMs.takeIf { it > 0L } ?: Long.MAX_VALUE)
-        youtubePlayer.seekTo(position)
-        youtubePlayer.play()
+        activePlayer().seekTo(position)
+        activePlayer().play()
     }
 
     @Suppress("ReturnCount")
@@ -341,7 +365,8 @@ class VideoViewModel(
     private fun onPlayerEnded(state: EmbeddedVideoPlayerState.Ended) {
         if (!isCurrent(state.session)) return
         coordinator.returnToAudio(state.positionMs, resumeAudio = false)
-        youtubePlayer.release()
+        activePlayer().release()
+        _surfacePlayer.value = youtubePlayer
         activeCandidate = null
         lastCandidates = emptyList()
         generation += 1
@@ -349,24 +374,48 @@ class VideoViewModel(
         returnToNowPlayingChannel.trySend(Unit)
     }
 
-    private fun onPlayerError(state: EmbeddedVideoPlayerState.Error) {
+    @Suppress("ReturnCount")
+    private fun onPlayerError(
+        source: VideoSurfacePlayer,
+        state: EmbeddedVideoPlayerState.Error,
+    ) {
         if (!isCurrent(state.session)) return
         coordinator.restoreAfterFailure()
-        youtubePlayer.release()
+        source.release()
+        if (source.isNative) {
+            _surfacePlayer.value = youtubePlayer
+            val candidate = activeCandidate ?: return
+            _uiState.value =
+                VideoUiState.Loading(
+                    trackId = state.session.trackId,
+                    generation = state.session.generation,
+                    candidate = candidate,
+                    presentation = VideoPresentationMode.Fullscreen,
+                )
+            youtubePlayer.prepare(
+                state.session,
+                EmbeddedVideoPlayerSpec(VideoProviderId.YouTube, candidate.videoId),
+            )
+            return
+        }
         activeCandidate = null
         _uiState.value = VideoUiState.Error(state.session.trackId, state.session.generation, state.message)
     }
 
     private fun returnToAudio(resumeAudio: Boolean) {
         searchJob?.cancel()
-        val playerState = youtubePlayer.state.value
+        val player = activePlayer()
+        val playerState = player.state.value
         coordinator.returnToAudio(playerState.positionMsOrNull(), resumeAudio)
-        youtubePlayer.release()
+        player.release()
+        _surfacePlayer.value = youtubePlayer
     }
 
     private fun currentVideoWasPlaying(): Boolean =
-        (youtubePlayer.state.value is EmbeddedVideoPlayerState.Playing) ||
+        (activePlayer().state.value is EmbeddedVideoPlayerState.Playing) ||
             ((_uiState.value as? VideoUiState.Playing)?.isPlaying == true)
+
+    private fun activePlayer(): VideoSurfacePlayer = _surfacePlayer.value
 
     private fun isCurrent(
         trackId: String,
@@ -376,7 +425,7 @@ class VideoViewModel(
     private fun isCurrent(session: VideoSessionKey): Boolean = isCurrent(session.trackId, session.generation)
 
     private fun availableIdleState(): VideoUiState =
-        if (provider == null) {
+        if (provider == null && nativeBackend == null) {
             VideoUiState.Unavailable("Set TUNEFLOW_YOUTUBE_API_KEY to enable video.")
         } else {
             VideoUiState.Idle

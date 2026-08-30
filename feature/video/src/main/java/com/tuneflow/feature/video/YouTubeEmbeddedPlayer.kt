@@ -31,7 +31,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 
-class YouTubeEmbeddedPlayer : EmbeddedVideoPlayer {
+class YouTubeEmbeddedPlayer : VideoSurfacePlayer {
+    override val isNative: Boolean = false
     private val _state = MutableStateFlow<EmbeddedVideoPlayerState>(EmbeddedVideoPlayerState.Idle)
     override val state: StateFlow<EmbeddedVideoPlayerState> = _state.asStateFlow()
 
@@ -68,15 +69,15 @@ class YouTubeEmbeddedPlayer : EmbeddedVideoPlayer {
         evaluateJavascript("seekVideo(${requestedStartMs / 1000.0})")
     }
 
-    fun focusPlayer() {
+    override fun focusPlayer() {
         evaluateJavascript("focusPlayer()")
     }
 
-    fun clearPlayerFocus() {
+    override fun clearPlayerFocus() {
         evaluateJavascript("clearPlayerFocus()")
     }
 
-    fun adjustVolume(delta: Int) {
+    override fun adjustVolume(delta: Int) {
         evaluateJavascript("adjustVolume($delta)")
     }
 
@@ -92,6 +93,16 @@ class YouTubeEmbeddedPlayer : EmbeddedVideoPlayer {
             destroyWebView(view)
         }
         webView = null
+    }
+
+    override fun createSurfaceView(context: Context): View = createWebView(context)
+
+    override fun disposeSurfaceView(view: View) {
+        (view as? WebView)?.let(::disposeWebView)
+    }
+
+    override fun onSurfaceBoundsChanged(view: View) {
+        (view as? WebView)?.evaluateJavascript("window.dispatchEvent(new Event('resize'))", null)
     }
 
     @SuppressLint("SetJavaScriptEnabled")

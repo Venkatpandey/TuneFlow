@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -112,6 +113,7 @@ internal fun TuneFlowShellLayout(
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     showExitPrompt: Boolean,
 ) {
+    val videoSurfacePlayer by videoViewModel.surfacePlayer.collectAsState()
     var videoViewportBounds by remember { mutableStateOf<IntRect?>(null) }
     var videoRailViewportBounds by remember { mutableStateOf<IntRect?>(null) }
     var rootSize by remember { mutableStateOf(IntSize.Zero) }
@@ -275,13 +277,16 @@ internal fun TuneFlowShellLayout(
                         .background(Color.Black),
             )
             YouTubePlayerSurface(
-                player = videoViewModel.youtubePlayer,
+                player = videoSurfacePlayer,
                 host = videoOverlayHost,
                 bounds = playerBounds,
                 requestFocus = videoState.isFullscreen,
                 onKeyEvent = { event ->
                     handleVideoOverlayMediaKey(event, videoViewModel, playbackViewModel)
                 },
+                onExitFullscreen = videoViewModel::exitFullscreen,
+                onChooseAnother = videoViewModel::chooseAnother,
+                onStop = videoViewModel::stopVideo,
             )
         }
     }

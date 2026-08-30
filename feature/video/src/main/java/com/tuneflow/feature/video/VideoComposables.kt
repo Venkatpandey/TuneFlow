@@ -4,6 +4,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,12 +21,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.progressSemantics
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,26 +45,50 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import java.text.NumberFormat
 
 @Composable
 fun YouTubePlayerSurface(
-    player: YouTubeEmbeddedPlayer,
+    player: VideoSurfacePlayer,
     host: FrameLayout,
     bounds: IntRect,
     requestFocus: Boolean,
     onKeyEvent: (KeyEvent) -> Boolean,
+    onExitFullscreen: () -> Unit = {},
+    onChooseAnother: () -> Unit = {},
+    onStop: () -> Unit = {},
 ) {
-    val view = remember(player, host) { player.createWebView(host.context) }
+    val view = remember(player, host) { player.createSurfaceView(host.context) }
+    val controlsView =
+        remember(player, host, requestFocus) {
+            if (player.isNative && requestFocus) {
+                ComposeView(host.context).apply {
+                    setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+                    setContent {
+                        MaterialTheme {
+                            NativeVideoControlsOverlay(player, onExitFullscreen, onChooseAnother, onStop)
+                        }
+                    }
+                }
+            } else {
+                null
+            }
+        }
     val currentOnKeyEvent = rememberUpdatedState(onKeyEvent)
-    DisposableEffect(player, host, view) {
+    DisposableEffect(player, host, view, controlsView) {
         (view.parent as? ViewGroup)?.removeView(view)
         host.removeAllViews()
         host.addView(
@@ -69,19 +98,31 @@ fun YouTubePlayerSurface(
                 ViewGroup.LayoutParams.MATCH_PARENT,
             ),
         )
+        controlsView?.let { overlay ->
+            host.addView(
+                overlay,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
         host.visibility = View.VISIBLE
         host.bringToFront()
         view.setOnKeyListener { _, _, event -> currentOnKeyEvent.value(event) }
+        controlsView?.setOnKeyListener { _, _, event -> currentOnKeyEvent.value(event) }
         view.onFocusChangeListener =
             View.OnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) player.focusPlayer() else player.clearPlayerFocus()
             }
         onDispose {
             view.setOnKeyListener(null)
+            controlsView?.setOnKeyListener(null)
             view.onFocusChangeListener = null
             host.removeView(view)
+            controlsView?.let(host::removeView)
             host.visibility = View.GONE
-            player.disposeWebView(view)
+            player.disposeSurfaceView(view)
         }
     }
 
@@ -104,24 +145,278 @@ fun YouTubePlayerSurface(
         view.post {
             view.requestLayout()
             view.invalidate()
-            view.evaluateJavascript("window.dispatchEvent(new Event('resize'))", null)
+            player.onSurfaceBoundsChanged(view)
+            controlsView?.bringToFront()
         }
         onDispose { }
     }
 
     DisposableEffect(view, requestFocus) {
-        view.isFocusable = requestFocus
-        view.isFocusableInTouchMode = requestFocus
+        val focusView = controlsView ?: view
+        focusView.isFocusable = requestFocus
+        focusView.isFocusableInTouchMode = requestFocus
         if (requestFocus) {
-            view.requestFocus()
+            focusView.requestFocus()
             player.focusPlayer()
         } else {
             player.clearPlayerFocus()
-            view.clearFocus()
+            focusView.clearFocus()
         }
         onDispose { }
     }
 }
+
+@Composable
+@Suppress("CyclomaticComplexMethod")
+private fun NativeVideoControlsOverlay(
+    player: VideoSurfacePlayer,
+    onExitFullscreen: () -> Unit,
+    onChooseAnother: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val playerState by player.state.collectAsState()
+    val controls by player.nativeControls.collectAsState()
+    var controlsVisible by remember { mutableStateOf(true) }
+    var activityToken by remember { mutableStateOf(0L) }
+    var qualityMenuVisible by remember { mutableStateOf(false) }
+    var captionMenuVisible by remember { mutableStateOf(false) }
+    val rootFocusRequester = remember { FocusRequester() }
+    val playFocusRequester = remember { FocusRequester() }
+    val positionMs = playerState.positionMsForControls()
+    val durationMs = playerState.durationMsForControls()
+
+    LaunchedEffect(activityToken, controlsVisible) {
+        if (controlsVisible) {
+            delay(NATIVE_CONTROLS_HIDE_DELAY_MS)
+            controlsVisible = false
+            qualityMenuVisible = false
+            captionMenuVisible = false
+        }
+    }
+    LaunchedEffect(controlsVisible) {
+        if (controlsVisible) playFocusRequester.requestFocus() else rootFocusRequester.requestFocus()
+    }
+    BackHandler {
+        if (controlsVisible) {
+            controlsVisible = false
+            qualityMenuVisible = false
+            captionMenuVisible = false
+        } else {
+            onExitFullscreen()
+        }
+    }
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .focusRequester(rootFocusRequester)
+                .focusable()
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (nativeControlAction(event.nativeKeyEvent.keyCode, controlsVisible)) {
+                        NativeControlAction.ShowControls -> {
+                            controlsVisible = true
+                            activityToken += 1
+                            true
+                        }
+                        NativeControlAction.HideControls -> {
+                            controlsVisible = false
+                            qualityMenuVisible = false
+                            captionMenuVisible = false
+                            true
+                        }
+                        NativeControlAction.ExitFullscreen -> {
+                            onExitFullscreen()
+                            true
+                        }
+                        NativeControlAction.SeekBack -> {
+                            player.seekTo((positionMs - NATIVE_SEEK_MS).coerceAtLeast(0L))
+                            true
+                        }
+                        NativeControlAction.SeekForward -> {
+                            player.seekTo((positionMs + NATIVE_SEEK_MS).coerceAtMost(durationMs.coerceAtLeast(positionMs)))
+                            true
+                        }
+                        NativeControlAction.None -> {
+                            if (controlsVisible) activityToken += 1
+                            false
+                        }
+                    }
+                },
+    ) {
+        if (controlsVisible) {
+            Column(
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.82f))
+                        .padding(horizontal = 34.dp, vertical = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                LinearProgressIndicator(
+                    progress = { if (durationMs > 0L) positionMs.toFloat() / durationMs else 0f },
+                    modifier = Modifier.fillMaxWidth().height(6.dp).progressSemantics(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(formatVideoTime(positionMs), color = Color.White)
+                    Text(formatVideoTime(durationMs), color = Color.White)
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    VideoTextButton(
+                        label = if (playerState is EmbeddedVideoPlayerState.Playing) "Pause" else "Play",
+                        enabled = true,
+                        accent = true,
+                        onClick = {
+                            if (playerState is EmbeddedVideoPlayerState.Playing) player.pause() else player.play()
+                            activityToken += 1
+                        },
+                        modifier = Modifier.focusRequester(playFocusRequester).width(108.dp).height(44.dp),
+                    )
+                    if (controls.qualities.isNotEmpty()) {
+                        VideoTextButton(
+                            label =
+                                "Quality: ${controls.qualities.firstOrNull { it.id == controls.selectedQualityId }?.label ?: "Auto"}",
+                            enabled = true,
+                            accent = false,
+                            onClick = {
+                                qualityMenuVisible = !qualityMenuVisible
+                                captionMenuVisible = false
+                                activityToken += 1
+                            },
+                            modifier = Modifier.width(220.dp).height(44.dp),
+                        )
+                    }
+                    if (controls.captions.isNotEmpty()) {
+                        VideoTextButton(
+                            label =
+                                controls.captions.firstOrNull { it.id == controls.selectedCaptionId }
+                                    ?.let { "CC: ${it.label}" } ?: "Captions: Off",
+                            enabled = true,
+                            accent = false,
+                            onClick = {
+                                captionMenuVisible = !captionMenuVisible
+                                qualityMenuVisible = false
+                                activityToken += 1
+                            },
+                            modifier = Modifier.width(200.dp).height(44.dp),
+                        )
+                    }
+                    controls.activeFormatLabel?.let { Text(it, color = Color.White) }
+                }
+                if (qualityMenuVisible) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        controls.qualities.forEach { option ->
+                            VideoTextButton(
+                                label = option.label,
+                                enabled = true,
+                                accent = option.id == controls.selectedQualityId,
+                                onClick = {
+                                    player.selectQuality(option.id)
+                                    qualityMenuVisible = false
+                                    activityToken += 1
+                                },
+                                modifier = Modifier.width(150.dp).height(40.dp),
+                            )
+                        }
+                    }
+                }
+                if (captionMenuVisible) {
+                    LazyColumn(
+                        modifier = Modifier.width(320.dp).height(180.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        item {
+                            VideoTextButton(
+                                label = "Off",
+                                enabled = true,
+                                accent = controls.selectedCaptionId == null,
+                                onClick = {
+                                    player.selectCaption(null)
+                                    captionMenuVisible = false
+                                    activityToken += 1
+                                },
+                                modifier = Modifier.fillMaxWidth().height(40.dp),
+                            )
+                        }
+                        items(controls.captions, key = VideoCaptionOption::id) { option ->
+                            VideoTextButton(
+                                label = option.label,
+                                enabled = true,
+                                accent = option.id == controls.selectedCaptionId,
+                                onClick = {
+                                    player.selectCaption(option.id)
+                                    captionMenuVisible = false
+                                    activityToken += 1
+                                },
+                                modifier = Modifier.fillMaxWidth().height(40.dp),
+                            )
+                        }
+                    }
+                }
+                VideoSessionActions(onChooseAnother = onChooseAnother, onStop = onStop)
+            }
+        }
+    }
+}
+
+internal enum class NativeControlAction {
+    ShowControls,
+    HideControls,
+    ExitFullscreen,
+    SeekBack,
+    SeekForward,
+    None,
+}
+
+internal fun nativeControlAction(
+    keyCode: Int,
+    controlsVisible: Boolean,
+): NativeControlAction =
+    when (keyCode) {
+        KeyEvent.KEYCODE_BACK -> if (controlsVisible) NativeControlAction.HideControls else NativeControlAction.ExitFullscreen
+        KeyEvent.KEYCODE_DPAD_CENTER,
+        KeyEvent.KEYCODE_ENTER,
+        KeyEvent.KEYCODE_NUMPAD_ENTER,
+        -> if (controlsVisible) NativeControlAction.None else NativeControlAction.ShowControls
+        KeyEvent.KEYCODE_DPAD_LEFT -> if (controlsVisible) NativeControlAction.None else NativeControlAction.SeekBack
+        KeyEvent.KEYCODE_DPAD_RIGHT -> if (controlsVisible) NativeControlAction.None else NativeControlAction.SeekForward
+        else -> NativeControlAction.None
+    }
+
+private fun EmbeddedVideoPlayerState.positionMsForControls(): Long =
+    when (this) {
+        is EmbeddedVideoPlayerState.Playing -> positionMs
+        is EmbeddedVideoPlayerState.Paused -> positionMs
+        is EmbeddedVideoPlayerState.Buffering -> positionMs
+        is EmbeddedVideoPlayerState.Ended -> positionMs
+        else -> 0L
+    }
+
+private fun EmbeddedVideoPlayerState.durationMsForControls(): Long =
+    when (this) {
+        is EmbeddedVideoPlayerState.Ready -> durationMs
+        is EmbeddedVideoPlayerState.Playing -> durationMs
+        is EmbeddedVideoPlayerState.Paused -> durationMs
+        is EmbeddedVideoPlayerState.Buffering -> durationMs
+        is EmbeddedVideoPlayerState.Ended -> durationMs
+        else -> 0L
+    }
+
+private fun formatVideoTime(positionMs: Long): String {
+    val seconds = positionMs.coerceAtLeast(0L) / 1_000L
+    return "%d:%02d".format(seconds / 60L, seconds % 60L)
+}
+
+private const val NATIVE_CONTROLS_HIDE_DELAY_MS = 3_000L
+private const val NATIVE_SEEK_MS = 10_000L
 
 @Composable
 fun VideoActionButton(

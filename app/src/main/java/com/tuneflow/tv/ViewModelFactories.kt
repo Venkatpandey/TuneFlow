@@ -87,6 +87,7 @@ fun videoViewModelFactory(
             youtubePlayer = player,
             coordinator = VideoPlaybackCoordinator(manager),
             consentStore = SharedPreferencesVideoConsentStore(context),
+            nativeBackend = createExperimentalNativeVideoBackend(context),
         )
     }
 }
