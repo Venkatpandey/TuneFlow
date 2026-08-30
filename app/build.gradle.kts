@@ -105,8 +105,8 @@ dependencies {
     implementation(project(":feature:playback"))
     implementation(project(":feature:video"))
 
-    debugImplementation(project(":core:youtube-native"))
-    debugImplementation(fileTree("$rootDir/core/youtube-native/libs"))
+    implementation(project(":core:youtube-native"))
+    implementation(fileTree("$rootDir/core/youtube-native/libs"))
 
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.1")

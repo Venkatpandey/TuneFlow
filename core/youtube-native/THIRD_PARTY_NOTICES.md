@@ -1,6 +1,6 @@
 # Third-party notices
 
-The debug-only AARs in `libs/` were built locally from the pinned revisions documented in [README.md](README.md).
+The AARs in `libs/` were built locally from the pinned revisions documented in [README.md](README.md).
 
 ## SmartTube and MediaServiceCore
 
@@ -20,4 +20,4 @@ J2V8 is distributed under the Eclipse Public License 1.0. Its corresponding sour
 
 Apache Commons IO is distributed under the Apache License 2.0. Its NOTICE and corresponding source are in `SharedModules/commons-io-2.8.0` at the pinned SharedModules revision.
 
-These components are packaged only in debug APKs for the private experiment. Their upstream license terms continue to apply.
+These components are packaged in private experimental APKs. Their upstream license terms continue to apply.

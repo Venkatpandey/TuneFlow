@@ -30,7 +30,7 @@ android {
 }
 
 dependencies {
-    // AARs are packaged by :app only in debug builds. Keeping them compileOnly here
+    // AARs are packaged by :app for every app variant. Keeping them compileOnly here
     // prevents AGP from trying to embed local AARs inside this library AAR.
     compileOnly(smartTubeAars)
     testImplementation(smartTubeAars)

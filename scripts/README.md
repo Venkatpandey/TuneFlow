@@ -41,6 +41,8 @@ export SIGNING_KEY_PASSWORD='your-key-password'
 ./scripts/build-local-release.sh
 ```
 
+This release build includes the private SmartTube-native YouTube experiment and uses the official IFrame player as its runtime fallback.
+
 Output:
 
 - `dist/tuneflow-tv.apk`
