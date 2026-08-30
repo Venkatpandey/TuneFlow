@@ -76,7 +76,7 @@ Without a configured key, the `Video` action is disabled. Video search starts on
 
 YouTube selects embedded playback quality from the player viewport, device capability, network conditions, and its adaptive-streaming policy. TuneFlow gives the iframe the full available 16:9 viewport in full-screen mode. The official IFrame API no longer provides a working quality setter or a supported way to force extra buffering, so TuneFlow cannot guarantee a fixed resolution without replacing or extracting the provider stream.
 
-In full-screen video, TuneFlow gives Center, Left, Right, Up, and Down directly to the official YouTube player so its playback, captions, settings, and other exposed controls stay usable. Back returns to the mini-player and restores focus to TuneFlow's `Video` action. Remote media keys remain available for play, pause, seek, next, previous, and stop.
+In full-screen video, TuneFlow gives Center, Left, Right, Up, and Down directly to the official YouTube player and focuses its iframe browsing context so keyboard focus remains inside captions, settings, quality, and other provider dialogs after they open. Back returns to the mini-player and restores focus to TuneFlow's `Video` action. Remote media keys remain available for play, pause, seek, next, previous, and stop.
 
 ## Streaming Quality
 

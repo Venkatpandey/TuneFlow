@@ -109,6 +109,7 @@
         const iframe = player.getIframe();
         iframe.tabIndex = 0;
         iframe.focus();
+        if (iframe.contentWindow) iframe.contentWindow.focus();
     }
     function focusPlayer() {
         playerFocusRequested = true;
