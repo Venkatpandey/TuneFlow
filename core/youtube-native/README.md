@@ -2,6 +2,8 @@
 
 This module provides SmartTube-native YouTube search and playback for normal debug and release variants. This integration has not been validated for public distribution.
 
+AndroidX WebKit remains a runtime dependency because SmartTube service internals use `WebViewFeature`. TuneFlow does not contain a WebView/IFrame video player or playback fallback.
+
 The public boundary is intentionally narrow: `YouTubeNativeSearchClient`, `YouTubeNativePlayer`, `YouTubeNativePlayerState`, `YouTubeQuality`, and `YouTubeVideoFormat`. The native implementation uses SmartTube's Innertube format resolver and its separate ExoPlayer 2.10 fork. It does not interact with TuneFlow's Media3 audio player.
 
 ## Pinned upstream revisions

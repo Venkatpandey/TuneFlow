@@ -38,6 +38,7 @@ dependencies {
     implementation("androidx.annotation:annotation:1.8.2")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.preference:preference:1.2.1")
+    implementation("androidx.webkit:webkit:1.12.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("io.reactivex.rxjava2:rxandroid:2.1.1")
     implementation("io.reactivex.rxjava2:rxjava:2.2.21")
