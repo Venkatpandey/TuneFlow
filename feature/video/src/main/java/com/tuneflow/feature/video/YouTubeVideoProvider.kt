@@ -155,12 +155,13 @@ internal object YouTubeRequests {
     private const val API_ROOT = "https://www.googleapis.com/youtube/v3"
 
     fun search(query: VideoTrackQuery): String {
-        val searchText = "${query.artist} ${query.title} official music video".trim()
+        val searchText = listOf(query.title, query.artist).joinToString(" ") { it.trim() }.trim()
         val parameters =
             linkedMapOf(
                 "part" to "snippet",
                 "type" to "video",
                 "q" to searchText,
+                "order" to "viewCount",
                 "maxResults" to YOUTUBE_SEARCH_RESULT_LIMIT.toString(),
                 "safeSearch" to "none",
                 "videoEmbeddable" to "true",
@@ -176,7 +177,7 @@ internal object YouTubeRequests {
         require(ids.isNotEmpty())
         val parameters =
             linkedMapOf(
-                "part" to "snippet,contentDetails,status",
+                "part" to "snippet,contentDetails,status,statistics",
                 "id" to ids.joinToString(","),
             )
         return "$API_ROOT/videos?${parameters.toQueryString()}"
@@ -222,6 +223,7 @@ private data class YouTubeVideoItem(
     val snippet: YouTubeVideoSnippet = YouTubeVideoSnippet(),
     val contentDetails: YouTubeContentDetails = YouTubeContentDetails(),
     val status: YouTubeVideoStatus = YouTubeVideoStatus(),
+    val statistics: YouTubeVideoStatistics = YouTubeVideoStatistics(),
 ) {
     fun toCandidate(regionCode: String?): VideoCandidate? {
         val unplayable =
@@ -239,6 +241,7 @@ private data class YouTubeVideoItem(
             thumbnailUrl = snippet.thumbnails.high?.url ?: snippet.thumbnails.medium?.url ?: snippet.thumbnails.default?.url,
             durationMs = parseIso8601DurationMs(contentDetails.duration),
             musicCategory = snippet.categoryId == "10",
+            viewCount = statistics.viewCount.toLongOrNull()?.coerceAtLeast(0L) ?: 0L,
         )
     }
 }
@@ -284,6 +287,11 @@ private data class YouTubeRegionRestriction(
 private data class YouTubeVideoStatus(
     val embeddable: Boolean = false,
     val privacyStatus: String = "",
+)
+
+@Serializable
+private data class YouTubeVideoStatistics(
+    val viewCount: String = "0",
 )
 
 internal fun parseIso8601DurationMs(value: String): Long {

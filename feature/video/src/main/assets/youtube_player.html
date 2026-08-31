@@ -25,6 +25,7 @@
     let requestedVideoId = null;
     let requestedStartSeconds = 0;
     let playingDiagnosticsEmitted = false;
+    let playerFocusRequested = false;
 
     function emit(name, payload) {
         if (window.TuneFlowVideoBridge) {
@@ -64,6 +65,7 @@
                         positionSeconds: event.target.getCurrentTime() || 0,
                         durationSeconds: event.target.getDuration() || 0
                     });
+                    applyPlayerFocus();
                     emitDiagnostics('ready');
                 },
                 onStateChange: function(event) {
@@ -76,6 +78,9 @@
                         playingDiagnosticsEmitted = true;
                         setTimeout(function() { emitDiagnostics('playing'); }, 1500);
                     }
+                },
+                onPlaybackQualityChange: function(event) {
+                    emit('diagnostic', { stage: 'qualityChange', quality: event.data || '' });
                 },
                 onError: function(event) { emit('error', { code: event.data }); },
                 onAutoplayBlocked: function() { emit('autoplayBlocked', {}); }
@@ -92,19 +97,29 @@
             viewportWidth: window.innerWidth,
             viewportHeight: window.innerHeight,
             iframeWidth: Math.round(rect.width),
-            iframeHeight: Math.round(rect.height),
-            quality: player.getPlaybackQuality ? player.getPlaybackQuality() : '',
-            availableQuality: player.getAvailableQualityLevels ? player.getAvailableQualityLevels() : []
+            iframeHeight: Math.round(rect.height)
         });
     }
 
     function playVideo() { if (player && player.playVideo) player.playVideo(); }
     function pauseVideo() { if (player && player.pauseVideo) player.pauseVideo(); }
-    function focusPlayer() {
+    function applyPlayerFocus() {
+        if (!playerFocusRequested) return;
         if (!player || !player.getIframe) return;
         const iframe = player.getIframe();
         iframe.tabIndex = 0;
         iframe.focus();
+        if (iframe.contentWindow) iframe.contentWindow.focus();
+    }
+    function focusPlayer() {
+        playerFocusRequested = true;
+        applyPlayerFocus();
+    }
+    function clearPlayerFocus() {
+        playerFocusRequested = false;
+        if (player && player.getIframe) player.getIframe().blur();
+        document.body.tabIndex = -1;
+        document.body.focus();
     }
     function adjustVolume(delta) {
         if (!player || !player.getVolume || !player.setVolume) return;

@@ -324,48 +324,40 @@ private fun handleVideoOverlayMediaKey(
     videoViewModel: VideoViewModel,
     playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
 ): Boolean {
-    if (event.action != AndroidKeyEvent.ACTION_DOWN) return false
-    val dpadResult = handleVideoDpadKey(event, videoViewModel)
-    return dpadResult
-        ?: when (event.keyCode) {
-            AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> videoViewModel.togglePlayPause()
-            AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> videoViewModel.play()
-            AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> videoViewModel.pause()
-            AndroidKeyEvent.KEYCODE_MEDIA_STOP -> {
-                videoViewModel.stopVideo()
-                true
-            }
-            AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> videoViewModel.seekBy(10_000L)
-            AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> videoViewModel.seekBy(-10_000L)
-            AndroidKeyEvent.KEYCODE_MEDIA_NEXT -> {
-                videoViewModel.closeForQueueChange()
-                playbackViewModel.next()
-                true
-            }
-            AndroidKeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                videoViewModel.closeForQueueChange()
-                playbackViewModel.previous()
-                true
-            }
-            else -> false
+    if (event.action != AndroidKeyEvent.ACTION_DOWN || isYouTubeProviderKey(event.keyCode)) return false
+    return when (event.keyCode) {
+        AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> videoViewModel.togglePlayPause()
+        AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> videoViewModel.play()
+        AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> videoViewModel.pause()
+        AndroidKeyEvent.KEYCODE_MEDIA_STOP -> {
+            videoViewModel.stopVideo()
+            true
         }
+        AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> videoViewModel.seekBy(10_000L)
+        AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> videoViewModel.seekBy(-10_000L)
+        AndroidKeyEvent.KEYCODE_MEDIA_NEXT -> {
+            videoViewModel.closeForQueueChange()
+            playbackViewModel.next()
+            true
+        }
+        AndroidKeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+            videoViewModel.closeForQueueChange()
+            playbackViewModel.previous()
+            true
+        }
+        else -> false
+    }
 }
 
-private fun handleVideoDpadKey(
-    event: AndroidKeyEvent,
-    videoViewModel: VideoViewModel,
-): Boolean? =
-    when (event.keyCode) {
-        AndroidKeyEvent.KEYCODE_DPAD_CENTER,
-        AndroidKeyEvent.KEYCODE_ENTER,
-        AndroidKeyEvent.KEYCODE_NUMPAD_ENTER,
-        -> if (event.repeatCount == 0) videoViewModel.togglePlayPause() else true
-        AndroidKeyEvent.KEYCODE_DPAD_LEFT -> videoViewModel.seekBy(-5_000L)
-        AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> videoViewModel.seekBy(5_000L)
-        AndroidKeyEvent.KEYCODE_DPAD_UP -> videoViewModel.adjustVolume(5)
-        AndroidKeyEvent.KEYCODE_DPAD_DOWN -> videoViewModel.adjustVolume(-5)
-        else -> null
-    }
+internal fun isYouTubeProviderKey(keyCode: Int): Boolean =
+    keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER ||
+        keyCode == AndroidKeyEvent.KEYCODE_ENTER ||
+        keyCode == AndroidKeyEvent.KEYCODE_NUMPAD_ENTER ||
+        keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT ||
+        keyCode == AndroidKeyEvent.KEYCODE_DPAD_RIGHT ||
+        keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP ||
+        keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN ||
+        keyCode == AndroidKeyEvent.KEYCODE_BACK
 
 @Composable
 private fun NavRail(

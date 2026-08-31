@@ -30,6 +30,7 @@ data class VideoCandidate(
     val thumbnailUrl: String?,
     val durationMs: Long,
     val musicCategory: Boolean,
+    val viewCount: Long = 0L,
     val score: Double = 0.0,
 )
 

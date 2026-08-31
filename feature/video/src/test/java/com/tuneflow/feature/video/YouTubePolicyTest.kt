@@ -1,8 +1,12 @@
 package com.tuneflow.feature.video
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.URI
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
 class YouTubePolicyTest {
     private val query =
@@ -22,6 +26,7 @@ class YouTubePolicyTest {
 
         assertTrue(url.startsWith("https://www.googleapis.com/youtube/v3/search?"))
         assertTrue(url.contains("type=video"))
+        assertTrue(url.contains("order=viewCount"))
         assertTrue(url.contains("safeSearch=none"))
         assertFalse(url.contains("safeSearch=strict"))
         assertTrue(url.contains("videoEmbeddable=true"))
@@ -29,6 +34,9 @@ class YouTubePolicyTest {
         assertTrue(url.contains("maxResults=25"))
         assertTrue(url.contains("regionCode=DE"))
         assertFalse(url.contains("key="))
+        assertEquals("Song & Dance Artist", url.queryParameter("q"))
+        assertFalse(url.contains("official+music+video"))
+        assertTrue(YouTubeRequests.details(listOf("video")).contains("statistics"))
     }
 
     @Test
@@ -59,3 +67,11 @@ class YouTubePolicyTest {
         assertFalse(YOUTUBE_PLAYER_ORIGINS.contains("*"))
     }
 }
+
+private fun String.queryParameter(name: String): String? =
+    URI(this).rawQuery
+        .split('&')
+        .map { it.split('=', limit = 2) }
+        .firstOrNull { it.firstOrNull() == name }
+        ?.getOrNull(1)
+        ?.let { URLDecoder.decode(it, StandardCharsets.UTF_8.name()) }
