@@ -19,6 +19,7 @@ Reference paths used during extraction:
 - Source selection: `common/.../VideoLoaderController.java`
 - Playback sources: `common/.../ExoMediaSourceFactory.java`
 - Track selection: `common/.../TrackSelectorManager.java`
+- Player controls: `exoplayer-amzn-2.10.6/library/ui/src/main/res/drawable-anydpi-v21/exo_icon_*.xml`
 
 The integration packages only locally built artifacts from the pinned revisions. It has no absolute sibling-repository dependency at configuration or runtime.
 
@@ -58,6 +59,6 @@ Copy the resulting AARs into `libs/` using the filenames below. Expected SHA-256
 
 Included: video-only Innertube search, candidate metadata, signature/PO-token resolution supplied by the pinned resolver, DASH, SABR, HLS/direct fallback, native aspect-fit surface, hardware-aware quality selection, captions, and player state/errors.
 
-Excluded: accounts, sign-in, browse UI, history, subscriptions, suggestions, playlists, SponsorBlock, downloads, caching, background playback, updates, analytics, and Leanback UI. This integration does not block, remove, rewrite, or manipulate advertisements.
+Excluded: accounts, sign-in, browse UI, subscriptions, suggestions, playlists, SponsorBlock, downloads, caching, background playback, updates, analytics, and Leanback UI. TuneFlow uses a small attributed subset of the pinned ExoPlayer vector control icons in its native overlay. This integration does not block, remove, rewrite, or manipulate advertisements.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for license notes.

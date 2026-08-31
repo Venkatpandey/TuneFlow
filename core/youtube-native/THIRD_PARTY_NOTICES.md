@@ -12,6 +12,8 @@ Permission is granted, free of charge, to use, copy, modify, merge, publish, dis
 
 Derived from ExoPlayer and distributed under the Apache License 2.0. Source is the `exoplayer-amzn-2.10.6` tree in the pinned SmartTube revision. License: <https://www.apache.org/licenses/LICENSE-2.0>.
 
+TuneFlow's native video overlay derives its play, pause, rewind, fast-forward, stop, and fullscreen-exit vectors from that tree's ExoPlayer UI resources. Copyright 2017 The Android Open Source Project. Licensed under the Apache License 2.0.
+
 ## J2V8
 
 J2V8 is distributed under the Eclipse Public License 1.0. Its corresponding source is the `SharedModules/j2v8` submodule at the pinned SharedModules revision. License: <https://www.eclipse.org/legal/epl-v10.html>.

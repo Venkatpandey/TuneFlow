@@ -36,6 +36,29 @@ class NativeVideoBehaviorTest {
     }
 
     @Test
+    fun initialLoadingIndicatorStopsOncePlaybackHasStarted() {
+        val session = VideoSessionKey(trackId = "track", generation = 1L)
+
+        assertTrue(shouldShowNativeVideoLoading(NativeVideoPlayerState.Loading(session)))
+        assertTrue(shouldShowNativeVideoLoading(NativeVideoPlayerState.Ready(session, durationMs = 60_000L)))
+        assertTrue(
+            shouldShowNativeVideoLoading(
+                NativeVideoPlayerState.Buffering(session, positionMs = 0L, durationMs = 60_000L),
+            ),
+        )
+        assertFalse(
+            shouldShowNativeVideoLoading(
+                NativeVideoPlayerState.Buffering(session, positionMs = 12_000L, durationMs = 60_000L),
+            ),
+        )
+        assertFalse(
+            shouldShowNativeVideoLoading(
+                NativeVideoPlayerState.Playing(session, positionMs = 1L, durationMs = 60_000L),
+            ),
+        )
+    }
+
+    @Test
     fun autoplayRequiresConfidenceAndMargin() {
         val candidates = listOf(candidate("top", "Artist Song", 0.90), candidate("other", "Artist Song", 0.70))
         assertTrue(VideoCandidateRanker.shouldAutoplay(candidates))

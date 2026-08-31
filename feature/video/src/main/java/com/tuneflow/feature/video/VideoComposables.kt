@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.progressSemantics
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -51,6 +53,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
@@ -183,6 +186,7 @@ private fun NativeVideoControlsOverlay(
     val playFocusRequester = remember { FocusRequester() }
     val positionMs = playerState.positionMsForControls()
     val durationMs = playerState.durationMsForControls()
+    val loading = shouldShowNativeVideoLoading(playerState)
 
     LaunchedEffect(activityToken, controlsVisible) {
         if (controlsVisible) {
@@ -244,6 +248,30 @@ private fun NativeVideoControlsOverlay(
                     }
                 },
     ) {
+        if (loading) {
+            Column(
+                modifier =
+                    Modifier
+                        .align(Alignment.Center)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(Color.Black.copy(alpha = 0.72f))
+                        .padding(horizontal = 28.dp, vertical = 22.dp)
+                        .testTag("native-video-loading"),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(46.dp),
+                    color = Color.White,
+                    trackColor = Color.White.copy(alpha = 0.18f),
+                )
+                Text(
+                    text = "Loading video…",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                )
+            }
+        }
         if (controlsVisible) {
             Column(
                 modifier =
@@ -269,20 +297,41 @@ private fun NativeVideoControlsOverlay(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    VideoTextButton(
-                        label = if (playerState is NativeVideoPlayerState.Playing) "Pause" else "Play",
-                        enabled = true,
+                    VideoIconButton(
+                        iconResId = R.drawable.smarttube_ic_rewind,
+                        contentDescription = "Rewind 10 seconds",
+                        onClick = {
+                            player.seekTo((positionMs - NATIVE_SEEK_MS).coerceAtLeast(0L))
+                            activityToken += 1
+                        },
+                    )
+                    VideoIconButton(
+                        iconResId =
+                            if (playerState is NativeVideoPlayerState.Playing) {
+                                R.drawable.smarttube_ic_pause
+                            } else {
+                                R.drawable.smarttube_ic_play
+                            },
+                        contentDescription = if (playerState is NativeVideoPlayerState.Playing) "Pause" else "Play",
                         accent = true,
                         onClick = {
                             if (playerState is NativeVideoPlayerState.Playing) player.pause() else player.play()
                             activityToken += 1
                         },
-                        modifier = Modifier.focusRequester(playFocusRequester).width(108.dp).height(44.dp),
+                        modifier = Modifier.focusRequester(playFocusRequester).size(width = 64.dp, height = 50.dp),
+                    )
+                    VideoIconButton(
+                        iconResId = R.drawable.smarttube_ic_fast_forward,
+                        contentDescription = "Fast-forward 10 seconds",
+                        onClick = {
+                            player.seekTo((positionMs + NATIVE_SEEK_MS).coerceAtMost(durationMs.coerceAtLeast(positionMs)))
+                            activityToken += 1
+                        },
                     )
                     if (controls.qualities.isNotEmpty()) {
                         VideoTextButton(
                             label =
-                                "Quality: ${controls.qualities.firstOrNull { it.id == controls.selectedQualityId }?.label ?: "Auto"}",
+                                "HQ  ${controls.qualities.firstOrNull { it.id == controls.selectedQualityId }?.label ?: "Auto"}",
                             enabled = true,
                             accent = false,
                             onClick = {
@@ -290,14 +339,14 @@ private fun NativeVideoControlsOverlay(
                                 captionMenuVisible = false
                                 activityToken += 1
                             },
-                            modifier = Modifier.width(220.dp).height(44.dp),
+                            modifier = Modifier.width(154.dp).height(46.dp),
                         )
                     }
                     if (controls.captions.isNotEmpty()) {
                         VideoTextButton(
                             label =
                                 controls.captions.firstOrNull { it.id == controls.selectedCaptionId }
-                                    ?.let { "CC: ${it.label}" } ?: "Captions: Off",
+                                    ?.let { "CC  ${it.label}" } ?: "CC  Off",
                             enabled = true,
                             accent = false,
                             onClick = {
@@ -305,10 +354,34 @@ private fun NativeVideoControlsOverlay(
                                 qualityMenuVisible = false
                                 activityToken += 1
                             },
-                            modifier = Modifier.width(200.dp).height(44.dp),
+                            modifier = Modifier.width(154.dp).height(46.dp),
                         )
                     }
-                    controls.activeFormatLabel?.let { Text(it, color = Color.White) }
+                    controls.activeFormatLabel?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color.White.copy(alpha = 0.82f),
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f))
+                    VideoTextButton(
+                        label = "Choose video",
+                        enabled = true,
+                        accent = false,
+                        onClick = onChooseAnother,
+                        modifier = Modifier.width(146.dp).height(46.dp),
+                    )
+                    VideoIconButton(
+                        iconResId = R.drawable.smarttube_ic_fullscreen_exit,
+                        contentDescription = "Exit full screen",
+                        onClick = onExitFullscreen,
+                    )
+                    VideoIconButton(
+                        iconResId = R.drawable.smarttube_ic_stop,
+                        contentDescription = "Stop video",
+                        onClick = onStop,
+                    )
                 }
                 if (qualityMenuVisible) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -363,7 +436,6 @@ private fun NativeVideoControlsOverlay(
                         }
                     }
                 }
-                VideoSessionActions(onChooseAnother = onChooseAnother, onStop = onStop)
             }
         }
     }
@@ -410,6 +482,15 @@ private fun NativeVideoPlayerState.durationMsForControls(): Long =
         is NativeVideoPlayerState.Buffering -> durationMs
         is NativeVideoPlayerState.Ended -> durationMs
         else -> 0L
+    }
+
+internal fun shouldShowNativeVideoLoading(state: NativeVideoPlayerState): Boolean =
+    when (state) {
+        is NativeVideoPlayerState.Loading,
+        is NativeVideoPlayerState.Ready,
+        -> true
+        is NativeVideoPlayerState.Buffering -> state.positionMs <= 0L
+        else -> false
     }
 
 private fun formatVideoTime(positionMs: Long): String {
@@ -718,6 +799,47 @@ private fun VideoTextButton(
             color = Color.White,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun VideoIconButton(
+    iconResId: Int,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    accent: Boolean = false,
+) {
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        modifier =
+            modifier
+                .size(width = 56.dp, height = 46.dp)
+                .scale(if (focused) 1.06f else 1f)
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable()
+                .clip(MaterialTheme.shapes.medium)
+                .background(
+                    if (focused || accent) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                    },
+                )
+                .border(
+                    if (focused) 2.dp else 1.dp,
+                    if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
+                    MaterialTheme.shapes.medium,
+                )
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(iconResId),
+            contentDescription = contentDescription,
+            modifier = Modifier.size(30.dp),
+            tint = Color.White,
         )
     }
 }
