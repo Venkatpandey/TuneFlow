@@ -6,20 +6,12 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
-val youtubeApiKey =
-    providers.gradleProperty("TUNEFLOW_YOUTUBE_API_KEY")
-        .orElse(providers.environmentVariable("TUNEFLOW_YOUTUBE_API_KEY"))
-        .getOrElse("")
-        .replace("\\", "\\\\")
-        .replace("\"", "\\\"")
-
 android {
     namespace = "com.tuneflow.feature.video"
     compileSdk = 35
 
     defaultConfig {
         minSdk = 25
-        buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeApiKey\"")
     }
 
     compileOptions {
@@ -33,7 +25,6 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 
     composeOptions {
@@ -45,10 +36,10 @@ dependencies {
     implementation(project(":core:player"))
 
     implementation("androidx.compose.ui:ui:1.6.8")
+    implementation("androidx.activity:activity-compose:1.9.1")
     implementation("androidx.compose.ui:ui-tooling-preview:1.6.8")
     implementation("androidx.compose.material3:material3:1.2.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
-    implementation("androidx.webkit:webkit:1.12.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("io.coil-kt:coil-compose:2.7.0")

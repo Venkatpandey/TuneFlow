@@ -25,6 +25,7 @@ internal data class TuneFlowShellState(
                 when (entry.destination) {
                     ShellDestination.Home,
                     is ShellDestination.HomeCategory,
+                    ShellDestination.VideoHistory,
                     -> NavSection.Home
                     ShellDestination.Albums -> NavSection.Albums
                     ShellDestination.Playlists -> NavSection.Playlists
@@ -86,6 +87,7 @@ internal data class ShellStackEntry(
                 is ShellDestination.HomeCategory -> "homeCategory:${destination.category.name}"
                 is ShellDestination.Album -> "album:${destination.albumId.urlEncode()}"
                 is ShellDestination.Artist -> "artist:${destination.artistId.urlEncode()}"
+                ShellDestination.VideoHistory -> "videoHistory"
                 ShellDestination.NowPlaying -> "nowPlaying"
             }
         val focusValue = returnFocus?.let { "${it.kind.name}:${it.id.urlEncode()}" }.orEmpty()
@@ -102,6 +104,7 @@ internal data class ShellStackEntry(
                     destinationValue == "albums" -> ShellDestination.Albums
                     destinationValue == "playlists" -> ShellDestination.Playlists
                     destinationValue == "search" -> ShellDestination.Search
+                    destinationValue == "videoHistory" -> ShellDestination.VideoHistory
                     destinationValue == "nowPlaying" -> ShellDestination.NowPlaying
                     destinationValue.startsWith("homeCategory:") ->
                         ShellDestination.HomeCategory(HomeCategoryKind.valueOf(destinationValue.substringAfter(':')))

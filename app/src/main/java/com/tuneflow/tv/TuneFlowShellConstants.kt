@@ -23,6 +23,8 @@ internal sealed interface ShellDestination {
 
     data class Artist(val artistId: String) : ShellDestination
 
+    data object VideoHistory : ShellDestination
+
     data object NowPlaying : ShellDestination
 }
 

@@ -40,6 +40,8 @@ import com.tuneflow.feature.auth.AuthRepository
 import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.playback.LyricsRepository
+import com.tuneflow.feature.video.SharedPreferencesVideoHistoryStore
+import com.tuneflow.feature.video.VideoHistoryStore
 import com.tuneflow.feature.video.VideoViewModel
 import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.delay
@@ -56,7 +58,9 @@ class MainActivity : ComponentActivity() {
     private var isAppExitInProgress = false
     private val userActivityEvents = MutableSharedFlow<UserInputCategory>(extraBufferCapacity = 32)
     private val wakeConsumedKeyCodes = mutableSetOf<Int>()
+    private val videoConsumedKeyCodes = mutableSetOf<Int>()
     private var consumeWakeTouchGesture = false
+    private var videoMediaKeyHandler: ((Int) -> Boolean)? = null
 
     @Volatile
     private var screensaverActive = false
@@ -67,6 +71,7 @@ class MainActivity : ComponentActivity() {
         val sessionStore = SessionStore(applicationContext)
         val searchHistoryStore = SearchHistoryStore(applicationContext)
         val playbackPreferencesStore = PlaybackPreferencesStore(applicationContext)
+        val videoHistoryStore = SharedPreferencesVideoHistoryStore(applicationContext)
         val authRepository = AuthRepository(sessionStore)
         val browseRepository = BrowseRepository(sessionStore)
         val lyricsRepository = LyricsRepository(sessionStore)
@@ -105,9 +110,11 @@ class MainActivity : ComponentActivity() {
                         playbackPreferencesStore = playbackPreferencesStore,
                         searchHistoryStore = searchHistoryStore,
                         lyricsRepository = lyricsRepository,
+                        videoHistoryStore = videoHistoryStore,
                         videoOverlayHost = videoOverlayHost,
                         userActivityEvents = userActivityEvents,
                         onScreensaverActiveChanged = { screensaverActive = it },
+                        onVideoMediaKeyHandlerChanged = { videoMediaKeyHandler = it },
                         onExitApp = ::closeAppToSystem,
                     )
                 }
@@ -127,6 +134,12 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         return when {
+            event.keyCode in videoConsumedKeyCodes -> {
+                if (event.action == KeyEvent.ACTION_UP) {
+                    videoConsumedKeyCodes.remove(event.keyCode)
+                }
+                true
+            }
             event.keyCode in wakeConsumedKeyCodes -> {
                 if (event.action == KeyEvent.ACTION_UP) {
                     wakeConsumedKeyCodes.remove(event.keyCode)
@@ -137,7 +150,7 @@ class MainActivity : ComponentActivity() {
             else -> {
                 userActivityEvents.tryEmit(classifyUserInput(event.keyCode))
                 when (resolveScreensaverKeyAction(screensaverActive, event.keyCode)) {
-                    ScreensaverKeyAction.RecordAndDispatch -> super.dispatchKeyEvent(event)
+                    ScreensaverKeyAction.RecordAndDispatch -> dispatchVideoMediaKeyOrSystem(event)
                     ScreensaverKeyAction.WakeAndConsume -> {
                         screensaverActive = false
                         wakeConsumedKeyCodes += event.keyCode
@@ -145,7 +158,10 @@ class MainActivity : ComponentActivity() {
                     }
                     ScreensaverKeyAction.WakeAndDispatchMedia -> {
                         screensaverActive = false
-                        if (handleScreensaverMediaKey(event.keyCode)) {
+                        if (videoMediaKeyHandler?.invoke(event.keyCode) == true) {
+                            videoConsumedKeyCodes += event.keyCode
+                            true
+                        } else if (handleScreensaverMediaKey(event.keyCode)) {
                             wakeConsumedKeyCodes += event.keyCode
                             true
                         } else {
@@ -205,6 +221,15 @@ class MainActivity : ComponentActivity() {
                 true
             }
             MediaPlaybackAction.DispatchToSystem -> false
+        }
+
+    @SuppressLint("RestrictedApi")
+    private fun dispatchVideoMediaKeyOrSystem(event: KeyEvent): Boolean =
+        if (videoMediaKeyHandler?.invoke(event.keyCode) == true) {
+            videoConsumedKeyCodes += event.keyCode
+            true
+        } else {
+            super.dispatchKeyEvent(event)
         }
 
     private fun closeAppToSystem() {
@@ -375,13 +400,15 @@ private fun TuneFlowShell(
     playbackPreferencesStore: PlaybackPreferencesStore,
     searchHistoryStore: SearchHistoryStore,
     lyricsRepository: LyricsRepository,
+    videoHistoryStore: VideoHistoryStore,
     videoOverlayHost: FrameLayout,
     userActivityEvents: Flow<UserInputCategory>,
     onScreensaverActiveChanged: (Boolean) -> Unit,
+    onVideoMediaKeyHandlerChanged: (((Int) -> Boolean)?) -> Unit,
     onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val homeViewModel: HomeViewModel = viewModel(factory = homeViewModelFactory(browseRepository))
+    val homeViewModel: HomeViewModel = viewModel(factory = homeViewModelFactory(browseRepository, videoHistoryStore))
     val albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel = viewModel(factory = albumsViewModelFactory(browseRepository))
     val homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel =
         viewModel(factory = homeCategoryViewModelFactory(browseRepository))
@@ -396,10 +423,23 @@ private fun TuneFlowShell(
     val playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel =
         viewModel(factory = playbackViewModelFactory(playerManager, lyricsRepository))
     val videoViewModel: VideoViewModel =
-        viewModel(factory = videoViewModelFactory(androidx.compose.ui.platform.LocalContext.current, playerManager))
+        viewModel(
+            factory =
+                videoViewModelFactory(
+                    androidx.compose.ui.platform.LocalContext.current,
+                    playerManager,
+                    videoHistoryStore,
+                ),
+        )
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val lyricsState by playbackViewModel.lyricsState.collectAsStateWithLifecycle()
     val videoState by videoViewModel.uiState.collectAsStateWithLifecycle()
+    DisposableEffect(videoViewModel, playbackViewModel, onVideoMediaKeyHandlerChanged) {
+        onVideoMediaKeyHandlerChanged { keyCode ->
+            handleVideoModeMediaKey(keyCode, videoViewModel, playbackViewModel)
+        }
+        onDispose { onVideoMediaKeyHandlerChanged(null) }
+    }
     val screensaverState =
         rememberPlaybackScreensaverState(
             playbackState = playbackState,
@@ -410,7 +450,7 @@ private fun TuneFlowShell(
     ObserveVideoLifecycle(videoViewModel)
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
     val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)
-    var navWidgetPositionMs by remember { mutableLongStateOf(0L) }
+    var playbackPositionMs by remember { mutableLongStateOf(0L) }
     var navClockText by remember { mutableStateOf(currentTime24h()) }
 
     var shellState by rememberSaveable(stateSaver = TuneFlowShellState.Saver) {
@@ -496,10 +536,10 @@ private fun TuneFlowShell(
     }
 
     LaunchedEffect(playbackState.queue.currentItem?.id, playbackState.isPlaying) {
-        navWidgetPositionMs = playerManager.currentPositionMs()
+        playbackPositionMs = playerManager.currentPositionMs()
         while (playbackState.queue.currentItem != null) {
-            navWidgetPositionMs = playerManager.currentPositionMs()
-            delay(1000L)
+            playbackPositionMs = playerManager.currentPositionMs()
+            delay(500L)
         }
     }
 
@@ -517,7 +557,7 @@ private fun TuneFlowShell(
         username = session?.username.orEmpty(),
         currentTimeText = navClockText,
         playbackQueue = playbackState.queue,
-        playbackPositionMs = navWidgetPositionMs,
+        playbackPositionMs = playbackPositionMs,
         screensaverActive = screensaverState.active,
         lyricsState = lyricsState,
         homeViewModel = homeViewModel,
@@ -547,6 +587,11 @@ private fun TuneFlowShell(
         onOpenPlaylist = navigationActions::openPlaylist,
         onPreselectedPlaylistConsumed = { updateShellState { it.consumePreselectedPlaylist() } },
         onOpenNowPlaying = navigationActions::openNowPlaying,
+        onOpenVideoHistory = navigationActions::openVideoHistory,
+        onPlayVideo = { entry ->
+            videoViewModel.playHistory(entry)
+            navigationActions.openNowPlaying()
+        },
         onPlayTracks = ::playTracks,
         onShuffleTracks = ::shuffleTracks,
         showExitPrompt = shellState.showExitPrompt,

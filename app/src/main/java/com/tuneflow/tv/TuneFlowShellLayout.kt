@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,11 +61,12 @@ import com.tuneflow.core.player.QueueItem
 import com.tuneflow.feature.playback.Lyrics
 import com.tuneflow.feature.playback.LyricsRenderer
 import com.tuneflow.feature.playback.LyricsUiState
+import com.tuneflow.feature.video.NativeVideoPlayerSurface
 import com.tuneflow.feature.video.VideoUiState
 import com.tuneflow.feature.video.VideoViewModel
-import com.tuneflow.feature.video.YouTubePlayerSurface
 import com.tuneflow.feature.video.hasVisiblePlayer
 import com.tuneflow.feature.video.isFullscreen
+import com.tuneflow.feature.video.isVideoSessionActive
 import kotlin.math.roundToInt
 import android.view.KeyEvent as AndroidKeyEvent
 
@@ -108,10 +110,13 @@ internal fun TuneFlowShellLayout(
     onOpenPlaylist: (String?) -> Unit,
     onPreselectedPlaylistConsumed: () -> Unit,
     onOpenNowPlaying: () -> Unit,
+    onOpenVideoHistory: () -> Unit,
+    onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     showExitPrompt: Boolean,
 ) {
+    val videoSurfacePlayer by videoViewModel.surfacePlayer.collectAsState()
     var videoViewportBounds by remember { mutableStateOf<IntRect?>(null) }
     var videoRailViewportBounds by remember { mutableStateOf<IntRect?>(null) }
     var rootSize by remember { mutableStateOf(IntSize.Zero) }
@@ -126,16 +131,12 @@ internal fun TuneFlowShellLayout(
                 .fillMaxSize()
                 .onSizeChanged { rootSize = it }
                 .onPreviewKeyEvent { event ->
-                    if (
-                        videoState.hasVisiblePlayer &&
-                        event.type == KeyEventType.KeyDown &&
-                        event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_MEDIA_STOP
-                    ) {
-                        videoViewModel.stopVideo()
-                        true
-                    } else {
-                        false
-                    }
+                    event.type == KeyEventType.KeyDown &&
+                        handleVideoModeMediaKey(
+                            event.nativeKeyEvent.keyCode,
+                            videoViewModel,
+                            playbackViewModel,
+                        )
                 }
                 .background(MaterialTheme.colorScheme.background),
     ) {
@@ -205,6 +206,7 @@ internal fun TuneFlowShellLayout(
                                 preselectedPlaylistId = preselectedPlaylistId,
                                 focusRestoreTarget = focusRestoreTarget,
                                 playbackQueue = playbackQueue,
+                                playbackPositionMs = playbackPositionMs,
                                 homeViewModel = homeViewModel,
                                 albumsViewModel = albumsViewModel,
                                 homeCategoryViewModel = homeCategoryViewModel,
@@ -227,6 +229,8 @@ internal fun TuneFlowShellLayout(
                                 onOpenPlaylist = onOpenPlaylist,
                                 onPreselectedPlaylistConsumed = onPreselectedPlaylistConsumed,
                                 onOpenNowPlaying = onOpenNowPlaying,
+                                onOpenVideoHistory = onOpenVideoHistory,
+                                onPlayVideo = onPlayVideo,
                                 onPlayTracks = onPlayTracks,
                                 onShuffleTracks = onShuffleTracks,
                             )
@@ -274,14 +278,17 @@ internal fun TuneFlowShellLayout(
                     playerModifier
                         .background(Color.Black),
             )
-            YouTubePlayerSurface(
-                player = videoViewModel.youtubePlayer,
+            NativeVideoPlayerSurface(
+                player = videoSurfacePlayer,
                 host = videoOverlayHost,
                 bounds = playerBounds,
                 requestFocus = videoState.isFullscreen,
                 onKeyEvent = { event ->
                     handleVideoOverlayMediaKey(event, videoViewModel, playbackViewModel)
                 },
+                onExitFullscreen = videoViewModel::exitFullscreen,
+                onChooseAnother = videoViewModel::chooseAnother,
+                onStop = videoViewModel::stopVideo,
             )
         }
     }
@@ -325,8 +332,19 @@ private fun handleVideoOverlayMediaKey(
     playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
 ): Boolean {
     if (event.action != AndroidKeyEvent.ACTION_DOWN || isYouTubeProviderKey(event.keyCode)) return false
-    return when (event.keyCode) {
-        AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> videoViewModel.togglePlayPause()
+    return handleVideoModeMediaKey(event.keyCode, videoViewModel, playbackViewModel)
+}
+
+internal fun handleVideoModeMediaKey(
+    keyCode: Int,
+    videoViewModel: VideoViewModel,
+    playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
+): Boolean {
+    if (!videoViewModel.uiState.value.isVideoSessionActive) return false
+    return when (keyCode) {
+        AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+        AndroidKeyEvent.KEYCODE_HEADSETHOOK,
+        -> videoViewModel.togglePlayPause()
         AndroidKeyEvent.KEYCODE_MEDIA_PLAY -> videoViewModel.play()
         AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> videoViewModel.pause()
         AndroidKeyEvent.KEYCODE_MEDIA_STOP -> {
@@ -681,11 +699,9 @@ private fun PlaybackScreensaverOverlay(
                 LyricsRenderer(
                     lyrics = lyrics,
                     positionMs = playbackPositionMs,
-                    durationMs = currentItem.durationMs,
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     autoFollow = true,
                     interactive = false,
-                    estimateUnsynchronized = true,
                 )
             }
         }

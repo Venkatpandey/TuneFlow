@@ -76,12 +76,36 @@ class LyricsTest {
     }
 
     @Test
-    fun unsynchronizedEstimate_clampsProgressAndProtectsUnknownDuration() {
-        assertEquals(0, estimateActiveLyricLine(lineCount = 5, positionMs = -1L, durationMs = 100_000L))
-        assertEquals(2, estimateActiveLyricLine(lineCount = 5, positionMs = 50_000L, durationMs = 100_000L))
-        assertEquals(4, estimateActiveLyricLine(lineCount = 5, positionMs = 200_000L, durationMs = 100_000L))
-        assertNull(estimateActiveLyricLine(lineCount = 5, positionMs = 10_000L, durationMs = 0L))
-        assertNull(estimateActiveLyricLine(lineCount = 0, positionMs = 10_000L, durationMs = 100_000L))
+    fun sharedTimedResolver_returnsEquivalentSelectionForBothLyricsViews() {
+        val lyrics =
+            Lyrics(
+                synchronized = true,
+                lines =
+                    listOf(
+                        LyricLine("One", 1_000L),
+                        LyricLine("Two", 2_000L),
+                        LyricLine("Three", 3_000L),
+                    ),
+            )
+        val positions = listOf(0L, 1_000L, 2_500L, 4_000L, 1_200L)
+
+        val nowPlayingLines = positions.map { resolveActiveLyricLine(lyrics, it) }
+        val screensaverLines = positions.map { resolveActiveLyricLine(lyrics, it) }
+
+        assertEquals(nowPlayingLines, screensaverLines)
+        assertEquals(listOf(null, 0, 1, 2, 0), nowPlayingLines)
+    }
+
+    @Test
+    fun unsynchronizedLyrics_neverReceiveFalseHighlighting() {
+        val lyrics =
+            Lyrics(
+                synchronized = false,
+                lines = listOf(LyricLine("One"), LyricLine("Two")),
+            )
+
+        assertNull(resolveActiveLyricLine(lyrics, 0L))
+        assertNull(resolveActiveLyricLine(lyrics, 50_000L))
     }
 
     private fun structured(

@@ -132,3 +132,22 @@ internal fun normalizeVideoText(value: String): String =
         .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
         .trim()
         .replace(Regex("\\s+"), " ")
+
+internal fun filterUnwantedVideoCandidates(
+    query: VideoTrackQuery,
+    candidates: List<VideoCandidate>,
+): List<VideoCandidate> {
+    val requestedTitle = normalizeVideoText(query.title)
+    return candidates.distinctBy(VideoCandidate::videoId).filter { candidate ->
+        val candidateTitle = normalizeVideoText(candidate.title)
+        HARD_EXCLUDED_TERMS.none { term -> candidateTitle.containsPhrase(term) && !requestedTitle.containsPhrase(term) } &&
+            CONDITIONAL_VARIANTS.none { term ->
+                candidateTitle.containsPhrase(term) && !requestedTitle.containsPhrase(term)
+            }
+    }
+}
+
+private fun String.containsPhrase(phrase: String): Boolean = " $this ".contains(" $phrase ")
+
+private val HARD_EXCLUDED_TERMS = setOf("karaoke", "reaction", "cover", "shorts")
+private val CONDITIONAL_VARIANTS = setOf("remix", "live", "acoustic")

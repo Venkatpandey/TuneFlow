@@ -18,6 +18,7 @@ internal fun ShellContent(
     preselectedPlaylistId: String?,
     focusRestoreTarget: com.tuneflow.feature.browse.BrowseFocusTarget?,
     playbackQueue: PlaybackQueue,
+    playbackPositionMs: Long,
     homeViewModel: HomeViewModel,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel,
@@ -40,6 +41,8 @@ internal fun ShellContent(
     onOpenPlaylist: (String?) -> Unit,
     onPreselectedPlaylistConsumed: () -> Unit,
     onOpenNowPlaying: () -> Unit,
+    onOpenVideoHistory: () -> Unit,
+    onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
 ) {
@@ -49,6 +52,7 @@ internal fun ShellContent(
                 NowPlayingScreen(
                     viewModel = playbackViewModel,
                     videoViewModel = videoViewModel,
+                    lyricsPositionMs = playbackPositionMs,
                     streamModeLabel = streamModeLabel,
                     onCycleStreamMode = onCycleStreamMode,
                     autoFocusTransport = autoFocusNowPlayingTransport,
@@ -86,7 +90,15 @@ internal fun ShellContent(
                     onOpenPlaylists = onOpenPlaylist,
                     onOpenSearch = { onOpenSection(NavSection.Search) },
                     onOpenNowPlaying = onOpenNowPlaying,
+                    onOpenVideoHistory = onOpenVideoHistory,
+                    onPlayVideo = onPlayVideo,
                     onPlayTracks = onPlayTracks,
+                )
+            }
+            ShellDestination.VideoHistory -> {
+                VideoHistoryScreen(
+                    viewModel = homeViewModel,
+                    onPlayVideo = onPlayVideo,
                 )
             }
             is ShellDestination.HomeCategory -> {

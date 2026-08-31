@@ -51,6 +51,18 @@ internal fun TuneFlowShellState.openNowPlaying(): TuneFlowShellState =
         )
     }
 
+internal fun TuneFlowShellState.openVideoHistory(): TuneFlowShellState =
+    if (currentDestination == ShellDestination.VideoHistory) {
+        this
+    } else {
+        copy(
+            backStack = backStack + ShellStackEntry(ShellDestination.VideoHistory),
+            autoFocusNowPlayingTransport = false,
+            pendingFocusRestore = null,
+            showExitPrompt = false,
+        )
+    }
+
 internal fun TuneFlowShellState.enableNowPlayingTransportFocus(): TuneFlowShellState =
     openNowPlaying().copy(autoFocusNowPlayingTransport = true)
 

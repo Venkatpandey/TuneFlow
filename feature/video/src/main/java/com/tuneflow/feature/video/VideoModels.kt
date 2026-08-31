@@ -1,16 +1,10 @@
 package com.tuneflow.feature.video
 
+import android.content.Context
+import android.view.View
 import com.tuneflow.core.player.QueueItem
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-
-enum class VideoProviderId {
-    YouTube,
-}
-
-data class VideoProviderCapabilities(
-    val supportsSeeking: Boolean,
-    val usesAdaptiveQuality: Boolean,
-)
 
 data class VideoTrackQuery(
     val trackId: String,
@@ -23,7 +17,6 @@ data class VideoTrackQuery(
 )
 
 data class VideoCandidate(
-    val providerId: VideoProviderId,
     val videoId: String,
     val title: String,
     val publisher: String,
@@ -34,72 +27,63 @@ data class VideoCandidate(
     val score: Double = 0.0,
 )
 
-data class EmbeddedVideoPlayerSpec(
-    val providerId: VideoProviderId,
+data class NativeVideoSpec(
     val videoId: String,
 )
-
-interface VideoProvider {
-    val id: VideoProviderId
-    val capabilities: VideoProviderCapabilities
-    val configured: Boolean
-
-    suspend fun search(query: VideoTrackQuery): List<VideoCandidate>
-
-    fun createPlayerSpec(candidate: VideoCandidate): EmbeddedVideoPlayerSpec
-}
 
 data class VideoSessionKey(
     val trackId: String,
     val generation: Long,
 )
 
-sealed interface EmbeddedVideoPlayerState {
-    data object Idle : EmbeddedVideoPlayerState
+sealed interface NativeVideoPlayerState {
+    data object Idle : NativeVideoPlayerState
 
-    data class Loading(val session: VideoSessionKey) : EmbeddedVideoPlayerState
+    data class Loading(val session: VideoSessionKey) : NativeVideoPlayerState
 
     data class Ready(
         val session: VideoSessionKey,
         val durationMs: Long,
-    ) : EmbeddedVideoPlayerState
+    ) : NativeVideoPlayerState
 
     data class Playing(
         val session: VideoSessionKey,
         val positionMs: Long,
         val durationMs: Long,
-    ) : EmbeddedVideoPlayerState
+    ) : NativeVideoPlayerState
 
     data class Paused(
         val session: VideoSessionKey,
         val positionMs: Long,
         val durationMs: Long,
-    ) : EmbeddedVideoPlayerState
+    ) : NativeVideoPlayerState
 
     data class Buffering(
         val session: VideoSessionKey,
         val positionMs: Long,
         val durationMs: Long,
-    ) : EmbeddedVideoPlayerState
+    ) : NativeVideoPlayerState
 
     data class Ended(
         val session: VideoSessionKey,
         val positionMs: Long,
         val durationMs: Long,
-    ) : EmbeddedVideoPlayerState
+    ) : NativeVideoPlayerState
 
     data class Error(
         val session: VideoSessionKey,
         val message: String,
-    ) : EmbeddedVideoPlayerState
+    ) : NativeVideoPlayerState
 }
 
-interface EmbeddedVideoPlayer {
-    val state: StateFlow<EmbeddedVideoPlayerState>
+interface NativeVideoPlayer {
+    val state: StateFlow<NativeVideoPlayerState>
+    val nativeControls: StateFlow<NativeVideoControlState>
+        get() = EMPTY_NATIVE_CONTROLS
 
     fun prepare(
         session: VideoSessionKey,
-        spec: EmbeddedVideoPlayerSpec,
+        spec: NativeVideoSpec,
     )
 
     fun play()
@@ -109,7 +93,50 @@ interface EmbeddedVideoPlayer {
     fun seekTo(positionMs: Long)
 
     fun release()
+
+    fun createSurfaceView(context: Context): View
+
+    fun disposeSurfaceView(view: View)
+
+    fun onSurfaceBoundsChanged(view: View) = Unit
+
+    fun focusPlayer()
+
+    fun clearPlayerFocus()
+
+    fun adjustVolume(delta: Int)
+
+    fun selectQuality(id: String) = Unit
+
+    fun selectCaption(id: String?) = Unit
 }
+
+data class VideoQualityOption(
+    val id: String,
+    val label: String,
+)
+
+data class VideoCaptionOption(
+    val id: String,
+    val label: String,
+)
+
+data class NativeVideoControlState(
+    val available: Boolean = false,
+    val qualities: List<VideoQualityOption> = emptyList(),
+    val selectedQualityId: String = "highest",
+    val captions: List<VideoCaptionOption> = emptyList(),
+    val selectedCaptionId: String? = null,
+    val activeFormatLabel: String? = null,
+)
+
+interface NativeVideoBackend {
+    val player: NativeVideoPlayer
+
+    suspend fun search(query: VideoTrackQuery): List<VideoCandidate>
+}
+
+private val EMPTY_NATIVE_CONTROLS = MutableStateFlow(NativeVideoControlState())
 
 enum class VideoPresentationMode {
     Mini,

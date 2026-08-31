@@ -41,6 +41,8 @@ export SIGNING_KEY_PASSWORD='your-key-password'
 ./scripts/build-local-release.sh
 ```
 
+This release build includes SmartTube-native YouTube search and playback.
+
 Output:
 
 - `dist/tuneflow-tv.apk`

@@ -80,6 +80,15 @@ class TuneFlowShellStateTransitionsTest {
     }
 
     @Test
+    fun videoHistoryOpensFromHomeAndBackReturnsHome() {
+        val historyState = TuneFlowShellState().openVideoHistory()
+
+        assertEquals(ShellDestination.VideoHistory, historyState.currentDestination)
+        assertEquals(NavSection.Home, historyState.currentSection)
+        assertEquals(ShellDestination.Home, historyState.popDestination().currentDestination)
+    }
+
+    @Test
     fun topLevelSection_backGoesHome_thenRequestsExit() {
         val albumsState = TuneFlowShellState().openSection(NavSection.Albums)
 

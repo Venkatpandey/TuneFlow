@@ -69,6 +69,7 @@ import android.view.KeyEvent as AndroidKeyEvent
 fun NowPlayingScreen(
     viewModel: PlaybackViewModel,
     videoViewModel: VideoViewModel,
+    lyricsPositionMs: Long,
     streamModeLabel: String,
     onCycleStreamMode: () -> Unit,
     autoFocusTransport: Boolean,
@@ -270,8 +271,7 @@ fun NowPlayingScreen(
                         availableLyrics?.let { lyrics ->
                             LyricsPanel(
                                 lyrics = lyrics,
-                                positionMs = state.positionMs,
-                                durationMs = state.durationMs,
+                                positionMs = lyricsPositionMs,
                                 onExit = ::closePanelToButton,
                             )
                         }

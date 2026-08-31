@@ -1,5 +1,7 @@
 package com.tuneflow.feature.video
 
+import android.content.Context
+import android.view.View
 import com.tuneflow.core.player.PlaybackController
 import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.PlaybackQueue
@@ -26,8 +28,8 @@ class VideoViewModelTest {
     fun explicitRequestKeepsAudioPlayingWhileSearchRuns() =
         runTest {
             val audio = VideoViewModelFakeAudio()
-            val provider = FakeVideoProvider(searchDelayMs = 1_000L)
-            val viewModel = createViewModel(audio, provider, backgroundScope)
+            val nativeBackend = FakeNativeBackend(searchDelayMs = 1_000L)
+            val viewModel = createViewModel(audio, backgroundScope, nativeBackend)
             runCurrent()
 
             viewModel.requestVideo()
@@ -46,8 +48,8 @@ class VideoViewModelTest {
     fun trackChangeCancelsStaleSearchAndReturnsToIdle() =
         runTest {
             val audio = VideoViewModelFakeAudio()
-            val provider = FakeVideoProvider(searchDelayMs = 10_000L)
-            val viewModel = createViewModel(audio, provider, backgroundScope)
+            val nativeBackend = FakeNativeBackend(searchDelayMs = 10_000L)
+            val viewModel = createViewModel(audio, backgroundScope, nativeBackend)
             runCurrent()
 
             viewModel.requestVideo()
@@ -55,16 +57,16 @@ class VideoViewModelTest {
             audio.replaceTrack("new-track")
             runCurrent()
 
-            assertTrue(provider.cancelled)
+            assertTrue(nativeBackend.cancelled)
             assertTrue(viewModel.uiState.value is VideoUiState.Idle)
         }
 
     @Test
-    fun searchAlwaysRequiresManualSelectionAndReturnsUpToTwentyFiveMatches() =
+    fun ambiguousSearchRequiresManualSelectionAndReturnsUpToTwentyFiveMatches() =
         runTest {
             val audio = VideoViewModelFakeAudio()
-            val provider = FakeVideoProvider(searchDelayMs = 0L, resultCount = 30)
-            val viewModel = createViewModel(audio, provider, backgroundScope)
+            val nativeBackend = FakeNativeBackend(resultCount = 30)
+            val viewModel = createViewModel(audio, backgroundScope, nativeBackend)
             runCurrent()
 
             viewModel.requestVideo()
@@ -79,13 +81,12 @@ class VideoViewModelTest {
     fun selectedCandidateLoadsFullscreenAndBackMinimizesWithoutClosing() =
         runTest {
             val audio = VideoViewModelFakeAudio()
-            val provider = FakeVideoProvider(searchDelayMs = 0L, resultCount = 1)
-            val viewModel = createViewModel(audio, provider, backgroundScope)
+            val viewModel = createViewModel(audio, backgroundScope)
             runCurrent()
 
             viewModel.requestVideo()
             runCurrent()
-            val candidate = (viewModel.uiState.value as VideoUiState.Candidates).candidates.single()
+            val candidate = (viewModel.uiState.value as VideoUiState.Candidates).candidates.first()
             viewModel.selectCandidate(candidate)
 
             val loading = viewModel.uiState.value as VideoUiState.Loading
@@ -102,13 +103,12 @@ class VideoViewModelTest {
     fun stoppingVideoLeavesAudioPausedAndRequestsNowPlaying() =
         runTest {
             val audio = VideoViewModelFakeAudio()
-            val provider = FakeVideoProvider(searchDelayMs = 0L, resultCount = 1)
-            val viewModel = createViewModel(audio, provider, backgroundScope)
+            val viewModel = createViewModel(audio, backgroundScope)
             runCurrent()
 
             viewModel.requestVideo()
             runCurrent()
-            val candidate = (viewModel.uiState.value as VideoUiState.Candidates).candidates.single()
+            val candidate = (viewModel.uiState.value as VideoUiState.Candidates).candidates.first()
             viewModel.selectCandidate(candidate)
             viewModel.stopVideo()
 
@@ -118,30 +118,139 @@ class VideoViewModelTest {
             assertEquals(Unit, viewModel.returnToNowPlayingEvents.first())
         }
 
+    @Test
+    fun nativeSelectionStopsAudioAndAlwaysStartsVideoAtZero() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativePlayer = FakeNativePlayer()
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(nativePlayer))
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+            viewModel.selectCandidate((viewModel.uiState.value as VideoUiState.Candidates).candidates.first())
+            assertEquals(1, audio.pauseCalls)
+            nativePlayer.emitReady(180_000L)
+            runCurrent()
+            nativePlayer.emitPlaying(10_000L, 180_000L)
+            runCurrent()
+
+            assertEquals(0L, nativePlayer.seekPositionMs)
+            assertEquals(1, nativePlayer.playCalls)
+            assertEquals(1, audio.pauseCalls)
+            viewModel.onAppBackgrounded()
+            assertEquals(1, nativePlayer.pauseCalls)
+        }
+
+    @Test
+    fun nativeFailureStaysNativeAndDoesNotResumeAudio() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativePlayer = FakeNativePlayer()
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(nativePlayer))
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+            viewModel.selectCandidate((viewModel.uiState.value as VideoUiState.Candidates).candidates.first())
+            nativePlayer.emitReady(180_000L)
+            runCurrent()
+            nativePlayer.emitError("Native resolver failed.")
+            runCurrent()
+
+            assertEquals(nativePlayer, viewModel.surfacePlayer.value)
+            assertTrue(viewModel.uiState.value is VideoUiState.Error)
+            assertEquals(0, audio.playCalls)
+            assertTrue(nativePlayer.releaseCalls >= 1)
+        }
+
+    @Test
+    fun loadingVideoConsumesPlayPauseUntilVideoStops() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativePlayer = FakeNativePlayer()
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(nativePlayer))
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+            viewModel.selectCandidate((viewModel.uiState.value as VideoUiState.Candidates).candidates.first())
+
+            assertTrue(viewModel.togglePlayPause())
+            assertEquals(1, nativePlayer.playCalls)
+            assertEquals(0, audio.playCalls)
+
+            viewModel.stopVideo()
+
+            assertFalse(viewModel.togglePlayPause())
+        }
+
+    @Test
+    fun firstPlayingStateRecordsVideoOnce() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativePlayer = FakeNativePlayer()
+            val historyStore = RecordingVideoHistoryStore()
+            val viewModel =
+                createViewModel(
+                    audio,
+                    backgroundScope,
+                    FakeNativeBackend(nativePlayer),
+                    historyStore,
+                )
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+            val candidate = (viewModel.uiState.value as VideoUiState.Candidates).candidates.first()
+            viewModel.selectCandidate(candidate)
+            nativePlayer.emitPlaying(0L, 180_000L)
+            runCurrent()
+            nativePlayer.emitPlaying(1_000L, 180_000L)
+            runCurrent()
+
+            assertEquals(listOf(candidate.videoId), historyStore.recordedIds)
+        }
+
+    @Test
+    fun trackChangeReleasesNativeSession() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativePlayer = FakeNativePlayer()
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(nativePlayer))
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+            viewModel.selectCandidate((viewModel.uiState.value as VideoUiState.Candidates).candidates.first())
+            audio.replaceTrack("next")
+            runCurrent()
+
+            assertEquals(1, nativePlayer.releaseCalls)
+            assertTrue(viewModel.uiState.value is VideoUiState.Idle)
+        }
+
     private fun createViewModel(
         audio: VideoViewModelFakeAudio,
-        provider: VideoProvider,
         scope: CoroutineScope,
+        nativeBackend: NativeVideoBackend = FakeNativeBackend(),
+        historyStore: VideoHistoryStore = EmptyVideoHistoryStore,
     ): VideoViewModel =
         VideoViewModel(
-            providers = VideoProviderRegistry(listOf(provider)),
             audio = audio,
-            youtubePlayer = YouTubeEmbeddedPlayer(),
-            coordinator = VideoPlaybackCoordinator(audio),
             consentStore = AcceptedConsentStore,
+            nativeBackend = nativeBackend,
+            historyStore = historyStore,
             scopeOverride = scope,
         )
 }
 
-private class FakeVideoProvider(
-    private val searchDelayMs: Long,
+private class FakeNativeBackend(
+    override val player: NativeVideoPlayer = FakeNativePlayer(),
+    private val searchDelayMs: Long = 0L,
     private val resultCount: Int = 2,
-) : VideoProvider {
+) : NativeVideoBackend {
     var cancelled = false
-
-    override val id = VideoProviderId.YouTube
-    override val configured = true
-    override val capabilities = VideoProviderCapabilities(supportsSeeking = true, usesAdaptiveQuality = true)
 
     override suspend fun search(query: VideoTrackQuery): List<VideoCandidate> {
         try {
@@ -150,21 +259,89 @@ private class FakeVideoProvider(
             cancelled = true
             throw error
         }
-        return List(resultCount) { index -> candidate(index.toString()) }
+        return List(resultCount) { index -> nativeCandidate(index.toString(), query) }
     }
 
-    override fun createPlayerSpec(candidate: VideoCandidate) = EmbeddedVideoPlayerSpec(id, candidate.videoId)
+    private fun nativeCandidate(
+        id: String,
+        query: VideoTrackQuery,
+    ) = VideoCandidate(
+        videoId = id,
+        title = "${query.artist} ${query.title} official music video",
+        publisher = query.artist,
+        thumbnailUrl = null,
+        durationMs = query.durationMs,
+        musicCategory = true,
+    )
+}
 
-    private fun candidate(id: String) =
-        VideoCandidate(
-            providerId = VideoProviderId.YouTube,
-            videoId = id,
-            title = "Artist Track official music video",
-            publisher = "Publisher $id",
-            thumbnailUrl = null,
-            durationMs = 180_000L,
-            musicCategory = true,
-        )
+private class FakeNativePlayer : NativeVideoPlayer {
+    private val mutableState = MutableStateFlow<NativeVideoPlayerState>(NativeVideoPlayerState.Idle)
+    override val state: StateFlow<NativeVideoPlayerState> = mutableState
+    private var session: VideoSessionKey? = null
+    var seekPositionMs: Long? = null
+    var playCalls = 0
+    var pauseCalls = 0
+    var releaseCalls = 0
+
+    override fun prepare(
+        session: VideoSessionKey,
+        spec: NativeVideoSpec,
+    ) {
+        this.session = session
+        mutableState.value = NativeVideoPlayerState.Loading(session)
+    }
+
+    override fun play() {
+        playCalls += 1
+    }
+
+    override fun pause() {
+        pauseCalls += 1
+    }
+
+    override fun seekTo(positionMs: Long) {
+        seekPositionMs = positionMs
+    }
+
+    override fun release() {
+        releaseCalls += 1
+        mutableState.value = NativeVideoPlayerState.Idle
+    }
+
+    override fun createSurfaceView(context: Context): View = error("Not used in unit tests")
+
+    override fun disposeSurfaceView(view: View) = Unit
+
+    override fun focusPlayer() = Unit
+
+    override fun clearPlayerFocus() = Unit
+
+    override fun adjustVolume(delta: Int) = Unit
+
+    fun emitReady(durationMs: Long) {
+        mutableState.value = NativeVideoPlayerState.Ready(requireNotNull(session), durationMs)
+    }
+
+    fun emitError(message: String) {
+        mutableState.value = NativeVideoPlayerState.Error(requireNotNull(session), message)
+    }
+
+    fun emitPlaying(
+        positionMs: Long,
+        durationMs: Long,
+    ) {
+        mutableState.value = NativeVideoPlayerState.Playing(requireNotNull(session), positionMs, durationMs)
+    }
+}
+
+private class RecordingVideoHistoryStore : VideoHistoryStore {
+    override val history: StateFlow<List<VideoHistoryEntry>> = MutableStateFlow(emptyList())
+    val recordedIds = mutableListOf<String>()
+
+    override fun record(candidate: VideoCandidate) {
+        recordedIds += candidate.videoId
+    }
 }
 
 private object AcceptedConsentStore : VideoConsentStore {

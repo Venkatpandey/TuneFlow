@@ -56,27 +56,17 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 - Search with recent queries and live suggestions
 - Use play/pause/previous/next on the Now Playing screen
 - Browse up to 25 ranked YouTube matches for the current song, choose one, and play it full screen
+- Reopen the 5 most recent videos from Home or show the last 20
 - Press Back to keep the selected video playing inside the Now Playing rail widget while browsing TuneFlow
 - Logout to switch users on the same TV
 
 ## YouTube Video Setup
 
-The first video release supports YouTube only and plays only the current TuneFlow queue item. It does not create or retain a separate video playlist.
+The private video experiment supports YouTube through the SmartTube-native search and player integration. It starts every selected video from the beginning and pauses audio immediately. The remote play/pause key controls video while a video session is active and returns to audio control after video stops.
 
-1. Enable YouTube Data API v3 in a Google Cloud project.
-2. Create an API key restricted to YouTube Data API v3.
-3. Add Android application restrictions for package `com.tuneflow.tv` and each signing certificate SHA-1 used to build the app.
-4. Supply the key at build time without committing it:
+Native search works without a Google API key.
 
-```bash
-TUNEFLOW_YOUTUBE_API_KEY=your_restricted_key ./gradlew :app:assembleDebug
-```
-
-Without a configured key, the `Video` action is disabled. Video search starts only after the user selects it and accepts the one-time disclosure. Search uses the track title and artist, asks YouTube for the most-viewed matches, then combines view count with title, artist, duration, category, and publisher matching. Artist-channel matches remain ahead of otherwise equivalent fan uploads. TuneFlow presents ranked matches for manual selection, opens the selected video full screen, and moves it into the album-art area of the Now Playing rail widget when you return to browse. Search does not apply YouTube SafeSearch or local maturity filtering; TuneFlow still requires videos to be public, embeddable, and playable in the device region. TuneFlow uses the official YouTube Data API and IFrame Player, leaves adaptive quality, controls, branding, links, and ads intact, and never extracts or downloads media URLs. Stopping or finishing video leaves the audio track paused and returns to Now Playing. Playback pauses when TuneFlow leaves the foreground.
-
-YouTube selects embedded playback quality from the player viewport, device capability, network conditions, and its adaptive-streaming policy. TuneFlow gives the iframe the full available 16:9 viewport in full-screen mode. The official IFrame API no longer provides a working quality setter or a supported way to force extra buffering, so TuneFlow cannot guarantee a fixed resolution without replacing or extracting the provider stream.
-
-In full-screen video, TuneFlow gives Center, Left, Right, Up, and Down directly to the official YouTube player and focuses its iframe browsing context so keyboard focus remains inside captions, settings, quality, and other provider dialogs after they open. Back returns to the mini-player and restores focus to TuneFlow's `Video` action. Remote media keys remain available for play, pause, seek, next, previous, and stop.
+Video search starts only after the user selects it and accepts the one-time disclosure. TuneFlow ranks matches using title, artist, duration, category, publisher, and view count. The native player defaults to the highest supported quality, preserves the video's aspect ratio, and exposes quality and caption controls. Stopping, finishing, or failing video leaves audio paused and returns control to audio. Playback pauses when TuneFlow leaves the foreground.
 
 ## Streaming Quality
 
