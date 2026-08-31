@@ -267,16 +267,6 @@ internal fun resolveActiveLyricLine(
     return index.takeIf { it >= 0 }
 }
 
-internal fun estimateActiveLyricLine(
-    lineCount: Int,
-    positionMs: Long,
-    durationMs: Long,
-): Int? {
-    if (lineCount <= 0 || durationMs <= 0L) return null
-    val progress = positionMs.toDouble().div(durationMs.toDouble()).coerceIn(0.0, 1.0)
-    return (progress * (lineCount - 1)).toInt().coerceIn(0, lineCount - 1)
-}
-
 private fun NetworkResult.Error.isConfirmedEmpty(): Boolean = code == 70
 
 private fun NetworkResult.Error.isUnsupportedEndpoint(): Boolean {

@@ -450,7 +450,7 @@ private fun TuneFlowShell(
     ObserveVideoLifecycle(videoViewModel)
     val session by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
     val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)
-    var navWidgetPositionMs by remember { mutableLongStateOf(0L) }
+    var playbackPositionMs by remember { mutableLongStateOf(0L) }
     var navClockText by remember { mutableStateOf(currentTime24h()) }
 
     var shellState by rememberSaveable(stateSaver = TuneFlowShellState.Saver) {
@@ -536,10 +536,10 @@ private fun TuneFlowShell(
     }
 
     LaunchedEffect(playbackState.queue.currentItem?.id, playbackState.isPlaying) {
-        navWidgetPositionMs = playerManager.currentPositionMs()
+        playbackPositionMs = playerManager.currentPositionMs()
         while (playbackState.queue.currentItem != null) {
-            navWidgetPositionMs = playerManager.currentPositionMs()
-            delay(1000L)
+            playbackPositionMs = playerManager.currentPositionMs()
+            delay(500L)
         }
     }
 
@@ -557,7 +557,7 @@ private fun TuneFlowShell(
         username = session?.username.orEmpty(),
         currentTimeText = navClockText,
         playbackQueue = playbackState.queue,
-        playbackPositionMs = navWidgetPositionMs,
+        playbackPositionMs = playbackPositionMs,
         screensaverActive = screensaverState.active,
         lyricsState = lyricsState,
         homeViewModel = homeViewModel,

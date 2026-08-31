@@ -206,6 +206,7 @@ internal fun TuneFlowShellLayout(
                                 preselectedPlaylistId = preselectedPlaylistId,
                                 focusRestoreTarget = focusRestoreTarget,
                                 playbackQueue = playbackQueue,
+                                playbackPositionMs = playbackPositionMs,
                                 homeViewModel = homeViewModel,
                                 albumsViewModel = albumsViewModel,
                                 homeCategoryViewModel = homeCategoryViewModel,
@@ -698,11 +699,9 @@ private fun PlaybackScreensaverOverlay(
                 LyricsRenderer(
                     lyrics = lyrics,
                     positionMs = playbackPositionMs,
-                    durationMs = currentItem.durationMs,
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     autoFollow = true,
                     interactive = false,
-                    estimateUnsynchronized = true,
                 )
             }
         }

@@ -18,6 +18,7 @@ internal fun ShellContent(
     preselectedPlaylistId: String?,
     focusRestoreTarget: com.tuneflow.feature.browse.BrowseFocusTarget?,
     playbackQueue: PlaybackQueue,
+    playbackPositionMs: Long,
     homeViewModel: HomeViewModel,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel,
@@ -51,6 +52,7 @@ internal fun ShellContent(
                 NowPlayingScreen(
                     viewModel = playbackViewModel,
                     videoViewModel = videoViewModel,
+                    lyricsPositionMs = playbackPositionMs,
                     streamModeLabel = streamModeLabel,
                     onCycleStreamMode = onCycleStreamMode,
                     autoFocusTransport = autoFocusNowPlayingTransport,

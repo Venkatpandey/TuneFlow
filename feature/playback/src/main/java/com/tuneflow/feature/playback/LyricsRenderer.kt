@@ -39,21 +39,14 @@ import android.view.KeyEvent as AndroidKeyEvent
 fun LyricsRenderer(
     lyrics: Lyrics,
     positionMs: Long,
-    durationMs: Long,
     modifier: Modifier = Modifier,
     autoFollow: Boolean = true,
     interactive: Boolean = true,
-    estimateUnsynchronized: Boolean = false,
     onManualScroll: () -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val activeIndex =
-        when {
-            lyrics.synchronized -> resolveActiveLyricLine(lyrics, positionMs)
-            estimateUnsynchronized -> estimateActiveLyricLine(lyrics.lines.size, positionMs, durationMs)
-            else -> null
-        }
+    val activeIndex = resolveActiveLyricLine(lyrics, positionMs)
 
     LaunchedEffect(activeIndex, autoFollow, lyrics) {
         if (autoFollow && activeIndex != null) {
@@ -134,7 +127,6 @@ private fun LyricLineRow(
 internal fun LyricsPanel(
     lyrics: Lyrics,
     positionMs: Long,
-    durationMs: Long,
     onExit: () -> Unit,
 ) {
     var autoFollow by remember(lyrics) { mutableStateOf(true) }
@@ -194,7 +186,6 @@ internal fun LyricsPanel(
         LyricsRenderer(
             lyrics = lyrics,
             positionMs = positionMs,
-            durationMs = durationMs,
             modifier = Modifier.fillMaxWidth().weight(1f),
             autoFollow = autoFollow,
             interactive = true,
