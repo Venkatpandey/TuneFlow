@@ -89,7 +89,7 @@ jobs:
 
       - name: Extract preferred-video image metadata
         id: preferred-video-meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/venkatpandey/tuneflow-preferred-video
           tags: |
