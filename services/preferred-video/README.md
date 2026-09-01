@@ -46,7 +46,7 @@ docker compose pull
 docker compose up -d
 ```
 
-`latest` is published from `main`. Version tags such as `v1.2.0` publish an immutable matching image tag, and each build also publishes a `sha-...` tag. Set `PREFERRED_VIDEO_IMAGE_TAG` to a version or commit tag when a deployment must stay pinned.
+Each TuneFlow release publishes the preferred-video image with the same version tag, updates `latest`, and also publishes a `sha-...` tag. For example, release `v1.2.0` publishes both `v1.2.0` and `latest`. Builds from `main` publish `edge` and `sha-...`, but do not move the production `latest` tag. Set `PREFERRED_VIDEO_IMAGE_TAG` to a version or commit tag when a deployment must stay pinned.
 
 The GitHub Actions publish workflow builds both `linux/amd64` and `linux/arm64` images and pushes them to GHCR. After the first publish, make the package public in GitHub package settings for anonymous NAS pulls. If it remains private, log in on the NAS before pulling:
 

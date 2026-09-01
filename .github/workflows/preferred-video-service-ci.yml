@@ -5,11 +5,15 @@ on:
     branches: ["main"]
     paths:
       - "services/preferred-video/**"
+      - ".github/dependabot.yml"
+      - ".github/workflows/release.yml"
       - ".github/workflows/preferred-video-service-ci.yml"
       - ".github/workflows/preferred-video-service-publish.yml"
   pull_request:
     paths:
       - "services/preferred-video/**"
+      - ".github/dependabot.yml"
+      - ".github/workflows/release.yml"
       - ".github/workflows/preferred-video-service-ci.yml"
       - ".github/workflows/preferred-video-service-publish.yml"
 

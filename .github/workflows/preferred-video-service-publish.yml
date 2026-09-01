@@ -1,11 +1,9 @@
-name: Publish Preferred Video Service Image
+name: Publish Preferred Video Service Edge Image
 
 on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -43,8 +41,7 @@ jobs:
         with:
           images: ghcr.io/venkatpandey/tuneflow-preferred-video
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
+            type=raw,value=edge
             type=sha
 
       - name: Build and push Docker image
