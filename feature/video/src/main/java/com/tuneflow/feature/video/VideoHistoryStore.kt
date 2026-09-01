@@ -63,16 +63,16 @@ class RemotePreferredVideoStore(
     baseUrl: String,
     private val client: OkHttpClient = defaultPreferredVideoClient(),
 ) : PreferredVideoStore {
-    private val serviceUrl: HttpUrl? =
-        baseUrl
-            .trim()
-            .takeIf(String::isNotEmpty)
-            ?.trimEnd('/')
-            ?.plus("/")
-            ?.toHttpUrlOrNull()
+    @Volatile
+    private var serviceUrl: HttpUrl? = preferredVideoServiceHttpUrl(baseUrl)
     private val json = Json { ignoreUnknownKeys = true }
     private val _history = MutableStateFlow<List<VideoHistoryEntry>>(emptyList())
     override val history: StateFlow<List<VideoHistoryEntry>> = _history.asStateFlow()
+
+    fun updateServiceUrl(baseUrl: String) {
+        serviceUrl = preferredVideoServiceHttpUrl(baseUrl)
+        _history.value = emptyList()
+    }
 
     override suspend fun lookup(trackId: String): PreferredVideoLookupResult {
         val request =
@@ -252,6 +252,12 @@ private fun isValidVideoResponse(video: VideoHistoryEntry): Boolean =
         video.mappingUpdatedAt.isNotBlank() &&
         video.lastPlayedAt.isNotBlank() &&
         (video.thumbnailUrl == null || video.thumbnailUrl.toHttpUrlOrNull() != null)
+
+private fun preferredVideoServiceHttpUrl(baseUrl: String): HttpUrl? =
+    normalizePreferredVideoServiceUrl(baseUrl)
+        ?.takeIf(String::isNotEmpty)
+        ?.plus("/")
+        ?.toHttpUrlOrNull()
 
 private fun defaultPreferredVideoClient(): OkHttpClient =
     OkHttpClient.Builder()

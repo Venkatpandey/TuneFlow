@@ -58,7 +58,15 @@ Use a classic personal access token with only `read:packages` for private pulls.
 
 ## TuneFlow APK configuration
 
-Service address is build configuration, not committed source. Build TuneFlow with either:
+After the container is healthy, open TuneFlow and select **Home > Quick Actions > Video Service**. Enter the LAN URL, for example:
+
+```text
+http://192.168.1.10:8090
+```
+
+TuneFlow stores only this service address locally. Preferred mappings and video history remain in the NAS SQLite service. The URL can be changed or disabled without rebuilding the APK.
+
+Managed builds can still provide a default service address with either:
 
 ```bash
 PREFERRED_VIDEO_SERVICE_URL=http://192.168.1.10:8090 ./gradlew :app:assembleDebug
@@ -70,7 +78,7 @@ or:
 ./gradlew :app:assembleDebug -PpreferredVideoServiceUrl=http://192.168.1.10:8090
 ```
 
-An APK built without a service URL keeps video search/playback working but has no durable preferred mappings or recent-video row.
+The runtime value overrides the build default. An APK with no configured service URL keeps video search/playback working but has no durable preferred mappings or recent-video row.
 
 ## Configuration
 

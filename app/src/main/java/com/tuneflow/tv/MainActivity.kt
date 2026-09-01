@@ -40,8 +40,10 @@ import com.tuneflow.feature.auth.AuthRepository
 import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.playback.LyricsRepository
+import com.tuneflow.feature.video.PreferredVideoServiceConfigStore
 import com.tuneflow.feature.video.PreferredVideoStore
 import com.tuneflow.feature.video.RemotePreferredVideoStore
+import com.tuneflow.feature.video.VIDEO_HISTORY_LIMIT
 import com.tuneflow.feature.video.VideoViewModel
 import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.delay
@@ -71,7 +73,9 @@ class MainActivity : ComponentActivity() {
         val sessionStore = SessionStore(applicationContext)
         val searchHistoryStore = SearchHistoryStore(applicationContext)
         val playbackPreferencesStore = PlaybackPreferencesStore(applicationContext)
-        val preferredVideoStore = RemotePreferredVideoStore(BuildConfig.PREFERRED_VIDEO_SERVICE_URL)
+        val preferredVideoServiceConfigStore =
+            PreferredVideoServiceConfigStore(applicationContext, BuildConfig.PREFERRED_VIDEO_SERVICE_URL)
+        val preferredVideoStore = RemotePreferredVideoStore(preferredVideoServiceConfigStore.serviceUrl)
         val authRepository = AuthRepository(sessionStore)
         val browseRepository = BrowseRepository(sessionStore)
         val lyricsRepository = LyricsRepository(sessionStore)
@@ -94,6 +98,9 @@ class MainActivity : ComponentActivity() {
                     )
                 val authState by authViewModel.uiState.collectAsStateWithLifecycle()
                 val screenScaleOption = ScreenScaleOption.Compact
+                var preferredVideoServiceUrl by remember {
+                    mutableStateOf(preferredVideoServiceConfigStore.serviceUrl)
+                }
 
                 if (!authState.isLoggedIn) {
                     LoginScreen(
@@ -111,6 +118,13 @@ class MainActivity : ComponentActivity() {
                         searchHistoryStore = searchHistoryStore,
                         lyricsRepository = lyricsRepository,
                         preferredVideoStore = preferredVideoStore,
+                        preferredVideoServiceUrl = preferredVideoServiceUrl,
+                        onPreferredVideoServiceUrlChanged = { serviceUrl ->
+                            preferredVideoServiceConfigStore.saveServiceUrl(serviceUrl)?.let { savedUrl ->
+                                preferredVideoServiceUrl = savedUrl
+                                preferredVideoStore.updateServiceUrl(savedUrl)
+                            }
+                        },
                         videoOverlayHost = videoOverlayHost,
                         userActivityEvents = userActivityEvents,
                         onScreensaverActiveChanged = { screensaverActive = it },
@@ -401,6 +415,8 @@ private fun TuneFlowShell(
     searchHistoryStore: SearchHistoryStore,
     lyricsRepository: LyricsRepository,
     preferredVideoStore: PreferredVideoStore,
+    preferredVideoServiceUrl: String,
+    onPreferredVideoServiceUrlChanged: (String) -> Unit,
     videoOverlayHost: FrameLayout,
     userActivityEvents: Flow<UserInputCategory>,
     onScreensaverActiveChanged: (Boolean) -> Unit,
@@ -601,6 +617,11 @@ private fun TuneFlowShell(
         },
         onPlayTracks = ::playTracks,
         onShuffleTracks = ::shuffleTracks,
+        preferredVideoServiceUrl = preferredVideoServiceUrl,
+        onPreferredVideoServiceUrlChanged = { serviceUrl ->
+            onPreferredVideoServiceUrlChanged(serviceUrl)
+            scope.launch { preferredVideoStore.refreshHistory(VIDEO_HISTORY_LIMIT) }
+        },
         showExitPrompt = shellState.showExitPrompt,
     )
 }

@@ -9,6 +9,25 @@ import org.junit.Test
 
 class VideoHistoryStoreTest {
     @Test
+    fun `runtime service URL enables downloaded app without rebuild`() =
+        runTest {
+            val server = MockWebServer()
+            server.enqueue(MockResponse().setResponseCode(404))
+            server.start()
+            try {
+                val store = RemotePreferredVideoStore("")
+                assertEquals(PreferredVideoLookupResult.BackendUnavailable, store.lookup("track"))
+
+                store.updateServiceUrl(server.url("/").toString())
+
+                assertEquals(PreferredVideoLookupResult.Missing, store.lookup("track"))
+                assertEquals("/v1/tracks/track/preferred-video", server.takeRequest().path)
+            } finally {
+                server.shutdown()
+            }
+        }
+
+    @Test
     fun repeatedTrackMovesToFrontWithoutDuplication() {
         val first = historyEntry("track-1", "aaaaaaaaaaa", "2026-09-01T10:00:00Z")
         val second = historyEntry("track-2", "bbbbbbbbbbb", "2026-09-01T11:00:00Z")

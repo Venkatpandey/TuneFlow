@@ -114,6 +114,8 @@ internal fun TuneFlowShellLayout(
     onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
+    preferredVideoServiceUrl: String,
+    onPreferredVideoServiceUrlChanged: (String) -> Unit,
     showExitPrompt: Boolean,
 ) {
     val videoSurfacePlayer by videoViewModel.surfacePlayer.collectAsState()
@@ -233,6 +235,8 @@ internal fun TuneFlowShellLayout(
                                 onPlayVideo = onPlayVideo,
                                 onPlayTracks = onPlayTracks,
                                 onShuffleTracks = onShuffleTracks,
+                                preferredVideoServiceUrl = preferredVideoServiceUrl,
+                                onPreferredVideoServiceUrlChanged = onPreferredVideoServiceUrlChanged,
                             )
                         }
                     }

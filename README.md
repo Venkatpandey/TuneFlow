@@ -98,7 +98,7 @@ The private video experiment supports YouTube through the SmartTube-native searc
 
 Native search works without a Google API key.
 
-For durable preferred videos and recent history across app reinstall or TV replacement, deploy the LAN-only service and configure its URL when building the APK. See [preferred-video service deployment](services/preferred-video/README.md). If the service is missing or offline, the Video button immediately uses normal YouTube search and playback continues normally.
+For durable preferred videos and recent history across app reinstall or TV replacement, deploy the LAN-only service, then enter its URL under **Home > Quick Actions > Video Service**. No APK rebuild is required. See [preferred-video service deployment](services/preferred-video/README.md). If the service is missing, disabled, or offline, the Video button immediately uses normal YouTube search and playback continues normally.
 
 Video search starts only after the user selects it and accepts the one-time disclosure. TuneFlow ranks matches using title, artist, duration, category, publisher, and view count. The native player defaults to the highest supported quality, preserves the video's aspect ratio, and exposes quality and caption controls. Stopping, finishing, or failing video leaves audio paused and returns control to audio. Playback pauses when TuneFlow leaves the foreground.
 

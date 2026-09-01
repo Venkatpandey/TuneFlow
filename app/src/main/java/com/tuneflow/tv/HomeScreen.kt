@@ -82,6 +82,8 @@ fun HomeScreen(
     onOpenVideoHistory: () -> Unit,
     onPlayVideo: (VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<TrackSummary>, Int) -> Unit,
+    preferredVideoServiceUrl: String,
+    onPreferredVideoServiceUrlChanged: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -92,6 +94,7 @@ fun HomeScreen(
     val albumsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val playlistsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val restoredItemFocusRequester = remember { FocusRequester() }
+    var showPreferredVideoServiceDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(focusRestoreTarget, state) {
         val target = focusRestoreTarget ?: return@LaunchedEffect
@@ -294,8 +297,23 @@ fun HomeScreen(
                         modifier = Modifier.homeBottomBoundaryItem(),
                     )
                 }
+                item {
+                    ActionCard(
+                        title = if (preferredVideoServiceUrl.isBlank()) "Video Service: Off" else "Video Service",
+                        onClick = { showPreferredVideoServiceDialog = true },
+                        modifier = Modifier.homeBottomBoundaryItem(),
+                    )
+                }
             }
         }
+    }
+
+    if (showPreferredVideoServiceDialog) {
+        PreferredVideoServiceDialog(
+            currentUrl = preferredVideoServiceUrl,
+            onSave = onPreferredVideoServiceUrlChanged,
+            onDismiss = { showPreferredVideoServiceDialog = false },
+        )
     }
 }
 
