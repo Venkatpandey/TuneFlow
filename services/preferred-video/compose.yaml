@@ -1,8 +1,7 @@
 services:
   preferred-video:
-    build:
-      context: .
-    image: tuneflow-preferred-video:local
+    image: ghcr.io/venkatpandey/tuneflow-preferred-video:${PREFERRED_VIDEO_IMAGE_TAG:-latest}
+    pull_policy: always
     container_name: tuneflow-preferred-video
     restart: unless-stopped
     init: true

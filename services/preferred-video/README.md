@@ -11,18 +11,26 @@ Requirements:
 - Docker Engine with Docker Compose v2
 - A persistent NAS directory writable by container UID `65532`
 - A stable LAN address or hostname reachable from the TV
+- Public pull access to `ghcr.io/venkatpandey/tuneflow-preferred-video`, or a prior `docker login ghcr.io` when the package is private
 
-```bash
-cd services/preferred-video
-cp .env.example .env
+Copy `compose.yaml` and `.env.example` from this directory to one NAS deployment directory, then rename `.env.example` to `.env`.
+
+Edit `.env` for the NAS:
+
+```dotenv
+PREFERRED_VIDEO_IMAGE_TAG=latest
+PREFERRED_VIDEO_BIND_ADDRESS=192.168.1.10
+PREFERRED_VIDEO_PORT=8090
+PREFERRED_VIDEO_DATA_DIR=/volume1/docker/tuneflow-preferred-video
 ```
 
-Edit `.env` for the NAS. `PREFERRED_VIDEO_BIND_ADDRESS` should be the NAS LAN address, and `PREFERRED_VIDEO_DATA_DIR` should be an absolute persistent directory. Then:
+`PREFERRED_VIDEO_BIND_ADDRESS` should be the NAS LAN address, and `PREFERRED_VIDEO_DATA_DIR` should be an absolute persistent directory. Then:
 
 ```bash
 mkdir -p /volume1/docker/tuneflow-preferred-video
 chown 65532:65532 /volume1/docker/tuneflow-preferred-video
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose ps
 curl --fail http://192.168.1.10:8090/healthz
 ```
@@ -30,6 +38,23 @@ curl --fail http://192.168.1.10:8090/healthz
 Adjust paths and ownership commands for the NAS platform. The database lives at `${PREFERRED_VIDEO_DATA_DIR}/preferred-videos.db`, outside the container writable layer. Container recreation and upgrades keep it.
 
 Compose applies a read-only root filesystem, drops Linux capabilities, enables `no-new-privileges`, configures a health check, and uses `restart: unless-stopped`.
+
+To upgrade after a new image is published:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+`latest` is published from `main`. Version tags such as `v1.2.0` publish an immutable matching image tag, and each build also publishes a `sha-...` tag. Set `PREFERRED_VIDEO_IMAGE_TAG` to a version or commit tag when a deployment must stay pinned.
+
+The GitHub Actions publish workflow builds both `linux/amd64` and `linux/arm64` images and pushes them to GHCR. After the first publish, make the package public in GitHub package settings for anonymous NAS pulls. If it remains private, log in on the NAS before pulling:
+
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io --username YOUR_GITHUB_USER --password-stdin
+```
+
+Use a classic personal access token with only `read:packages` for private pulls. Do not store the token in `compose.yaml` or commit it.
 
 ## TuneFlow APK configuration
 

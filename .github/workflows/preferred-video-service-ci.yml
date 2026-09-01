@@ -6,10 +6,12 @@ on:
     paths:
       - "services/preferred-video/**"
       - ".github/workflows/preferred-video-service-ci.yml"
+      - ".github/workflows/preferred-video-service-publish.yml"
   pull_request:
     paths:
       - "services/preferred-video/**"
       - ".github/workflows/preferred-video-service-ci.yml"
+      - ".github/workflows/preferred-video-service-publish.yml"
 
 concurrency:
   group: preferred-video-service-ci-${{ github.repository }}-${{ github.head_ref || github.ref_name }}

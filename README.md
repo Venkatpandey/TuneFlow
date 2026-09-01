@@ -4,6 +4,7 @@
 
 [![Android CI](https://github.com/Venkatpandey/TuneFlow/actions/workflows/android-ci.yml/badge.svg)](https://github.com/Venkatpandey/TuneFlow/actions/workflows/android-ci.yml)
 [![Preferred Video Service CI](https://github.com/Venkatpandey/TuneFlow/actions/workflows/preferred-video-service-ci.yml/badge.svg)](https://github.com/Venkatpandey/TuneFlow/actions/workflows/preferred-video-service-ci.yml)
+[![Preferred Video Image](https://github.com/Venkatpandey/TuneFlow/actions/workflows/preferred-video-service-publish.yml/badge.svg)](https://github.com/Venkatpandey/TuneFlow/actions/workflows/preferred-video-service-publish.yml)
 [![Latest Release](https://img.shields.io/github/v/release/Venkatpandey/TuneFlow)](https://github.com/Venkatpandey/TuneFlow/releases/latest)
 [![License: MIT](https://img.shields.io/github/license/Venkatpandey/TuneFlow)](LICENSE)
 
