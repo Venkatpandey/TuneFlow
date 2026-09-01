@@ -97,6 +97,11 @@ class VideoViewModelTest {
             val minimized = viewModel.uiState.value as VideoUiState.Loading
             assertEquals(VideoPresentationMode.Mini, minimized.presentation)
             assertEquals(1L, minimized.focusRequestId)
+
+            viewModel.enterFullscreen()
+
+            val restored = viewModel.uiState.value as VideoUiState.Loading
+            assertEquals(VideoPresentationMode.Fullscreen, restored.presentation)
         }
 
     @Test
@@ -183,6 +188,27 @@ class VideoViewModelTest {
             viewModel.stopVideo()
 
             assertFalse(viewModel.togglePlayPause())
+        }
+
+    @Test
+    fun activeVideoSeekUsesRelativePositionAndClampsToDuration() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativePlayer = FakeNativePlayer()
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(nativePlayer))
+            runCurrent()
+
+            assertFalse(viewModel.seekBy(-10_000L))
+            viewModel.requestVideo()
+            runCurrent()
+            viewModel.selectCandidate((viewModel.uiState.value as VideoUiState.Candidates).candidates.first())
+            nativePlayer.emitPlaying(10_000L, 180_000L)
+            runCurrent()
+
+            assertTrue(viewModel.seekBy(-10_000L))
+            assertEquals(0L, nativePlayer.seekPositionMs)
+            assertTrue(viewModel.seekBy(200_000L))
+            assertEquals(180_000L, nativePlayer.seekPositionMs)
         }
 
     @Test

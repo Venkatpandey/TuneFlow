@@ -1,12 +1,7 @@
 package com.tuneflow.feature.playback
 
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
@@ -14,7 +9,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,7 +37,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntRect
@@ -53,11 +46,12 @@ import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.QueueItem
 import com.tuneflow.feature.video.VideoActionButton
+import com.tuneflow.feature.video.VideoControlIconButton
 import com.tuneflow.feature.video.VideoErrorCard
-import com.tuneflow.feature.video.VideoSessionActions
 import com.tuneflow.feature.video.VideoUiState
 import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlin.math.roundToInt
+import com.tuneflow.feature.video.R as VideoR
 
 @Composable
 private fun VideoMiniViewport(onBoundsChanged: (IntRect) -> Unit) {
@@ -108,7 +102,7 @@ internal fun NowPlayingPrimaryColumn(
     onToggleQueue: () -> Unit,
     onToggleLyrics: () -> Unit,
     onVideoAction: () -> Unit,
-    onChooseAnotherVideo: () -> Unit,
+    onEnterFullscreen: () -> Unit,
     onStopVideo: () -> Unit,
     onVideoViewportBoundsChanged: (IntRect?) -> Unit,
     onCyclePlaybackMode: () -> Unit,
@@ -180,13 +174,6 @@ internal fun NowPlayingPrimaryColumn(
             )
         }
 
-        if (videoState.hasVisiblePlayer) {
-            VideoSessionActions(
-                onChooseAnother = onChooseAnotherVideo,
-                onStop = onStopVideo,
-            )
-        }
-
         state.statusMessage?.let {
             PlaybackStatusCard(
                 message = it,
@@ -201,9 +188,18 @@ internal fun NowPlayingPrimaryColumn(
         )
         TransportControls(
             isPlaying = (videoState as? VideoUiState.Playing)?.isPlaying ?: state.isPlaying,
+            videoActive = videoState.hasVisiblePlayer,
+            videoFocusRequestId =
+                when (videoState) {
+                    is VideoUiState.Loading -> videoState.focusRequestId
+                    is VideoUiState.Playing -> videoState.focusRequestId
+                    else -> 0L
+                },
             onPrevious = onPrevious,
             onTogglePlayPause = onTogglePlayPause,
             onNext = onNext,
+            onEnterFullscreen = onEnterFullscreen,
+            onStopVideo = onStopVideo,
             compact = compactTransport,
             autoFocusTransport = autoFocusTransport,
             onAutoFocusConsumed = onAutoFocusConsumed,
@@ -393,7 +389,6 @@ internal fun StreamControlRow(
                     videoState !is VideoUiState.Searching &&
                     videoState !is VideoUiState.Loading &&
                     videoState !is VideoUiState.ConsentRequired,
-            requestFocusId = (videoState as? VideoUiState.Playing)?.focusRequestId ?: 0L,
             requestFocus = autoFocusVideo,
             onRequestedFocusApplied = onVideoFocusConsumed,
             onClick = onVideoAction,
@@ -438,7 +433,7 @@ private fun PlaybackModeIconButton(
             PlaybackMode.Loop -> R.drawable.loop_enabled to true
         }
 
-    PlaybackStateIconButton(
+    VideoControlIconButton(
         iconResId = iconRes,
         contentDescription =
             when (playbackMode) {
@@ -446,8 +441,9 @@ private fun PlaybackModeIconButton(
                 PlaybackMode.Shuffle -> "Playback mode shuffle"
                 PlaybackMode.Loop -> "Playback mode loop"
             },
-        active = active,
+        accent = active,
         onClick = onClick,
+        modifier = Modifier.size(44.dp),
     )
 }
 
@@ -458,11 +454,12 @@ private fun QueueToggleIconButton(
     requestFocus: Boolean,
     onRequestedFocusApplied: () -> Unit,
 ) {
-    PlaybackStateIconButton(
+    VideoControlIconButton(
         iconResId = if (active) R.drawable.tracklist_enabled else R.drawable.tracklist_disabled,
         contentDescription = if (active) "Hide track list" else "Show track list",
-        active = active,
+        accent = active,
         onClick = onClick,
+        modifier = Modifier.size(44.dp),
         requestFocus = requestFocus,
         onRequestedFocusApplied = onRequestedFocusApplied,
     )
@@ -475,76 +472,15 @@ private fun LyricsToggleButton(
     requestFocus: Boolean,
     onRequestedFocusApplied: () -> Unit,
 ) {
-    PlaybackTextButton(
-        label = "Lyrics",
+    VideoControlIconButton(
+        iconResId = R.drawable.ic_lyrics,
+        contentDescription = if (active) "Hide lyrics" else "Show lyrics",
         accent = active,
         onClick = onClick,
-        modifier = Modifier.width(96.dp).height(44.dp),
-        iconResId = R.drawable.ic_lyrics,
-        compact = true,
+        modifier = Modifier.size(44.dp),
         requestFocus = requestFocus,
         onRequestedFocusApplied = onRequestedFocusApplied,
     )
-}
-
-@Composable
-private fun PlaybackStateIconButton(
-    iconResId: Int,
-    contentDescription: String,
-    active: Boolean,
-    onClick: () -> Unit,
-    requestFocus: Boolean = false,
-    onRequestedFocusApplied: () -> Unit = {},
-) {
-    var focused by remember { mutableStateOf(false) }
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(requestFocus) {
-        if (requestFocus) {
-            focusRequester.requestFocus()
-            onRequestedFocusApplied()
-        }
-    }
-
-    Box(
-        modifier =
-            Modifier
-                .size(44.dp)
-                .focusRequester(focusRequester)
-                .scale(if (focused) 1.03f else 1f)
-                .clip(TuneFlowShapes.button)
-                .background(
-                    if (focused || active) {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f)
-                    },
-                )
-                .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.primary
-                        } else if (active) {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = TuneFlowShapes.button,
-                )
-                .onFocusChanged { focusState -> focused = focusState.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
-                .padding(8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(
-            painter = painterResource(iconResId),
-            contentDescription = contentDescription,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Fit,
-        )
-    }
 }
 
 @Composable
@@ -588,134 +524,54 @@ internal fun PlaybackProgress(
 @Composable
 internal fun TransportControls(
     isPlaying: Boolean,
+    videoActive: Boolean,
+    videoFocusRequestId: Long,
     onPrevious: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
+    onEnterFullscreen: () -> Unit,
+    onStopVideo: () -> Unit,
     compact: Boolean,
     autoFocusTransport: Boolean,
     onAutoFocusConsumed: () -> Unit,
 ) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val gap = if (compact) 10.dp else 16.dp
-        val desiredSideSize = if (compact) 74.dp else 82.dp
-        val desiredCenterSize = if (compact) 88.dp else 98.dp
-        val desiredTotal = (desiredSideSize * 2) + desiredCenterSize
-        val availableButtonWidth = (maxWidth - (gap * 2)).coerceAtLeast(0.dp)
-        val fitScale =
-            if (desiredTotal > 0.dp) {
-                minOf(1f, availableButtonWidth / desiredTotal)
-            } else {
-                1f
-            }
-        val focusReserve = 1.08f
-        val sideButtonSize = desiredSideSize * fitScale
-        val centerButtonSize = desiredCenterSize * fitScale
-        val sideSlotWidth = sideButtonSize * focusReserve
-        val centerSlotWidth = centerButtonSize * focusReserve
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier.width(sideSlotWidth),
-                contentAlignment = Alignment.Center,
-            ) {
-                PlaybackIconButton(
-                    iconResId = R.drawable.playback_control_prev,
-                    contentDescription = "Previous",
-                    onClick = onPrevious,
-                    buttonSize = sideButtonSize,
-                )
-            }
-            Box(
-                modifier = Modifier.width(centerSlotWidth),
-                contentAlignment = Alignment.Center,
-            ) {
-                PlaybackIconButton(
-                    iconResId = if (isPlaying) R.drawable.playback_control_pause else R.drawable.playback_control_play,
-                    contentDescription = if (isPlaying) "Pause" else "Play",
-                    onClick = onTogglePlayPause,
-                    buttonSize = centerButtonSize,
-                    requestFocus = autoFocusTransport,
-                    onRequestedFocusApplied = onAutoFocusConsumed,
-                )
-            }
-            Box(
-                modifier = Modifier.width(sideSlotWidth),
-                contentAlignment = Alignment.Center,
-            ) {
-                PlaybackIconButton(
-                    iconResId = R.drawable.playback_control_next,
-                    contentDescription = "Next",
-                    onClick = onNext,
-                    buttonSize = sideButtonSize,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun PlaybackIconButton(
-    iconResId: Int,
-    contentDescription: String,
-    onClick: () -> Unit,
-    buttonSize: Dp,
-    modifier: Modifier = Modifier,
-    requestFocus: Boolean = false,
-    onRequestedFocusApplied: () -> Unit = {},
-) {
-    var focused by remember { mutableStateOf(false) }
-    val focusRequester = remember { FocusRequester() }
-    val scale by animateFloatAsState(
-        targetValue = if (focused) 1.08f else 1f,
-        animationSpec =
-            tween(
-                durationMillis = if (focused) 150 else 100,
-                easing = if (focused) FastOutSlowInEasing else LinearOutSlowInEasing,
-            ),
-        label = "playbackIconScale",
-    )
-
-    LaunchedEffect(requestFocus) {
-        if (requestFocus) {
-            focusRequester.requestFocus()
-            onRequestedFocusApplied()
-        }
-    }
-
-    Box(
-        modifier =
-            modifier
-                .size(buttonSize)
-                .focusRequester(focusRequester)
-                .scale(scale)
-                .clip(TuneFlowShapes.iconButton)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = if (focused) 0.22f else 0.08f))
-                .border(
-                    width = if (focused) 3.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)
-                        },
-                    shape = TuneFlowShapes.iconButton,
-                )
-                .onFocusChanged { focusState -> focused = focusState.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
-                .padding(4.dp),
-        contentAlignment = Alignment.Center,
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            painter = painterResource(iconResId),
-            contentDescription = contentDescription,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Fit,
+        VideoControlIconButton(
+            iconResId = if (videoActive) VideoR.drawable.smarttube_ic_rewind else VideoR.drawable.smarttube_ic_skip_previous,
+            contentDescription = if (videoActive) "Rewind 10 seconds" else "Previous",
+            onClick = onPrevious,
         )
+        VideoControlIconButton(
+            iconResId = if (isPlaying) VideoR.drawable.smarttube_ic_pause else VideoR.drawable.smarttube_ic_play,
+            contentDescription = if (isPlaying) "Pause" else "Play",
+            onClick = onTogglePlayPause,
+            accent = true,
+            modifier = Modifier.size(width = 64.dp, height = 50.dp),
+            requestFocus = autoFocusTransport,
+            onRequestedFocusApplied = onAutoFocusConsumed,
+        )
+        VideoControlIconButton(
+            iconResId = if (videoActive) VideoR.drawable.smarttube_ic_fast_forward else VideoR.drawable.smarttube_ic_skip_next,
+            contentDescription = if (videoActive) "Fast-forward 10 seconds" else "Next",
+            onClick = onNext,
+        )
+        if (videoActive) {
+            VideoControlIconButton(
+                iconResId = VideoR.drawable.smarttube_ic_fullscreen,
+                contentDescription = "Full screen",
+                onClick = onEnterFullscreen,
+                requestFocusId = videoFocusRequestId,
+            )
+            VideoControlIconButton(
+                iconResId = VideoR.drawable.smarttube_ic_stop,
+                contentDescription = "Stop video",
+                onClick = onStopVideo,
+            )
+        }
     }
 }
 

@@ -210,30 +210,35 @@ fun NowPlayingScreen(
                 onVideoAction = {
                     if (videoState is VideoUiState.Candidates) {
                         activePanel = NowPlayingPanel.VideoCandidates
+                    } else if (videoState.hasVisiblePlayer) {
+                        activePanel = NowPlayingPanel.VideoCandidates
+                        videoViewModel.chooseAnother()
                     } else {
                         videoViewModel.onVideoAction()
                     }
                     clearRequestedFocus()
                 },
-                onChooseAnotherVideo = {
-                    clearRequestedFocus()
-                    activePanel = NowPlayingPanel.VideoCandidates
-                    videoViewModel.chooseAnother()
-                },
+                onEnterFullscreen = videoViewModel::enterFullscreen,
                 onStopVideo = videoViewModel::stopVideo,
                 onVideoViewportBoundsChanged = onVideoViewportBoundsChanged,
                 onCyclePlaybackMode = viewModel::cyclePlaybackMode,
                 onRetry = viewModel::retry,
                 onPrevious = {
-                    if (videoState.hasVisiblePlayer) videoViewModel.closeForQueueChange()
-                    viewModel.previous()
+                    if (videoState.hasVisiblePlayer) {
+                        videoViewModel.seekBy(-NOW_PLAYING_VIDEO_SEEK_MS)
+                    } else {
+                        viewModel.previous()
+                    }
                 },
                 onTogglePlayPause = {
                     if (!videoViewModel.togglePlayPause()) viewModel.togglePlayPause()
                 },
                 onNext = {
-                    if (videoState.hasVisiblePlayer) videoViewModel.closeForQueueChange()
-                    viewModel.next()
+                    if (videoState.hasVisiblePlayer) {
+                        videoViewModel.seekBy(NOW_PLAYING_VIDEO_SEEK_MS)
+                    } else {
+                        viewModel.next()
+                    }
                 },
                 compactTransport = panelVisible,
                 autoFocusTransport = autoFocusTransport || requestTransportFocus,
@@ -297,6 +302,8 @@ fun NowPlayingScreen(
         }
     }
 }
+
+private const val NOW_PLAYING_VIDEO_SEEK_MS = 10_000L
 
 private fun handleTransportMediaKey(
     event: androidx.compose.ui.input.key.KeyEvent,
