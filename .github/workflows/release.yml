@@ -98,7 +98,7 @@ jobs:
             type=sha
 
       - name: Build and publish preferred-video image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: services/preferred-video
           file: services/preferred-video/Dockerfile
