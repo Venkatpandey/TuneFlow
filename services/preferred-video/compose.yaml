@@ -1,0 +1,32 @@
+services:
+  preferred-video:
+    build:
+      context: .
+    image: tuneflow-preferred-video:local
+    container_name: tuneflow-preferred-video
+    restart: unless-stopped
+    init: true
+    read_only: true
+    ports:
+      - "${PREFERRED_VIDEO_BIND_ADDRESS:-0.0.0.0}:${PREFERRED_VIDEO_PORT:-8090}:8090"
+    environment:
+      LISTEN_ADDRESS: "0.0.0.0:8090"
+      DATABASE_PATH: "/data/preferred-videos.db"
+      READ_TIMEOUT: "5s"
+      WRITE_TIMEOUT: "10s"
+      IDLE_TIMEOUT: "60s"
+      SHUTDOWN_TIMEOUT: "10s"
+    volumes:
+      - "${PREFERRED_VIDEO_DATA_DIR:-./data}:/data"
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "/app/preferred-video-service", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

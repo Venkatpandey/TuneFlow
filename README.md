@@ -3,6 +3,7 @@
 # TuneFlow
 
 [![Android CI](https://github.com/Venkatpandey/TuneFlow/actions/workflows/android-ci.yml/badge.svg)](https://github.com/Venkatpandey/TuneFlow/actions/workflows/android-ci.yml)
+[![Preferred Video Service CI](https://github.com/Venkatpandey/TuneFlow/actions/workflows/preferred-video-service-ci.yml/badge.svg)](https://github.com/Venkatpandey/TuneFlow/actions/workflows/preferred-video-service-ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/Venkatpandey/TuneFlow)](https://github.com/Venkatpandey/TuneFlow/releases/latest)
 [![License: MIT](https://img.shields.io/github/license/Venkatpandey/TuneFlow)](LICENSE)
 
@@ -86,6 +87,7 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 - Use play/pause/previous/next on the Now Playing screen
 - Browse up to 25 ranked YouTube matches for the current song, choose one, and play it full screen
 - Reopen the 5 most recent videos from Home or show the last 20
+- Persist preferred track videos and recent playback through an optional LAN Go/SQLite service
 - Press Back to keep the selected video playing inside the Now Playing rail widget while browsing TuneFlow
 - Logout to switch users on the same TV
 
@@ -94,6 +96,8 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 The private video experiment supports YouTube through the SmartTube-native search and player integration. It starts every selected video from the beginning and pauses audio immediately. The remote play/pause key controls video while a video session is active and returns to audio control after video stops.
 
 Native search works without a Google API key.
+
+For durable preferred videos and recent history across app reinstall or TV replacement, deploy the LAN-only service and configure its URL when building the APK. See [preferred-video service deployment](services/preferred-video/README.md). If the service is missing or offline, the Video button immediately uses normal YouTube search and playback continues normally.
 
 Video search starts only after the user selects it and accepts the one-time disclosure. TuneFlow ranks matches using title, artist, duration, category, publisher, and view count. The native player defaults to the highest supported quality, preserves the video's aspect ratio, and exposes quality and caption controls. Stopping, finishing, or failing video leaves audio paused and returns control to audio. Playback pauses when TuneFlow leaves the foreground.
 
@@ -119,6 +123,7 @@ That means TuneFlow is designed to request the original stream as served by Navi
 - Passwords are not stored directly.
 - Session token data stays on-device.
 - Search history is stored locally on the TV for convenience.
+- Preferred-video mappings and recent video playback are sent only to the user-configured LAN service. TuneFlow keeps no persistent local video-history cache.
 - YouTube search sends only current-song metadata. Navidrome credentials, server URL, queue contents, and listening history are not sent to YouTube.
 
 ## Developer Docs
@@ -126,3 +131,5 @@ That means TuneFlow is designed to request the original stream as served by Navi
 Developer setup, local release signing, and CI/release workflow live in [scripts/README.md](scripts/README.md).
 
 Remote navigation and Back behavior are documented in [docs/navigation.md](docs/navigation.md).
+
+LAN preferred-video service deployment, backup, API, and TuneFlow build configuration are documented in [services/preferred-video/README.md](services/preferred-video/README.md).

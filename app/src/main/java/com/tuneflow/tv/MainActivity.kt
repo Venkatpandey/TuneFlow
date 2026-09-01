@@ -40,8 +40,8 @@ import com.tuneflow.feature.auth.AuthRepository
 import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.playback.LyricsRepository
-import com.tuneflow.feature.video.SharedPreferencesVideoHistoryStore
-import com.tuneflow.feature.video.VideoHistoryStore
+import com.tuneflow.feature.video.PreferredVideoStore
+import com.tuneflow.feature.video.RemotePreferredVideoStore
 import com.tuneflow.feature.video.VideoViewModel
 import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.delay
@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
         val sessionStore = SessionStore(applicationContext)
         val searchHistoryStore = SearchHistoryStore(applicationContext)
         val playbackPreferencesStore = PlaybackPreferencesStore(applicationContext)
-        val videoHistoryStore = SharedPreferencesVideoHistoryStore(applicationContext)
+        val preferredVideoStore = RemotePreferredVideoStore(BuildConfig.PREFERRED_VIDEO_SERVICE_URL)
         val authRepository = AuthRepository(sessionStore)
         val browseRepository = BrowseRepository(sessionStore)
         val lyricsRepository = LyricsRepository(sessionStore)
@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity() {
                         playbackPreferencesStore = playbackPreferencesStore,
                         searchHistoryStore = searchHistoryStore,
                         lyricsRepository = lyricsRepository,
-                        videoHistoryStore = videoHistoryStore,
+                        preferredVideoStore = preferredVideoStore,
                         videoOverlayHost = videoOverlayHost,
                         userActivityEvents = userActivityEvents,
                         onScreensaverActiveChanged = { screensaverActive = it },
@@ -400,7 +400,7 @@ private fun TuneFlowShell(
     playbackPreferencesStore: PlaybackPreferencesStore,
     searchHistoryStore: SearchHistoryStore,
     lyricsRepository: LyricsRepository,
-    videoHistoryStore: VideoHistoryStore,
+    preferredVideoStore: PreferredVideoStore,
     videoOverlayHost: FrameLayout,
     userActivityEvents: Flow<UserInputCategory>,
     onScreensaverActiveChanged: (Boolean) -> Unit,
@@ -408,7 +408,7 @@ private fun TuneFlowShell(
     onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val homeViewModel: HomeViewModel = viewModel(factory = homeViewModelFactory(browseRepository, videoHistoryStore))
+    val homeViewModel: HomeViewModel = viewModel(factory = homeViewModelFactory(browseRepository, preferredVideoStore))
     val albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel = viewModel(factory = albumsViewModelFactory(browseRepository))
     val homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel =
         viewModel(factory = homeCategoryViewModelFactory(browseRepository))
@@ -428,7 +428,7 @@ private fun TuneFlowShell(
                 videoViewModelFactory(
                     androidx.compose.ui.platform.LocalContext.current,
                     playerManager,
-                    videoHistoryStore,
+                    preferredVideoStore,
                 ),
         )
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
@@ -455,6 +455,13 @@ private fun TuneFlowShell(
 
     var shellState by rememberSaveable(stateSaver = TuneFlowShellState.Saver) {
         mutableStateOf(TuneFlowShellState())
+    }
+
+    LaunchedEffect(shellState.showNowPlaying, videoViewModel) {
+        videoViewModel.setNowPlayingVisible(shellState.showNowPlaying)
+    }
+    DisposableEffect(videoViewModel) {
+        onDispose { videoViewModel.setNowPlayingVisible(false) }
     }
 
     fun updateShellState(transform: (TuneFlowShellState) -> TuneFlowShellState) {

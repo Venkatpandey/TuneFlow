@@ -10,6 +10,13 @@ val releaseBuildRequested =
         it.contains("Release", ignoreCase = true)
     }
 
+val preferredVideoServiceUrl =
+    providers.gradleProperty("preferredVideoServiceUrl")
+        .orElse(providers.environmentVariable("PREFERRED_VIDEO_SERVICE_URL"))
+        .getOrElse("")
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+
 android {
     namespace = "com.tuneflow.tv"
     compileSdk = 35
@@ -20,6 +27,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+
+        buildConfigField("String", "PREFERRED_VIDEO_SERVICE_URL", "\"$preferredVideoServiceUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -80,6 +89,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {

@@ -1,41 +1,134 @@
 package com.tuneflow.feature.video
 
+import kotlinx.coroutines.test.runTest
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VideoHistoryStoreTest {
     @Test
-    fun repeatedVideoMovesToFrontWithoutDuplication() {
-        val first = historyEntry("first", 1L)
-        val second = historyEntry("second", 2L)
+    fun repeatedTrackMovesToFrontWithoutDuplication() {
+        val first = historyEntry("track-1", "aaaaaaaaaaa", "2026-09-01T10:00:00Z")
+        val second = historyEntry("track-2", "bbbbbbbbbbb", "2026-09-01T11:00:00Z")
 
-        val updated = updatedVideoHistory(listOf(first, second), first.copy(playedAtEpochMs = 3L))
+        val updated = updatedRemoteHistory(listOf(first, second), first.copy(lastPlayedAt = "2026-09-01T12:00:00Z"))
 
-        assertEquals(listOf("first", "second"), updated.map(VideoHistoryEntry::videoId))
-        assertEquals(3L, updated.first().playedAtEpochMs)
+        assertEquals(listOf("track-1", "track-2"), updated.map(VideoHistoryEntry::trackId))
+        assertEquals("2026-09-01T12:00:00Z", updated.first().lastPlayedAt)
     }
 
     @Test
-    fun historyKeepsOnlyTwentyNewestVideos() {
-        val existing = (0 until VIDEO_HISTORY_LIMIT).map { historyEntry("video-$it", it.toLong()) }
+    fun inMemoryHistoryKeepsOnlyTwentyNewestMappings() {
+        val existing =
+            (0 until VIDEO_HISTORY_LIMIT).map {
+                historyEntry("track-$it", "video${it.toString().padStart(6, '0')}", "2026-09-01T10:00:00Z")
+            }
 
-        val updated = updatedVideoHistory(existing, historyEntry("new", 100L))
+        val updated =
+            updatedRemoteHistory(
+                existing,
+                historyEntry("new", "newvideo001", "2026-09-01T12:00:00Z"),
+            )
 
         assertEquals(VIDEO_HISTORY_LIMIT, updated.size)
-        assertEquals("new", updated.first().videoId)
-        assertEquals("video-18", updated.last().videoId)
+        assertEquals("new", updated.first().trackId)
+        assertEquals("track-18", updated.last().trackId)
     }
 
+    @Test
+    fun lookupDecodesMappedVideoAndEncodesTrackAsOnePathSegment() =
+        runTest {
+            MockWebServer().use { server ->
+                server.enqueue(MockResponse().setResponseCode(200).setBody(videoEnvelope("track/1", "aaaaaaaaaaa")))
+                val store = RemotePreferredVideoStore(server.url("/").toString())
+
+                val result = store.lookup("track/1")
+
+                assertTrue(result is PreferredVideoLookupResult.Found)
+                assertEquals("aaaaaaaaaaa", (result as PreferredVideoLookupResult.Found).video.videoId)
+                assertEquals("/v1/tracks/track%2F1/preferred-video", server.takeRequest().path)
+            }
+        }
+
+    @Test
+    fun lookupDistinguishesMissingFromUnavailable() =
+        runTest {
+            MockWebServer().use { server ->
+                server.enqueue(MockResponse().setResponseCode(404).setBody("{}"))
+                server.enqueue(MockResponse().setResponseCode(500).setBody("{}"))
+                val store = RemotePreferredVideoStore(server.url("/").toString())
+
+                assertEquals(PreferredVideoLookupResult.Missing, store.lookup("track-1"))
+                assertEquals(PreferredVideoLookupResult.BackendUnavailable, store.lookup("track-1"))
+            }
+        }
+
+    @Test
+    fun successfulWriteUpdatesOnlyInMemoryHistoryAfterServerConfirmation() =
+        runTest {
+            MockWebServer().use { server ->
+                server.enqueue(MockResponse().setResponseCode(200).setBody(videoEnvelope("track-1", "aaaaaaaaaaa")))
+                val store = RemotePreferredVideoStore(server.url("/").toString())
+
+                val success = store.savePreferredVideo("track-1", candidate("aaaaaaaaaaa"))
+
+                assertTrue(success)
+                assertEquals(listOf("track-1"), store.history.value.map(VideoHistoryEntry::trackId))
+                val request = server.takeRequest()
+                assertEquals("PUT", request.method)
+                assertTrue(request.body.readUtf8().contains("\"videoId\":\"aaaaaaaaaaa\""))
+            }
+        }
+
     private fun historyEntry(
-        id: String,
-        playedAt: Long,
+        trackId: String,
+        videoId: String,
+        playedAt: String,
     ) = VideoHistoryEntry(
-        videoId = id,
-        title = "Title $id",
+        trackId = trackId,
+        provider = "youtube",
+        videoId = videoId,
+        title = "Title $videoId",
         publisher = "Publisher",
         thumbnailUrl = null,
         durationMs = 180_000L,
         viewCount = 1L,
-        playedAtEpochMs = playedAt,
+        mappingUpdatedAt = "2026-09-01T09:00:00Z",
+        lastPlayedAt = playedAt,
     )
+
+    private fun candidate(videoId: String) =
+        VideoCandidate(
+            videoId = videoId,
+            title = "Title",
+            publisher = "Artist",
+            thumbnailUrl = null,
+            durationMs = 180_000L,
+            musicCategory = true,
+            viewCount = 42L,
+        )
+
+    private fun videoEnvelope(
+        trackId: String,
+        videoId: String,
+    ): String =
+        """
+        {
+          "apiVersion": "v1",
+          "preferredVideo": {
+            "trackId": "$trackId",
+            "provider": "youtube",
+            "videoId": "$videoId",
+            "title": "Title",
+            "publisher": "Artist",
+            "thumbnailUrl": null,
+            "durationMs": 180000,
+            "viewCount": 42,
+            "mappingUpdatedAt": "2026-09-01T09:00:00Z",
+            "lastPlayedAt": "2026-09-01T10:00:00Z"
+          }
+        }
+        """.trimIndent()
 }
