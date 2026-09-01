@@ -144,8 +144,11 @@ class VideoViewModel(
     }
 
     fun enterFullscreen() {
-        val state = _uiState.value as? VideoUiState.Playing ?: return
-        _uiState.value = state.copy(presentation = VideoPresentationMode.Fullscreen)
+        when (val state = _uiState.value) {
+            is VideoUiState.Loading -> _uiState.value = state.copy(presentation = VideoPresentationMode.Fullscreen)
+            is VideoUiState.Playing -> _uiState.value = state.copy(presentation = VideoPresentationMode.Fullscreen)
+            else -> Unit
+        }
     }
 
     fun exitFullscreen() {

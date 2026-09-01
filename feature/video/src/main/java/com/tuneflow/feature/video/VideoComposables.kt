@@ -74,13 +74,20 @@ fun NativeVideoPlayerSurface(
     onStop: () -> Unit = {},
 ) {
     val view = remember(player, host) { player.createSurfaceView(host.context) }
+    val colorScheme = MaterialTheme.colorScheme
+    val typography = MaterialTheme.typography
+    val shapes = MaterialTheme.shapes
     val controlsView =
-        remember(player, host, requestFocus) {
+        remember(player, host, requestFocus, colorScheme, typography, shapes) {
             if (requestFocus) {
                 ComposeView(host.context).apply {
                     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                     setContent {
-                        MaterialTheme {
+                        MaterialTheme(
+                            colorScheme = colorScheme,
+                            typography = typography,
+                            shapes = shapes,
+                        ) {
                             NativeVideoControlsOverlay(player, onExitFullscreen, onChooseAnother, onStop)
                         }
                     }
@@ -297,7 +304,7 @@ private fun NativeVideoControlsOverlay(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    VideoIconButton(
+                    VideoControlIconButton(
                         iconResId = R.drawable.smarttube_ic_rewind,
                         contentDescription = "Rewind 10 seconds",
                         onClick = {
@@ -305,7 +312,7 @@ private fun NativeVideoControlsOverlay(
                             activityToken += 1
                         },
                     )
-                    VideoIconButton(
+                    VideoControlIconButton(
                         iconResId =
                             if (playerState is NativeVideoPlayerState.Playing) {
                                 R.drawable.smarttube_ic_pause
@@ -320,7 +327,7 @@ private fun NativeVideoControlsOverlay(
                         },
                         modifier = Modifier.focusRequester(playFocusRequester).size(width = 64.dp, height = 50.dp),
                     )
-                    VideoIconButton(
+                    VideoControlIconButton(
                         iconResId = R.drawable.smarttube_ic_fast_forward,
                         contentDescription = "Fast-forward 10 seconds",
                         onClick = {
@@ -372,12 +379,12 @@ private fun NativeVideoControlsOverlay(
                         onClick = onChooseAnother,
                         modifier = Modifier.width(146.dp).height(46.dp),
                     )
-                    VideoIconButton(
+                    VideoControlIconButton(
                         iconResId = R.drawable.smarttube_ic_fullscreen_exit,
                         contentDescription = "Exit full screen",
                         onClick = onExitFullscreen,
                     )
-                    VideoIconButton(
+                    VideoControlIconButton(
                         iconResId = R.drawable.smarttube_ic_stop,
                         contentDescription = "Stop video",
                         onClick = onStop,
@@ -505,57 +512,29 @@ private const val NATIVE_SEEK_MS = 10_000L
 fun VideoActionButton(
     state: VideoUiState,
     enabled: Boolean,
-    requestFocusId: Long,
     requestFocus: Boolean,
     onRequestedFocusApplied: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val label =
+    val contentDescription =
         when (state) {
-            is VideoUiState.Searching -> "Searching..."
-            is VideoUiState.Loading -> "Loading..."
-            is VideoUiState.Playing -> if (state.presentation == VideoPresentationMode.Mini) "Full screen" else "Video"
+            is VideoUiState.Searching -> "Searching for video"
+            is VideoUiState.Loading -> "Choose another video"
+            is VideoUiState.Playing -> "Choose another video"
             is VideoUiState.Candidates -> "Choose video"
-            else -> "Video"
+            else -> "Play video"
         }
-    VideoTextButton(
-        label = label,
+    VideoControlIconButton(
+        iconResId = R.drawable.smarttube_ic_video,
+        contentDescription = contentDescription,
         enabled = enabled,
         accent = state is VideoUiState.Playing || state is VideoUiState.Candidates,
-        requestFocusId = requestFocusId,
         requestFocus = requestFocus,
         onRequestedFocusApplied = onRequestedFocusApplied,
         onClick = onClick,
-        modifier = modifier.width(118.dp).height(44.dp),
+        modifier = modifier.size(44.dp),
     )
-}
-
-@Composable
-fun VideoSessionActions(
-    onChooseAnother: () -> Unit,
-    onStop: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        VideoTextButton(
-            label = "Choose another video",
-            enabled = true,
-            accent = false,
-            onClick = onChooseAnother,
-            modifier = Modifier.width(210.dp).height(44.dp),
-        )
-        VideoTextButton(
-            label = "Stop video",
-            enabled = true,
-            accent = false,
-            onClick = onStop,
-            modifier = Modifier.width(140.dp).height(44.dp),
-        )
-    }
 }
 
 @Composable
@@ -782,7 +761,7 @@ private fun VideoTextButton(
                     if (focused || accent) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
                     } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
                     },
                 )
                 .border(
@@ -796,7 +775,7 @@ private fun VideoTextButton(
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -804,27 +783,41 @@ private fun VideoTextButton(
 }
 
 @Composable
-private fun VideoIconButton(
+fun VideoControlIconButton(
     iconResId: Int,
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     accent: Boolean = false,
+    enabled: Boolean = true,
+    requestFocusId: Long = 0L,
+    requestFocus: Boolean = false,
+    onRequestedFocusApplied: () -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
+    val requester = remember { FocusRequester() }
+    val requestsOwnFocus = requestFocusId > 0L || requestFocus
+    LaunchedEffect(requestFocusId, requestFocus) {
+        if (requestsOwnFocus) {
+            runCatching { requester.requestFocus() }
+            if (requestFocus) onRequestedFocusApplied()
+        }
+    }
     Box(
         modifier =
             modifier
                 .size(width = 56.dp, height = 46.dp)
                 .scale(if (focused) 1.06f else 1f)
+                .alpha(if (enabled) 1f else 0.45f)
+                .then(if (requestsOwnFocus) Modifier.focusRequester(requester) else Modifier)
                 .onFocusChanged { focused = it.hasFocus }
-                .focusable()
+                .focusable(enabled)
                 .clip(MaterialTheme.shapes.medium)
                 .background(
                     if (focused || accent) {
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
                     } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
                     },
                 )
                 .border(
@@ -832,14 +825,14 @@ private fun VideoIconButton(
                     if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
                     MaterialTheme.shapes.medium,
                 )
-                .clickable(onClick = onClick),
+                .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             painter = painterResource(iconResId),
             contentDescription = contentDescription,
             modifier = Modifier.size(30.dp),
-            tint = Color.White,
+            tint = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
