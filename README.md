@@ -27,6 +27,14 @@ TuneFlow is a native Android TV / Fire TV Navidrome client built for remote-firs
     <td align="center"><sub>Albums</sub></td>
   </tr>
   <tr>
+    <td><img src="docs/screenshots/now-playing-video.png" alt="TuneFlow Now Playing screen with video"></td>
+    <td><img src="docs/screenshots/now-playing-lyrics.png" alt="TuneFlow Now Playing screen with synchronized lyrics"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Now Playing video</sub></td>
+    <td align="center"><sub>Now Playing with lyrics</sub></td>
+  </tr>
+  <tr>
     <td><img src="docs/screenshots/album-detail.png" alt="TuneFlow album detail screen"></td>
     <td><img src="docs/screenshots/search.png" alt="TuneFlow Search screen"></td>
   </tr>
