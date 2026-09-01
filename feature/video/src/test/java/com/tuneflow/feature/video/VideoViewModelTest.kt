@@ -10,6 +10,7 @@ import com.tuneflow.core.player.QueueItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -75,6 +77,123 @@ class VideoViewModelTest {
             val state = viewModel.uiState.value as VideoUiState.Candidates
             assertEquals(25, state.candidates.size)
             assertEquals(0, audio.pauseCalls)
+        }
+
+    @Test
+    fun firstUseNeverAutoplaysEvenWithOneSearchResult() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(resultCount = 1))
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Candidates)
+            assertEquals(0, audio.pauseCalls)
+        }
+
+    @Test
+    fun enteringNowPlayingPrefetchesAndMappedClickStartsWithoutAnotherLookup() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativeBackend = FakeNativeBackend()
+            val store =
+                FakePreferredVideoStore(
+                    lookupResult = PreferredVideoLookupResult.Found(historyEntry("track", "mappedvid01")),
+                )
+            val viewModel = createViewModel(audio, backgroundScope, nativeBackend, store)
+            runCurrent()
+
+            viewModel.setNowPlayingVisible(true)
+            runCurrent()
+
+            assertTrue(viewModel.preferredVideoState.value is PreferredVideoState.Mapped)
+            assertEquals(listOf("track"), store.lookupTrackIds)
+
+            viewModel.requestVideo()
+            runCurrent()
+
+            val loading = viewModel.uiState.value as VideoUiState.Loading
+            assertEquals("mappedvid01", loading.candidate.videoId)
+            assertEquals(1, store.lookupTrackIds.size)
+            assertEquals(0, nativeBackend.searchCalls)
+        }
+
+    @Test
+    fun mappedPlaybackUpdatesRecentOnlyAfterConfirmedPlaying() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativePlayer = FakeNativePlayer()
+            val store =
+                FakePreferredVideoStore(
+                    lookupResult = PreferredVideoLookupResult.Found(historyEntry("track", "mappedvid01")),
+                )
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(nativePlayer), store)
+            runCurrent()
+            viewModel.setNowPlayingVisible(true)
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+            assertTrue(store.playedTrackIds.isEmpty())
+
+            nativePlayer.emitReady(180_000L)
+            runCurrent()
+            nativePlayer.emitPlaying(0L, 180_000L)
+            runCurrent()
+
+            assertEquals(0L, nativePlayer.seekPositionMs)
+            assertEquals(listOf("track"), store.playedTrackIds)
+        }
+
+    @Test
+    fun videoClickWhileLookupChecksSearchesImmediatelyAndLateResultDoesNotInterruptPicker() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativeBackend = FakeNativeBackend()
+            val store = FakePreferredVideoStore(lookupDelayMs = 10_000L)
+            val viewModel = createViewModel(audio, backgroundScope, nativeBackend, store)
+            runCurrent()
+
+            viewModel.setNowPlayingVisible(true)
+            runCurrent()
+            assertTrue(viewModel.preferredVideoState.value is PreferredVideoState.Checking)
+
+            viewModel.requestVideo()
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Candidates)
+            assertEquals(1, store.lookupTrackIds.size)
+            assertEquals(1, nativeBackend.searchCalls)
+
+            advanceTimeBy(10_000L)
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Candidates)
+            assertTrue(viewModel.preferredVideoState.value is PreferredVideoState.Unmapped)
+        }
+
+    @Test
+    fun rapidNowPlayingReentryRejectsLateSameTrackLookup() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val store = RapidNavigationPreferredVideoStore()
+            val viewModel = createViewModel(audio, backgroundScope, preferredVideoStore = store)
+            runCurrent()
+
+            viewModel.setNowPlayingVisible(true)
+            runCurrent()
+            viewModel.setNowPlayingVisible(false)
+            viewModel.setNowPlayingVisible(true)
+            runCurrent()
+
+            assertTrue(viewModel.preferredVideoState.value is PreferredVideoState.Unmapped)
+
+            advanceTimeBy(10_000L)
+            runCurrent()
+
+            assertTrue(viewModel.preferredVideoState.value is PreferredVideoState.Unmapped)
         }
 
     @Test
@@ -216,13 +335,13 @@ class VideoViewModelTest {
         runTest {
             val audio = VideoViewModelFakeAudio()
             val nativePlayer = FakeNativePlayer()
-            val historyStore = RecordingVideoHistoryStore()
+            val preferredVideoStore = FakePreferredVideoStore()
             val viewModel =
                 createViewModel(
                     audio,
                     backgroundScope,
                     FakeNativeBackend(nativePlayer),
-                    historyStore,
+                    preferredVideoStore,
                 )
             runCurrent()
 
@@ -230,12 +349,13 @@ class VideoViewModelTest {
             runCurrent()
             val candidate = (viewModel.uiState.value as VideoUiState.Candidates).candidates.first()
             viewModel.selectCandidate(candidate)
+            assertTrue(preferredVideoStore.savedMappings.isEmpty())
             nativePlayer.emitPlaying(0L, 180_000L)
             runCurrent()
             nativePlayer.emitPlaying(1_000L, 180_000L)
             runCurrent()
 
-            assertEquals(listOf(candidate.videoId), historyStore.recordedIds)
+            assertEquals(listOf("track" to candidate.videoId), preferredVideoStore.savedMappings)
         }
 
     @Test
@@ -260,14 +380,15 @@ class VideoViewModelTest {
         audio: VideoViewModelFakeAudio,
         scope: CoroutineScope,
         nativeBackend: NativeVideoBackend = FakeNativeBackend(),
-        historyStore: VideoHistoryStore = EmptyVideoHistoryStore,
+        preferredVideoStore: PreferredVideoStore = FakePreferredVideoStore(),
     ): VideoViewModel =
         VideoViewModel(
             audio = audio,
             consentStore = AcceptedConsentStore,
             nativeBackend = nativeBackend,
-            historyStore = historyStore,
+            preferredVideoStore = preferredVideoStore,
             scopeOverride = scope,
+            diagnostic = {},
         )
 }
 
@@ -277,8 +398,10 @@ private class FakeNativeBackend(
     private val resultCount: Int = 2,
 ) : NativeVideoBackend {
     var cancelled = false
+    var searchCalls = 0
 
     override suspend fun search(query: VideoTrackQuery): List<VideoCandidate> {
+        searchCalls += 1
         try {
             delay(searchDelayMs)
         } catch (error: CancellationException) {
@@ -300,6 +423,22 @@ private class FakeNativeBackend(
         musicCategory = true,
     )
 }
+
+private fun historyEntry(
+    trackId: String,
+    videoId: String,
+) = VideoHistoryEntry(
+    trackId = trackId,
+    provider = "youtube",
+    videoId = videoId,
+    title = "Artist Track official music video",
+    publisher = "Artist",
+    thumbnailUrl = null,
+    durationMs = 180_000L,
+    viewCount = 42L,
+    mappingUpdatedAt = "2026-09-01T09:00:00Z",
+    lastPlayedAt = "2026-09-01T10:00:00Z",
+)
 
 private class FakeNativePlayer : NativeVideoPlayer {
     private val mutableState = MutableStateFlow<NativeVideoPlayerState>(NativeVideoPlayerState.Idle)
@@ -361,13 +500,65 @@ private class FakeNativePlayer : NativeVideoPlayer {
     }
 }
 
-private class RecordingVideoHistoryStore : VideoHistoryStore {
+private class FakePreferredVideoStore(
+    var lookupResult: PreferredVideoLookupResult = PreferredVideoLookupResult.Missing,
+    private val lookupDelayMs: Long = 0L,
+) : PreferredVideoStore {
     override val history: StateFlow<List<VideoHistoryEntry>> = MutableStateFlow(emptyList())
-    val recordedIds = mutableListOf<String>()
+    val lookupTrackIds = mutableListOf<String>()
+    val savedMappings = mutableListOf<Pair<String, String>>()
+    val playedTrackIds = mutableListOf<String>()
 
-    override fun record(candidate: VideoCandidate) {
-        recordedIds += candidate.videoId
+    override suspend fun lookup(trackId: String): PreferredVideoLookupResult {
+        lookupTrackIds += trackId
+        delay(lookupDelayMs)
+        return lookupResult
     }
+
+    override suspend fun savePreferredVideo(
+        trackId: String,
+        candidate: VideoCandidate,
+    ): Boolean {
+        savedMappings += trackId to candidate.videoId
+        return true
+    }
+
+    override suspend fun markPlayed(trackId: String): Boolean {
+        playedTrackIds += trackId
+        return true
+    }
+
+    override suspend fun deletePreferredVideo(trackId: String) = true
+
+    override suspend fun refreshHistory(limit: Int) = true
+}
+
+private class RapidNavigationPreferredVideoStore : PreferredVideoStore {
+    override val history: StateFlow<List<VideoHistoryEntry>> = MutableStateFlow(emptyList())
+    private var lookupCount = 0
+
+    override suspend fun lookup(trackId: String): PreferredVideoLookupResult {
+        lookupCount += 1
+        return if (lookupCount == 1) {
+            withContext(NonCancellable) {
+                delay(10_000L)
+                PreferredVideoLookupResult.Found(historyEntry(trackId, "oldmapping1"))
+            }
+        } else {
+            PreferredVideoLookupResult.Missing
+        }
+    }
+
+    override suspend fun savePreferredVideo(
+        trackId: String,
+        candidate: VideoCandidate,
+    ) = true
+
+    override suspend fun markPlayed(trackId: String) = true
+
+    override suspend fun deletePreferredVideo(trackId: String) = true
+
+    override suspend fun refreshHistory(limit: Int) = true
 }
 
 private object AcceptedConsentStore : VideoConsentStore {

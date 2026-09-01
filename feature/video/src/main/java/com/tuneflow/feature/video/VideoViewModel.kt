@@ -1,5 +1,6 @@
 package com.tuneflow.feature.video
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tuneflow.core.player.PlaybackController
@@ -12,14 +13,17 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.Locale
 
 class VideoViewModel(
     private val audio: PlaybackController,
     private val consentStore: VideoConsentStore,
     private val nativeBackend: NativeVideoBackend,
-    private val historyStore: VideoHistoryStore = EmptyVideoHistoryStore,
+    private val preferredVideoStore: PreferredVideoStore = UnavailablePreferredVideoStore,
     private val scopeOverride: CoroutineScope? = null,
+    private val diagnostic: (String) -> Unit = { message -> Log.w(VIDEO_LOG_TAG, message) },
 ) : ViewModel() {
     private val scope: CoroutineScope
         get() = scopeOverride ?: viewModelScope
@@ -29,14 +33,22 @@ class VideoViewModel(
     val uiState: kotlinx.coroutines.flow.StateFlow<VideoUiState> = _uiState
     private val _surfacePlayer = kotlinx.coroutines.flow.MutableStateFlow(nativeBackend.player)
     val surfacePlayer: kotlinx.coroutines.flow.StateFlow<NativeVideoPlayer> = _surfacePlayer
+    private val _preferredVideoState =
+        kotlinx.coroutines.flow.MutableStateFlow<PreferredVideoState>(PreferredVideoState.BackendUnavailable)
+    val preferredVideoState: kotlinx.coroutines.flow.StateFlow<PreferredVideoState> = _preferredVideoState
     private val returnToNowPlayingChannel = Channel<Unit>(capacity = Channel.BUFFERED)
     val returnToNowPlayingEvents: Flow<Unit> = returnToNowPlayingChannel.receiveAsFlow()
 
     private var searchJob: Job? = null
+    private var preferredLookupJob: Job? = null
+    private val persistenceMutex = Mutex()
+    private var preferredLookupGeneration = 0L
     private var generation = 0L
+    private var nowPlayingVisible = false
     private var activeCandidate: VideoCandidate? = null
     private var sessionAudioTrackId: String? = null
     private var recordedVideoIdForSession: String? = null
+    private var playbackPersistenceAction: PlaybackPersistenceAction = PlaybackPersistenceAction.None
     private var lastCandidates: List<VideoCandidate> = emptyList()
 
     init {
@@ -48,6 +60,15 @@ class VideoViewModel(
         }
         scope.launch {
             nativeBackend.player.state.collect { onPlayerState(nativeBackend.player, it) }
+        }
+    }
+
+    fun setNowPlayingVisible(visible: Boolean) {
+        if (nowPlayingVisible == visible) return
+        nowPlayingVisible = visible
+        preferredLookupJob?.cancel()
+        if (visible) {
+            startPreferredVideoLookup(audio.queue.value.currentItem?.id)
         }
     }
 
@@ -73,7 +94,7 @@ class VideoViewModel(
             _uiState.value = VideoUiState.ConsentRequired(track.id, requestGeneration)
             return
         }
-        search(track.id, requestGeneration)
+        startKnownVideoOrSearch(track.id, requestGeneration)
     }
 
     @Suppress("ReturnCount")
@@ -81,7 +102,7 @@ class VideoViewModel(
         val state = _uiState.value as? VideoUiState.ConsentRequired ?: return
         if (audio.queue.value.currentItem?.id != state.trackId) return
         consentStore.accept()
-        search(state.trackId, state.generation)
+        startKnownVideoOrSearch(state.trackId, state.generation)
     }
 
     fun cancelDisclosure() {
@@ -93,7 +114,12 @@ class VideoViewModel(
     @Suppress("ReturnCount")
     fun selectCandidate(candidate: VideoCandidate) {
         val track = audio.queue.value.currentItem ?: return
-        startCandidate(candidate = candidate, trackId = track.id, boundAudioTrackId = track.id)
+        startCandidate(
+            candidate = candidate,
+            trackId = track.id,
+            boundAudioTrackId = track.id,
+            persistenceAction = PlaybackPersistenceAction.SaveMapping(track.id),
+        )
     }
 
     fun playHistory(entry: VideoHistoryEntry) {
@@ -101,21 +127,41 @@ class VideoViewModel(
         val audioTrackId = audio.queue.value.currentItem?.id
         startCandidate(
             candidate = entry.toVideoCandidate(),
-            trackId = audioTrackId ?: "history:${entry.videoId}",
+            trackId = entry.trackId,
             boundAudioTrackId = audioTrackId,
+            persistenceAction = PlaybackPersistenceAction.MarkPlayed(entry.trackId),
         )
+    }
+
+    private fun startKnownVideoOrSearch(
+        trackId: String,
+        requestGeneration: Long,
+    ) {
+        val preferred = _preferredVideoState.value
+        if (preferred is PreferredVideoState.Mapped && preferred.trackId == trackId) {
+            startCandidate(
+                candidate = preferred.candidate,
+                trackId = trackId,
+                boundAudioTrackId = trackId,
+                persistenceAction = PlaybackPersistenceAction.MarkPlayed(trackId),
+            )
+        } else {
+            search(trackId, requestGeneration)
+        }
     }
 
     private fun startCandidate(
         candidate: VideoCandidate,
         trackId: String,
         boundAudioTrackId: String?,
+        persistenceAction: PlaybackPersistenceAction,
     ) {
         if (_uiState.value.isVideoSessionActive) releaseVideoPlayer()
         audio.pause()
         activeCandidate = candidate
         sessionAudioTrackId = boundAudioTrackId
         recordedVideoIdForSession = null
+        playbackPersistenceAction = persistenceAction
         val session = VideoSessionKey(trackId, generation)
         _uiState.value =
             VideoUiState.Loading(
@@ -131,8 +177,13 @@ class VideoViewModel(
         val trackId = _uiState.value.trackId ?: return
         val candidates = lastCandidates
         if (candidates.isEmpty()) {
-            stopVideo()
-            requestVideo()
+            releaseVideoPlayer()
+            generation += 1
+            activeCandidate = null
+            sessionAudioTrackId = audio.queue.value.currentItem?.id
+            recordedVideoIdForSession = null
+            playbackPersistenceAction = PlaybackPersistenceAction.None
+            search(trackId, generation)
             return
         }
         releaseVideoPlayer()
@@ -140,6 +191,7 @@ class VideoViewModel(
         activeCandidate = null
         sessionAudioTrackId = audio.queue.value.currentItem?.id
         recordedVideoIdForSession = null
+        playbackPersistenceAction = PlaybackPersistenceAction.None
         _uiState.value = VideoUiState.Candidates(trackId, generation, candidates)
     }
 
@@ -212,6 +264,7 @@ class VideoViewModel(
         activeCandidate = null
         sessionAudioTrackId = null
         recordedVideoIdForSession = null
+        playbackPersistenceAction = PlaybackPersistenceAction.None
         lastCandidates = emptyList()
         generation += 1
         _uiState.value = availableIdleState()
@@ -223,6 +276,7 @@ class VideoViewModel(
         activeCandidate = null
         sessionAudioTrackId = null
         recordedVideoIdForSession = null
+        playbackPersistenceAction = PlaybackPersistenceAction.None
         lastCandidates = emptyList()
         generation += 1
         _uiState.value = availableIdleState()
@@ -263,11 +317,7 @@ class VideoViewModel(
                                 "No playable YouTube match found.",
                             )
                     } else {
-                        if (VideoCandidateRanker.shouldAutoplay(ranked)) {
-                            selectCandidate(ranked.first())
-                        } else {
-                            _uiState.value = VideoUiState.Candidates(trackId, requestGeneration, ranked)
-                        }
+                        _uiState.value = VideoUiState.Candidates(trackId, requestGeneration, ranked)
                     }
                 } catch (_: TimeoutCancellationException) {
                     publishSearchError(trackId, requestGeneration, "YouTube search timed out.")
@@ -287,7 +337,41 @@ class VideoViewModel(
         }
     }
 
+    private fun startPreferredVideoLookup(trackId: String?) {
+        preferredLookupJob?.cancel()
+        preferredLookupGeneration += 1L
+        val lookupGeneration = preferredLookupGeneration
+        if (!nowPlayingVisible || trackId == null) {
+            _preferredVideoState.value = PreferredVideoState.BackendUnavailable
+            return
+        }
+        _preferredVideoState.value = PreferredVideoState.Checking(trackId)
+        preferredLookupJob =
+            scope.launch {
+                val result = preferredVideoStore.lookup(trackId)
+                if (
+                    lookupGeneration != preferredLookupGeneration ||
+                    !nowPlayingVisible ||
+                    audio.queue.value.currentItem?.id != trackId
+                ) {
+                    return@launch
+                }
+                _preferredVideoState.value =
+                    when (result) {
+                        is PreferredVideoLookupResult.Found ->
+                            if (result.video.trackId == trackId && result.video.provider == YOUTUBE_PROVIDER) {
+                                PreferredVideoState.Mapped(trackId, result.video.toVideoCandidate())
+                            } else {
+                                PreferredVideoState.BackendUnavailable
+                            }
+                        PreferredVideoLookupResult.Missing -> PreferredVideoState.Unmapped(trackId)
+                        PreferredVideoLookupResult.BackendUnavailable -> PreferredVideoState.BackendUnavailable
+                    }
+            }
+    }
+
     private fun onTrackChanged(trackId: String?) {
+        if (nowPlayingVisible) startPreferredVideoLookup(trackId)
         val trackedAudioId = sessionAudioTrackId ?: _uiState.value.trackId ?: return
         if (trackedAudioId == trackId) return
         searchJob?.cancel()
@@ -295,6 +379,7 @@ class VideoViewModel(
         activeCandidate = null
         sessionAudioTrackId = null
         recordedVideoIdForSession = null
+        playbackPersistenceAction = PlaybackPersistenceAction.None
         lastCandidates = emptyList()
         generation += 1
         _uiState.value = availableIdleState()
@@ -357,8 +442,36 @@ class VideoViewModel(
                 focusRequestId = focusRequestId,
             )
         if (isPlaying && recordedVideoIdForSession != candidate.videoId) {
-            historyStore.record(candidate)
             recordedVideoIdForSession = candidate.videoId
+            persistSuccessfulPlayback(candidate, playbackPersistenceAction)
+        }
+    }
+
+    private fun persistSuccessfulPlayback(
+        candidate: VideoCandidate,
+        action: PlaybackPersistenceAction,
+    ) {
+        scope.launch {
+            persistenceMutex.withLock {
+                val success =
+                    when (action) {
+                        is PlaybackPersistenceAction.SaveMapping ->
+                            preferredVideoStore.savePreferredVideo(action.trackId, candidate)
+                        is PlaybackPersistenceAction.MarkPlayed -> preferredVideoStore.markPlayed(action.trackId)
+                        PlaybackPersistenceAction.None -> true
+                    }
+                if (!success) {
+                    diagnostic("Preferred-video service write failed; playback continues.")
+                    return@withLock
+                }
+                if (
+                    action is PlaybackPersistenceAction.SaveMapping &&
+                    nowPlayingVisible &&
+                    audio.queue.value.currentItem?.id == action.trackId
+                ) {
+                    _preferredVideoState.value = PreferredVideoState.Mapped(action.trackId, candidate)
+                }
+            }
         }
     }
 
@@ -368,6 +481,7 @@ class VideoViewModel(
         activeCandidate = null
         sessionAudioTrackId = null
         recordedVideoIdForSession = null
+        playbackPersistenceAction = PlaybackPersistenceAction.None
         lastCandidates = emptyList()
         generation += 1
         _uiState.value = availableIdleState()
@@ -384,6 +498,7 @@ class VideoViewModel(
         activeCandidate = null
         sessionAudioTrackId = null
         recordedVideoIdForSession = null
+        playbackPersistenceAction = PlaybackPersistenceAction.None
         _uiState.value = VideoUiState.Error(state.session.trackId, state.session.generation, state.message)
     }
 
@@ -442,4 +557,13 @@ private fun NativeVideoPlayerState.durationMsOrZero(): Long =
         else -> 0L
     }
 
+private sealed interface PlaybackPersistenceAction {
+    data object None : PlaybackPersistenceAction
+
+    data class SaveMapping(val trackId: String) : PlaybackPersistenceAction
+
+    data class MarkPlayed(val trackId: String) : PlaybackPersistenceAction
+}
+
 private const val YOUTUBE_SEARCH_RESULT_LIMIT = 25
+private const val VIDEO_LOG_TAG = "TuneFlowVideo"

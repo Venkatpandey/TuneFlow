@@ -1,0 +1,48 @@
+name: Preferred Video Service CI
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "services/preferred-video/**"
+      - ".github/workflows/preferred-video-service-ci.yml"
+      - ".github/workflows/preferred-video-service-publish.yml"
+  pull_request:
+    paths:
+      - "services/preferred-video/**"
+      - ".github/workflows/preferred-video-service-ci.yml"
+      - ".github/workflows/preferred-video-service-publish.yml"
+
+concurrency:
+  group: preferred-video-service-ci-${{ github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  test-build-container:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: services/preferred-video
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: services/preferred-video/go.mod
+          cache-dependency-path: services/preferred-video/go.sum
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Verify Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build container
+        run: docker build --tag tuneflow-preferred-video:test .

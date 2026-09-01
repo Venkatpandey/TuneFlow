@@ -13,3 +13,5 @@ captures/
 *.jks
 *.apk
 *.aab
+/services/preferred-video/data/
+/services/preferred-video/.env

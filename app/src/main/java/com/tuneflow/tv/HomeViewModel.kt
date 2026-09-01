@@ -7,8 +7,9 @@ import com.tuneflow.core.network.ArtistSummary
 import com.tuneflow.core.network.FavoritesBundle
 import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.feature.browse.BrowseRepository
+import com.tuneflow.feature.video.PreferredVideoStore
+import com.tuneflow.feature.video.VIDEO_HISTORY_LIMIT
 import com.tuneflow.feature.video.VideoHistoryEntry
-import com.tuneflow.feature.video.VideoHistoryStore
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,14 +30,14 @@ data class HomeUiState(
 
 class HomeViewModel(
     private val repository: BrowseRepository,
-    historyStore: VideoHistoryStore,
+    private val preferredVideoStore: PreferredVideoStore,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState(isLoading = true))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
-            historyStore.history.collect { history ->
+            preferredVideoStore.history.collect { history ->
                 _uiState.update { it.copy(videoHistory = history) }
             }
         }
@@ -45,6 +46,9 @@ class HomeViewModel(
 
     fun refresh() {
         _uiState.update { it.copy(isLoading = true, error = null) }
+        viewModelScope.launch {
+            preferredVideoStore.refreshHistory(VIDEO_HISTORY_LIMIT)
+        }
         viewModelScope.launch {
             coroutineScope {
                 val albumsDeferred = async { repository.getAlbums(size = 12, offset = 0) }

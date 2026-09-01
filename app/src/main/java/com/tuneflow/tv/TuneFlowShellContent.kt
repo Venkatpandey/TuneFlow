@@ -45,6 +45,8 @@ internal fun ShellContent(
     onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
+    preferredVideoServiceUrl: String,
+    onPreferredVideoServiceUrlChanged: (String) -> Unit,
 ) {
     Crossfade(targetState = currentDestination, label = "shell-content") { targetScreen ->
         when (targetScreen) {
@@ -93,6 +95,8 @@ internal fun ShellContent(
                     onOpenVideoHistory = onOpenVideoHistory,
                     onPlayVideo = onPlayVideo,
                     onPlayTracks = onPlayTracks,
+                    preferredVideoServiceUrl = preferredVideoServiceUrl,
+                    onPreferredVideoServiceUrlChanged = onPreferredVideoServiceUrlChanged,
                 )
             }
             ShellDestination.VideoHistory -> {

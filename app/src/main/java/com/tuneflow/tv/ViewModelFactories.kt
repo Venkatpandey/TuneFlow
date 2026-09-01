@@ -17,8 +17,8 @@ import com.tuneflow.feature.browse.PlaylistsViewModel
 import com.tuneflow.feature.browse.SearchViewModel
 import com.tuneflow.feature.playback.LyricsProvider
 import com.tuneflow.feature.playback.PlaybackViewModel
+import com.tuneflow.feature.video.PreferredVideoStore
 import com.tuneflow.feature.video.SharedPreferencesVideoConsentStore
-import com.tuneflow.feature.video.VideoHistoryStore
 import com.tuneflow.feature.video.VideoViewModel
 
 fun authViewModelFactory(
@@ -30,9 +30,9 @@ fun authViewModelFactory(
 
 fun homeViewModelFactory(
     repository: BrowseRepository,
-    historyStore: VideoHistoryStore,
+    preferredVideoStore: PreferredVideoStore,
 ) = viewModelFactory {
-    initializer { HomeViewModel(repository, historyStore) }
+    initializer { HomeViewModel(repository, preferredVideoStore) }
 }
 
 fun albumsViewModelFactory(repository: BrowseRepository) =
@@ -77,14 +77,14 @@ fun playbackViewModelFactory(
 fun videoViewModelFactory(
     context: Context,
     manager: TvPlayerManager,
-    historyStore: VideoHistoryStore,
+    preferredVideoStore: PreferredVideoStore,
 ) = viewModelFactory {
     initializer {
         VideoViewModel(
             audio = manager,
             consentStore = SharedPreferencesVideoConsentStore(context),
             nativeBackend = createNativeVideoBackend(context),
-            historyStore = historyStore,
+            preferredVideoStore = preferredVideoStore,
         )
     }
 }

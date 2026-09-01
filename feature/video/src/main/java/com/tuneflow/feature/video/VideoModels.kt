@@ -27,6 +27,23 @@ data class VideoCandidate(
     val score: Double = 0.0,
 )
 
+sealed interface PreferredVideoState {
+    val trackId: String?
+
+    data object BackendUnavailable : PreferredVideoState {
+        override val trackId: String? = null
+    }
+
+    data class Checking(override val trackId: String) : PreferredVideoState
+
+    data class Mapped(
+        override val trackId: String,
+        val candidate: VideoCandidate,
+    ) : PreferredVideoState
+
+    data class Unmapped(override val trackId: String) : PreferredVideoState
+}
+
 data class NativeVideoSpec(
     val videoId: String,
 )
