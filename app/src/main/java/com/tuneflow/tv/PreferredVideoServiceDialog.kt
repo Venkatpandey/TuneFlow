@@ -69,7 +69,7 @@ internal fun PreferredVideoServiceDialog(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "Enter the LAN address of the TuneFlow Docker service. Example: http://192.168.1.10:8090",
+                    text = "Enter the LAN address of the TuneFlow Docker service. Example: http://192.168.0.128:8090",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -80,7 +80,7 @@ internal fun PreferredVideoServiceDialog(
                         error = null
                     },
                     label = { Text("Service URL") },
-                    placeholder = { Text("http://192.168.1.10:8090") },
+                    placeholder = { Text("http://192.168.0.128:8090") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     isError = error != null,

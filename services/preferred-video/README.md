@@ -19,7 +19,7 @@ Edit `.env` for the NAS:
 
 ```dotenv
 PREFERRED_VIDEO_IMAGE_TAG=latest
-PREFERRED_VIDEO_BIND_ADDRESS=192.168.1.10
+PREFERRED_VIDEO_BIND_ADDRESS=192.168.0.128
 PREFERRED_VIDEO_PORT=8090
 PREFERRED_VIDEO_DATA_DIR=/volume1/docker/tuneflow-preferred-video
 ```
@@ -32,7 +32,7 @@ chown 65532:65532 /volume1/docker/tuneflow-preferred-video
 docker compose pull
 docker compose up -d
 docker compose ps
-curl --fail http://192.168.1.10:8090/healthz
+curl --fail http://192.168.0.128:8090/healthz
 ```
 
 Adjust paths and ownership commands for the NAS platform. The database lives at `${PREFERRED_VIDEO_DATA_DIR}/preferred-videos.db`, outside the container writable layer. Container recreation and upgrades keep it.
@@ -61,7 +61,7 @@ Use a classic personal access token with only `read:packages` for private pulls.
 After the container is healthy, open TuneFlow and select **Home > Quick Actions > Video Service**. Enter the LAN URL, for example:
 
 ```text
-http://192.168.1.10:8090
+http://192.168.0.128:8090
 ```
 
 TuneFlow stores only this service address locally. Preferred mappings and video history remain in the NAS SQLite service. The URL can be changed or disabled without rebuilding the APK.
@@ -69,13 +69,13 @@ TuneFlow stores only this service address locally. Preferred mappings and video 
 Managed builds can still provide a default service address with either:
 
 ```bash
-PREFERRED_VIDEO_SERVICE_URL=http://192.168.1.10:8090 ./gradlew :app:assembleDebug
+PREFERRED_VIDEO_SERVICE_URL=http://192.168.0.128:8090 ./gradlew :app:assembleDebug
 ```
 
 or:
 
 ```bash
-./gradlew :app:assembleDebug -PpreferredVideoServiceUrl=http://192.168.1.10:8090
+./gradlew :app:assembleDebug -PpreferredVideoServiceUrl=http://192.168.0.128:8090
 ```
 
 The runtime value overrides the build default. An APK with no configured service URL keeps video search/playback working but has no durable preferred mappings or recent-video row.
@@ -118,7 +118,7 @@ curl --fail-with-body \
     "durationMs": 180000,
     "viewCount": 1
   }' \
-  http://192.168.1.10:8090/v1/tracks/TRACK_ID/preferred-video
+  http://192.168.0.128:8090/v1/tracks/TRACK_ID/preferred-video
 ```
 
 ## Migrations

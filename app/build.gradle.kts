@@ -13,7 +13,7 @@ val releaseBuildRequested =
 val preferredVideoServiceUrl =
     providers.gradleProperty("preferredVideoServiceUrl")
         .orElse(providers.environmentVariable("PREFERRED_VIDEO_SERVICE_URL"))
-        .getOrElse("")
+        .getOrElse("http://192.168.0.128:8090")
         .replace("\\", "\\\\")
         .replace("\"", "\\\"")
 
