@@ -16,6 +16,12 @@ data class VideoTrackQuery(
     val languageCode: String?,
 )
 
+data class VideoTrackDetails(
+    val title: String,
+    val artist: String,
+    val album: String,
+)
+
 data class VideoCandidate(
     val videoId: String,
     val title: String,
@@ -191,6 +197,7 @@ sealed interface VideoUiState {
         override val trackId: String,
         val generation: Long,
         val candidate: VideoCandidate,
+        val trackDetails: VideoTrackDetails,
         val presentation: VideoPresentationMode,
         val focusRequestId: Long = 0L,
     ) : VideoUiState
@@ -199,6 +206,7 @@ sealed interface VideoUiState {
         override val trackId: String,
         val generation: Long,
         val candidate: VideoCandidate,
+        val trackDetails: VideoTrackDetails,
         val presentation: VideoPresentationMode,
         val positionMs: Long,
         val durationMs: Long,
@@ -227,6 +235,14 @@ val VideoUiState.isFullscreen: Boolean
 val VideoUiState.isVideoSessionActive: Boolean
     get() = this is VideoUiState.Loading || this is VideoUiState.Playing
 
+val VideoUiState.activeTrackDetails: VideoTrackDetails?
+    get() =
+        when (this) {
+            is VideoUiState.Loading -> trackDetails
+            is VideoUiState.Playing -> trackDetails
+            else -> null
+        }
+
 fun QueueItem.toVideoTrackQuery(
     regionCode: String?,
     languageCode: String?,
@@ -239,4 +255,11 @@ fun QueueItem.toVideoTrackQuery(
         durationMs = durationMs,
         regionCode = regionCode,
         languageCode = languageCode,
+    )
+
+fun QueueItem.toVideoTrackDetails(): VideoTrackDetails =
+    VideoTrackDetails(
+        title = title,
+        artist = artist,
+        album = album,
     )
