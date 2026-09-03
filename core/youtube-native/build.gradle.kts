@@ -36,10 +36,10 @@ dependencies {
     testImplementation(smartTubeAars)
 
     implementation("androidx.annotation:annotation:1.8.2")
-    implementation("androidx.appcompat:appcompat:1.8.0")
+    implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.preference:preference:1.2.1")
-    implementation("androidx.webkit:webkit:1.17.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation("androidx.webkit:webkit:1.14.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("io.reactivex.rxjava2:rxandroid:2.1.1")
     implementation("io.reactivex.rxjava2:rxjava:2.2.21")
 
@@ -62,7 +62,7 @@ dependencies {
     implementation("com.google.protobuf:protobuf-javalite:3.17.3")
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }
 
 detekt {

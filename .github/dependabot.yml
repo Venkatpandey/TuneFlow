@@ -9,6 +9,29 @@ updates:
       time: "04:00"
       timezone: Europe/Berlin
     open-pull-requests-limit: 10
+    # Newer ranges require Kotlin 2.x, AGP 8.6+, SDK 36+, or a matching
+    # Media3 native FLAC decoder. Remove these caps with that toolchain upgrade.
+    ignore:
+      - dependency-name: "androidx.core:core-ktx"
+        versions: ["[1.16,)"]
+      - dependency-name: "androidx.navigation:navigation-compose"
+        versions: ["[2.9,)"]
+      - dependency-name: "com.google.android.material:material"
+        versions: ["[1.14,)"]
+      - dependency-name: "androidx.tv:tv-material"
+        versions: ["[1.1,)"]
+      - dependency-name: "androidx.media3:*"
+        versions: ["[1.5,)"]
+      - dependency-name: "org.jetbrains.kotlinx:kotlinx-coroutines-*"
+        versions: ["[1.10,)"]
+      - dependency-name: "org.jetbrains.kotlinx:kotlinx-serialization-*"
+        versions: ["[1.7,)"]
+      - dependency-name: "androidx.appcompat:appcompat"
+        versions: ["[1.8,)"]
+      - dependency-name: "androidx.webkit:webkit"
+        versions: ["[1.15,)"]
+      - dependency-name: "androidx.test.uiautomator:uiautomator"
+        versions: ["[2.4,)"]
     groups:
       gradle-minor-and-patch:
         patterns:
