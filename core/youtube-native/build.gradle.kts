@@ -50,7 +50,7 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-brotli:4.12.0")
     implementation("com.google.code.gson:gson:2.14.0")
-    implementation("com.jayway.jsonpath:json-path:2.9.0")
+    implementation("com.jayway.jsonpath:json-path:3.0.0")
     implementation("com.google.net.cronet:cronet-okhttp:0.1.1")
     implementation("org.chromium.net:cronet-api:105.5195.68")
     implementation("com.localebro:okhttpprofiler:1.0.8")
