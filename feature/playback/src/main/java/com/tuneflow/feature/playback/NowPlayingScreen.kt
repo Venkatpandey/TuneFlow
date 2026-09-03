@@ -192,6 +192,7 @@ fun NowPlayingScreen(
                         .fillMaxHeight(),
                 item = item,
                 state = state,
+                playlistName = state.queue.sourcePlaylistName,
                 videoState = videoState,
                 artSize = artSize,
                 artFrameHeight = artFrameHeight,
@@ -262,6 +263,7 @@ fun NowPlayingScreen(
                     NowPlayingPanel.TrackList ->
                         QueuePanel(
                             title = "Track List",
+                            playlistName = state.queue.sourcePlaylistName,
                             state = state,
                             onSelectTrack = viewModel::playFromIndex,
                             onQueueExit = ::closeQueue,
@@ -443,6 +445,7 @@ internal fun resolveNowPlayingEscapeAction(
 @Composable
 private fun QueuePanel(
     title: String,
+    playlistName: String?,
     state: NowPlayingUiState,
     onSelectTrack: (Int) -> Unit,
     onQueueExit: (QueueExitTarget) -> Unit,
@@ -495,6 +498,15 @@ private fun QueuePanel(
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurface,
         )
+        playlistName?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         LazyColumn(
             state = queueListState,
             verticalArrangement = Arrangement.spacedBy(10.dp),

@@ -115,6 +115,8 @@ internal fun TuneFlowShellLayout(
     onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
+    onPlayPlaylistTracks: (String, List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
+    onShufflePlaylistTracks: (String, List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
     showExitPrompt: Boolean,
@@ -236,6 +238,8 @@ internal fun TuneFlowShellLayout(
                                 onPlayVideo = onPlayVideo,
                                 onPlayTracks = onPlayTracks,
                                 onShuffleTracks = onShuffleTracks,
+                                onPlayPlaylistTracks = onPlayPlaylistTracks,
+                                onShufflePlaylistTracks = onShufflePlaylistTracks,
                                 preferredVideoServiceUrl = preferredVideoServiceUrl,
                                 onPreferredVideoServiceUrlChanged = onPreferredVideoServiceUrlChanged,
                             )
