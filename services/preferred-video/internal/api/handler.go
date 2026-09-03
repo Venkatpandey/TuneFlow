@@ -21,7 +21,7 @@ import (
 const (
 	apiVersion      = "v1"
 	defaultLimit    = 5
-	maximumLimit    = 20
+	maximumLimit    = 100
 	maximumBodySize = 64 * 1024
 )
 

@@ -64,6 +64,7 @@ import com.tuneflow.feature.playback.LyricsUiState
 import com.tuneflow.feature.video.NativeVideoPlayerSurface
 import com.tuneflow.feature.video.VideoUiState
 import com.tuneflow.feature.video.VideoViewModel
+import com.tuneflow.feature.video.activeTrackDetails
 import com.tuneflow.feature.video.hasVisiblePlayer
 import com.tuneflow.feature.video.isFullscreen
 import com.tuneflow.feature.video.isVideoSessionActive
@@ -284,6 +285,7 @@ internal fun TuneFlowShellLayout(
             )
             NativeVideoPlayerSurface(
                 player = videoSurfacePlayer,
+                trackDetails = requireNotNull(videoState.activeTrackDetails),
                 host = videoOverlayHost,
                 bounds = playerBounds,
                 requestFocus = videoState.isFullscreen,

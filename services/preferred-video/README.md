@@ -101,7 +101,7 @@ All JSON responses include `"apiVersion":"v1"`.
 - `PUT /v1/tracks/{trackId}/preferred-video`
 - `DELETE /v1/tracks/{trackId}/preferred-video`
 - `POST /v1/tracks/{trackId}/preferred-video/played`
-- `GET /v1/videos/recent?limit=5` (`limit` capped at 20)
+- `GET /v1/videos/recent?limit=5` (`limit` capped at 100)
 
 Example mapping write after confirmed playback:
 
