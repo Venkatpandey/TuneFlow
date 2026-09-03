@@ -45,6 +45,8 @@ internal fun ShellContent(
     onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
+    onPlayPlaylistTracks: (String, List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
+    onShufflePlaylistTracks: (String, List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
 ) {
@@ -131,8 +133,8 @@ internal fun ShellContent(
                     preselectedPlaylistId = preselectedPlaylistId,
                     onPreselectedPlaylistConsumed = onPreselectedPlaylistConsumed,
                     currentTrackId = playbackQueue.currentItem?.id,
-                    onPlayTracks = onPlayTracks,
-                    onShuffleTracks = onShuffleTracks,
+                    onPlayTracks = onPlayPlaylistTracks,
+                    onShuffleTracks = onShufflePlaylistTracks,
                 )
             }
             ShellDestination.Search -> {

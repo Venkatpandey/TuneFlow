@@ -418,8 +418,8 @@ fun PlaylistsScreen(
     preselectedPlaylistId: String? = null,
     onPreselectedPlaylistConsumed: () -> Unit = {},
     currentTrackId: String? = null,
-    onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
-    onShuffleTracks: (tracks: List<TrackSummary>) -> Unit,
+    onPlayTracks: (playlistName: String, tracks: List<TrackSummary>, index: Int) -> Unit,
+    onShuffleTracks: (playlistName: String, tracks: List<TrackSummary>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -577,12 +577,12 @@ fun PlaylistsScreen(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     BrowseActionButton(
-                        onClick = { onPlayTracks(selected.tracks, 0) },
+                        onClick = { onPlayTracks(selected.name, selected.tracks, 0) },
                         modifier = Modifier.focusRequester(playPlaylistFocusRequester),
                     ) {
                         BrowsePlayIcon()
                     }
-                    BrowseActionButton(onClick = { onShuffleTracks(selected.tracks) }) {
+                    BrowseActionButton(onClick = { onShuffleTracks(selected.name, selected.tracks) }) {
                         BrowseShuffleIcon()
                     }
                 }
@@ -602,6 +602,7 @@ fun PlaylistsScreen(
                             },
                             onClick = {
                                 onPlayTracks(
+                                    selected.name,
                                     selected.tracks,
                                     index,
                                 )
