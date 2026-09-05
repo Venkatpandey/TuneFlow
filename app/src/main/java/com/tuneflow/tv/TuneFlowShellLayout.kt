@@ -140,7 +140,6 @@ internal fun TuneFlowShellLayout(
                         handleVideoModeMediaKey(
                             event.nativeKeyEvent.keyCode,
                             videoViewModel,
-                            playbackViewModel,
                         )
                 }
                 .background(MaterialTheme.colorScheme.background),
@@ -294,7 +293,7 @@ internal fun TuneFlowShellLayout(
                 bounds = playerBounds,
                 requestFocus = videoState.isFullscreen,
                 onKeyEvent = { event ->
-                    handleVideoOverlayMediaKey(event, videoViewModel, playbackViewModel)
+                    handleVideoOverlayMediaKey(event, videoViewModel)
                 },
                 onExitFullscreen = videoViewModel::exitFullscreen,
                 onChooseAnother = videoViewModel::chooseAnother,
@@ -339,16 +338,14 @@ private const val YOUTUBE_PLAYER_ASPECT_HEIGHT = 9L
 private fun handleVideoOverlayMediaKey(
     event: AndroidKeyEvent,
     videoViewModel: VideoViewModel,
-    playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
 ): Boolean {
     if (event.action != AndroidKeyEvent.ACTION_DOWN || isYouTubeProviderKey(event.keyCode)) return false
-    return handleVideoModeMediaKey(event.keyCode, videoViewModel, playbackViewModel)
+    return handleVideoModeMediaKey(event.keyCode, videoViewModel)
 }
 
 internal fun handleVideoModeMediaKey(
     keyCode: Int,
     videoViewModel: VideoViewModel,
-    playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
 ): Boolean {
     if (!videoViewModel.uiState.value.isVideoSessionActive) return false
     return when (keyCode) {
@@ -364,14 +361,10 @@ internal fun handleVideoModeMediaKey(
         AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> videoViewModel.seekBy(10_000L)
         AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> videoViewModel.seekBy(-10_000L)
         AndroidKeyEvent.KEYCODE_MEDIA_NEXT -> {
-            videoViewModel.closeForQueueChange()
-            playbackViewModel.next()
-            true
+            videoViewModel.nextTrack()
         }
         AndroidKeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-            videoViewModel.closeForQueueChange()
-            playbackViewModel.previous()
-            true
+            videoViewModel.previousTrack()
         }
         else -> false
     }

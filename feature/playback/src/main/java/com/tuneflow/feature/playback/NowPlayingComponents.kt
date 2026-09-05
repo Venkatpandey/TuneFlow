@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
@@ -37,6 +40,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntRect
@@ -99,10 +107,13 @@ internal fun NowPlayingPrimaryColumn(
     streamModeLabel: String,
     activePanel: NowPlayingPanel,
     hasLyrics: Boolean,
+    videoPreferred: Boolean,
+    videoPreferenceEnabled: Boolean,
     onCycleStreamMode: () -> Unit,
     onToggleQueue: () -> Unit,
     onToggleLyrics: () -> Unit,
     onVideoAction: () -> Unit,
+    onToggleVideoPreference: () -> Unit,
     onEnterFullscreen: () -> Unit,
     onStopVideo: () -> Unit,
     onVideoViewportBoundsChanged: (IntRect?) -> Unit,
@@ -146,6 +157,8 @@ internal fun NowPlayingPrimaryColumn(
             bitrateLabel = item?.streamBitrateLabel ?: "--",
             activePanel = activePanel,
             hasLyrics = hasLyrics,
+            videoPreferred = videoPreferred,
+            videoPreferenceEnabled = videoPreferenceEnabled,
             videoState = videoState,
             videoEnabled = item != null,
             onCycleStreamMode = onCycleStreamMode,
@@ -154,6 +167,7 @@ internal fun NowPlayingPrimaryColumn(
             onToggleQueue = onToggleQueue,
             onToggleLyrics = onToggleLyrics,
             onVideoAction = onVideoAction,
+            onToggleVideoPreference = onToggleVideoPreference,
             playbackMode = state.playbackMode,
             onCyclePlaybackMode = onCyclePlaybackMode,
             autoFocusQueue = autoFocusQueue,
@@ -359,6 +373,8 @@ internal fun StreamControlRow(
     hasLyrics: Boolean,
     videoState: VideoUiState,
     videoEnabled: Boolean,
+    videoPreferred: Boolean,
+    videoPreferenceEnabled: Boolean,
     playbackMode: PlaybackMode,
     onCycleStreamMode: () -> Unit,
     autoFocusStreamMode: Boolean,
@@ -366,6 +382,7 @@ internal fun StreamControlRow(
     onToggleQueue: () -> Unit,
     onToggleLyrics: () -> Unit,
     onVideoAction: () -> Unit,
+    onToggleVideoPreference: () -> Unit,
     onCyclePlaybackMode: () -> Unit,
     autoFocusQueue: Boolean,
     autoFocusLyrics: Boolean,
@@ -400,6 +417,11 @@ internal fun StreamControlRow(
                 onRequestedFocusApplied = onLyricsFocusConsumed,
             )
         }
+        VideoPreferenceToggleButton(
+            checked = videoPreferred,
+            enabled = videoPreferenceEnabled,
+            onClick = onToggleVideoPreference,
+        )
         VideoActionButton(
             state = videoState,
             enabled =
@@ -411,6 +433,68 @@ internal fun StreamControlRow(
             requestFocus = autoFocusVideo,
             onRequestedFocusApplied = onVideoFocusConsumed,
             onClick = onVideoAction,
+        )
+    }
+}
+
+@Composable
+private fun VideoPreferenceToggleButton(
+    checked: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    Row(
+        modifier =
+            Modifier
+                .width(82.dp)
+                .height(44.dp)
+                .scale(if (focused) 1.04f else 1f)
+                .alpha(if (enabled) 1f else 0.45f)
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable(enabled)
+                .clip(TuneFlowShapes.button)
+                .background(
+                    if (focused || checked) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
+                    },
+                )
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
+                        },
+                    shape = TuneFlowShapes.button,
+                )
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Prefer videos in playlist"
+                    stateDescription = if (checked) "On" else "Off"
+                }
+                .toggleable(
+                    value = checked,
+                    enabled = enabled,
+                    role = Role.Switch,
+                    onValueChange = { onClick() },
+                )
+                .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(VideoR.drawable.smarttube_ic_video),
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = if (checked) "ON" else "OFF",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }

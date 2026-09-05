@@ -454,9 +454,9 @@ private fun TuneFlowShell(
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val lyricsState by playbackViewModel.lyricsState.collectAsStateWithLifecycle()
     val videoState by videoViewModel.uiState.collectAsStateWithLifecycle()
-    DisposableEffect(videoViewModel, playbackViewModel, onVideoMediaKeyHandlerChanged) {
+    DisposableEffect(videoViewModel, onVideoMediaKeyHandlerChanged) {
         onVideoMediaKeyHandlerChanged { keyCode ->
-            handleVideoModeMediaKey(keyCode, videoViewModel, playbackViewModel)
+            handleVideoModeMediaKey(keyCode, videoViewModel)
         }
         onDispose { onVideoMediaKeyHandlerChanged(null) }
     }

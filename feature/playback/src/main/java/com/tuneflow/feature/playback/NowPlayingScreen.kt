@@ -80,6 +80,7 @@ fun NowPlayingScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val lyricsState by viewModel.lyricsState.collectAsStateWithLifecycle()
     val videoState by videoViewModel.uiState.collectAsStateWithLifecycle()
+    val videoPreferred by videoViewModel.videoPreferred.collectAsStateWithLifecycle()
     val item = state.queue.currentItem
     val availableLyrics =
         (lyricsState as? LyricsUiState.Available)
@@ -199,6 +200,8 @@ fun NowPlayingScreen(
                 streamModeLabel = streamModeLabel,
                 activePanel = activePanel,
                 hasLyrics = availableLyrics != null,
+                videoPreferred = videoPreferred,
+                videoPreferenceEnabled = !state.queue.sourcePlaylistName.isNullOrBlank(),
                 onCycleStreamMode = onCycleStreamMode,
                 onToggleQueue = {
                     activePanel = toggleNowPlayingPanel(activePanel, NowPlayingPanel.TrackList)
@@ -219,6 +222,7 @@ fun NowPlayingScreen(
                     }
                     clearRequestedFocus()
                 },
+                onToggleVideoPreference = videoViewModel::toggleVideoPreferredMode,
                 onEnterFullscreen = videoViewModel::enterFullscreen,
                 onStopVideo = videoViewModel::stopVideo,
                 onVideoViewportBoundsChanged = onVideoViewportBoundsChanged,
@@ -376,14 +380,10 @@ private fun handleNowPlayingKeyEvent(
                 true
             }
             AndroidKeyEvent.KEYCODE_MEDIA_NEXT -> {
-                videoViewModel.closeForQueueChange()
-                viewModel.next()
-                true
+                videoViewModel.nextTrack()
             }
             AndroidKeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                videoViewModel.closeForQueueChange()
-                viewModel.previous()
-                true
+                videoViewModel.previousTrack()
             }
             else -> false
         }
