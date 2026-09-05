@@ -92,6 +92,7 @@ private fun VideoMiniViewport(onBoundsChanged: (IntRect) -> Unit) {
 internal fun NowPlayingPrimaryColumn(
     item: QueueItem?,
     state: NowPlayingUiState,
+    playlistName: String?,
     videoState: VideoUiState,
     artSize: Dp,
     artFrameHeight: Dp,
@@ -139,7 +140,7 @@ internal fun NowPlayingPrimaryColumn(
                 artFrameHeight = artFrameHeight,
             )
         }
-        TrackMetadata(item = item)
+        TrackMetadata(item = item, playlistName = playlistName)
         StreamControlRow(
             streamModeLabel = streamModeLabel,
             bitrateLabel = item?.streamBitrateLabel ?: "--",
@@ -248,7 +249,10 @@ internal fun ArtworkCard(
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-internal fun TrackMetadata(item: QueueItem?) {
+internal fun TrackMetadata(
+    item: QueueItem?,
+    playlistName: String?,
+) {
     Text(
         text = item?.title ?: "Nothing playing",
         style = MaterialTheme.typography.headlineLarge,
@@ -271,7 +275,22 @@ internal fun TrackMetadata(item: QueueItem?) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
+    playlistContextLabel(playlistName)?.let { label ->
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
+
+internal fun playlistContextLabel(playlistName: String?): String? =
+    playlistName
+        ?.trim()
+        ?.takeIf(String::isNotEmpty)
+        ?.let { "Playlist • $it" }
 
 @Composable
 internal fun StreamBadge(label: String) {

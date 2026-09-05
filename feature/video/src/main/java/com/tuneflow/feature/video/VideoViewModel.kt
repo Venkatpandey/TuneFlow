@@ -163,11 +163,21 @@ class VideoViewModel(
         recordedVideoIdForSession = null
         playbackPersistenceAction = persistenceAction
         val session = VideoSessionKey(trackId, generation)
+        val trackDetails =
+            audio.queue.value.items
+                .firstOrNull { it.id == trackId }
+                ?.toVideoTrackDetails()
+                ?: VideoTrackDetails(
+                    title = candidate.title,
+                    artist = candidate.publisher,
+                    album = "",
+                )
         _uiState.value =
             VideoUiState.Loading(
                 trackId = trackId,
                 generation = generation,
                 candidate = candidate,
+                trackDetails = trackDetails,
                 presentation = VideoPresentationMode.Fullscreen,
             )
         nativeBackend.player.prepare(session, NativeVideoSpec(candidate.videoId))
@@ -430,11 +440,13 @@ class VideoViewModel(
                 is VideoUiState.Playing -> current.focusRequestId
                 else -> 0L
             }
+        val trackDetails = current.activeTrackDetails ?: return
         _uiState.value =
             VideoUiState.Playing(
                 trackId = session.trackId,
                 generation = session.generation,
                 candidate = candidate,
+                trackDetails = trackDetails,
                 presentation = presentation,
                 positionMs = state.positionMsOrZero(),
                 durationMs = state.durationMsOrZero().takeIf { it > 0L } ?: candidate.durationMs,

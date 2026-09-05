@@ -79,15 +79,15 @@ func TestDatabaseFailureReturnsGenericServerError(t *testing.T) {
 	}
 }
 
-func TestRecentLimitIsCappedAtTwenty(t *testing.T) {
+func TestRecentLimitIsCappedAtOneHundred(t *testing.T) {
 	store := &fakeStore{recentVideos: []model.PreferredVideo{}}
 	response := serve(t, store, http.MethodGet, "/v1/videos/recent?limit=200", "")
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	if store.recentLimit != maximumLimit {
-		t.Fatalf("recent limit = %d, want %d", store.recentLimit, maximumLimit)
+	if store.recentLimit != 100 {
+		t.Fatalf("recent limit = %d, want 100", store.recentLimit)
 	}
 }
 

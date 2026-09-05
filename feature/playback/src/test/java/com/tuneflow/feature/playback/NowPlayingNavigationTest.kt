@@ -66,4 +66,11 @@ class NowPlayingNavigationTest {
         assertEquals(QueueExitTarget.StreamControls, resolveQueueExitTarget(focusedIndex = 1, itemCount = 6))
         assertEquals(QueueExitTarget.TransportControls, resolveQueueExitTarget(focusedIndex = 5, itemCount = 6))
     }
+
+    @Test
+    fun playlistContextLabel_onlyShowsNamedPlaylist() {
+        assertEquals("Playlist • Evening Mix", playlistContextLabel(" Evening Mix "))
+        assertEquals(null, playlistContextLabel("  "))
+        assertEquals(null, playlistContextLabel(null))
+    }
 }
