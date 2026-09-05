@@ -87,8 +87,9 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 - Search with recent queries and live suggestions
 - Use play/pause/previous/next on the Now Playing screen
 - Browse up to 25 ranked YouTube matches for the current song, choose one, and play it full screen
-- Reopen the 5 most recent videos from Home or show the last 20
+- Reopen the 5 most recent videos from Home or show the last 100
 - Persist preferred track videos and recent playback through an optional LAN Go/SQLite service
+- Use **Video preferred** in Now Playing to continue a playlist with mapped videos and audio fallback
 - Press Back to keep the selected video playing inside the Now Playing rail widget while browsing TuneFlow
 - Logout to switch users on the same TV
 
@@ -100,7 +101,9 @@ Native search works without a Google API key.
 
 For durable preferred videos and recent history across app reinstall or TV replacement, deploy the LAN-only service, then enter its URL under **Home > Quick Actions > Video Service**. No APK rebuild is required. See [preferred-video service deployment](services/preferred-video/README.md). If the service is missing, disabled, or offline, the Video button immediately uses normal YouTube search and playback continues normally.
 
-Video search starts only after the user selects it and accepts the one-time disclosure. TuneFlow ranks matches using title, artist, duration, category, publisher, and view count. The native player defaults to the highest supported quality, preserves the video's aspect ratio, and exposes quality and caption controls. Stopping, finishing, or failing video leaves audio paused and returns control to audio. Playback pauses when TuneFlow leaves the foreground.
+Video search starts only after the user selects it and accepts the one-time disclosure. TuneFlow ranks matches using title, artist, duration, category, publisher, and view count. The native player defaults to the highest supported quality, preserves the video's aspect ratio, and exposes quality and caption controls.
+
+For playlist queues, the **Video preferred** toggle in Now Playing makes each track use its saved preferred video when one exists and fall back to audio otherwise. Selecting a video for the current playlist track enables this mode automatically. When a video finishes, TuneFlow advances the same queue; disabling the mode switches an active video back to the matching audio position. Explicitly stopping a video still leaves audio paused. Playback pauses when TuneFlow leaves the foreground.
 
 ## Streaming Quality
 
