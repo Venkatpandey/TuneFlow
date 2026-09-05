@@ -28,6 +28,22 @@ class VideoHistoryStoreTest {
         }
 
     @Test
+    fun historyRequestsUpToOneHundredVideos() =
+        runTest {
+            MockWebServer().use { server ->
+                server.enqueue(
+                    MockResponse()
+                        .setResponseCode(200)
+                        .setBody("""{"apiVersion":"v1","videos":[]}"""),
+                )
+                val store = RemotePreferredVideoStore(server.url("/").toString())
+
+                assertTrue(store.refreshHistory())
+                assertEquals("/v1/videos/recent?limit=100", server.takeRequest().path)
+            }
+        }
+
+    @Test
     fun repeatedTrackMovesToFrontWithoutDuplication() {
         val first = historyEntry("track-1", "aaaaaaaaaaa", "2026-09-01T10:00:00Z")
         val second = historyEntry("track-2", "bbbbbbbbbbb", "2026-09-01T11:00:00Z")
@@ -39,7 +55,7 @@ class VideoHistoryStoreTest {
     }
 
     @Test
-    fun inMemoryHistoryKeepsOnlyTwentyNewestMappings() {
+    fun inMemoryHistoryKeepsOnlyOneHundredNewestMappings() {
         val existing =
             (0 until VIDEO_HISTORY_LIMIT).map {
                 historyEntry("track-$it", "video${it.toString().padStart(6, '0')}", "2026-09-01T10:00:00Z")
@@ -51,9 +67,9 @@ class VideoHistoryStoreTest {
                 historyEntry("new", "newvideo001", "2026-09-01T12:00:00Z"),
             )
 
-        assertEquals(VIDEO_HISTORY_LIMIT, updated.size)
+        assertEquals(100, updated.size)
         assertEquals("new", updated.first().trackId)
-        assertEquals("track-18", updated.last().trackId)
+        assertEquals("track-98", updated.last().trackId)
     }
 
     @Test

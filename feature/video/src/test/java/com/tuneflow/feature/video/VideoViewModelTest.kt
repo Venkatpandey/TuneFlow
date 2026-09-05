@@ -210,6 +210,10 @@ class VideoViewModelTest {
 
             val loading = viewModel.uiState.value as VideoUiState.Loading
             assertEquals(VideoPresentationMode.Fullscreen, loading.presentation)
+            assertEquals(
+                VideoTrackDetails(title = "Track", artist = "Artist", album = "Album"),
+                loading.trackDetails,
+            )
 
             viewModel.exitFullscreen()
 

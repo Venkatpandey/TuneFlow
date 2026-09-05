@@ -343,7 +343,11 @@ private suspend fun cyclePlaybackStreamMode(
             )
         }
 
-    playerManager.playQueue(updatedItems, queue.currentIndex)
+    playerManager.playQueue(
+        items = updatedItems,
+        startIndex = queue.currentIndex,
+        sourcePlaylistName = queue.sourcePlaylistName,
+    )
     playerManager.seekTo(positionMs)
     if (!wasPlaying) {
         playerManager.pause()
@@ -501,21 +505,18 @@ private fun TuneFlowShell(
     fun playTracks(
         tracks: List<com.tuneflow.core.network.TrackSummary>,
         index: Int,
+        sourcePlaylistName: String? = null,
     ) {
         scope.launch {
             val queue = buildQueueItems(tracks, browseRepository, preferDirectWithFallback)
-            playerManager.playQueue(queue, index)
+            playerManager.playQueue(queue, index, sourcePlaylistName)
         }
     }
 
-    fun shuffleTracks(tracks: List<com.tuneflow.core.network.TrackSummary>) {
-        scope.launch {
-            if (tracks.isEmpty()) return@launch
-            val shuffledTracks = tracks.shuffled()
-            val queue = buildQueueItems(shuffledTracks, browseRepository, preferDirectWithFallback)
-            playerManager.playQueue(queue, 0)
-        }
-    }
+    fun shuffleTracks(
+        tracks: List<com.tuneflow.core.network.TrackSummary>,
+        sourcePlaylistName: String? = null,
+    ) = playTracks(tracks.shuffled(), index = 0, sourcePlaylistName)
 
     fun cycleStreamMode() {
         scope.launch {
@@ -615,8 +616,14 @@ private fun TuneFlowShell(
             videoViewModel.playHistory(entry)
             navigationActions.openNowPlaying()
         },
-        onPlayTracks = ::playTracks,
-        onShuffleTracks = ::shuffleTracks,
+        onPlayTracks = { tracks, index -> playTracks(tracks, index) },
+        onShuffleTracks = { tracks -> shuffleTracks(tracks) },
+        onPlayPlaylistTracks = { playlistName, tracks, index ->
+            playTracks(tracks, index, playlistName)
+        },
+        onShufflePlaylistTracks = { playlistName, tracks ->
+            shuffleTracks(tracks, playlistName)
+        },
         preferredVideoServiceUrl = preferredVideoServiceUrl,
         onPreferredVideoServiceUrlChanged = { serviceUrl ->
             onPreferredVideoServiceUrlChanged(serviceUrl)

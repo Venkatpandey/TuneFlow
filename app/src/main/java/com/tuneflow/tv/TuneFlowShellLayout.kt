@@ -64,6 +64,7 @@ import com.tuneflow.feature.playback.LyricsUiState
 import com.tuneflow.feature.video.NativeVideoPlayerSurface
 import com.tuneflow.feature.video.VideoUiState
 import com.tuneflow.feature.video.VideoViewModel
+import com.tuneflow.feature.video.activeTrackDetails
 import com.tuneflow.feature.video.hasVisiblePlayer
 import com.tuneflow.feature.video.isFullscreen
 import com.tuneflow.feature.video.isVideoSessionActive
@@ -114,6 +115,8 @@ internal fun TuneFlowShellLayout(
     onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
+    onPlayPlaylistTracks: (String, List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
+    onShufflePlaylistTracks: (String, List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
     showExitPrompt: Boolean,
@@ -235,6 +238,8 @@ internal fun TuneFlowShellLayout(
                                 onPlayVideo = onPlayVideo,
                                 onPlayTracks = onPlayTracks,
                                 onShuffleTracks = onShuffleTracks,
+                                onPlayPlaylistTracks = onPlayPlaylistTracks,
+                                onShufflePlaylistTracks = onShufflePlaylistTracks,
                                 preferredVideoServiceUrl = preferredVideoServiceUrl,
                                 onPreferredVideoServiceUrlChanged = onPreferredVideoServiceUrlChanged,
                             )
@@ -284,6 +289,7 @@ internal fun TuneFlowShellLayout(
             )
             NativeVideoPlayerSurface(
                 player = videoSurfacePlayer,
+                trackDetails = requireNotNull(videoState.activeTrackDetails),
                 host = videoOverlayHost,
                 bounds = playerBounds,
                 requestFocus = videoState.isFullscreen,
