@@ -65,6 +65,7 @@ import java.text.NumberFormat
 @Composable
 fun NativeVideoPlayerSurface(
     player: NativeVideoPlayer,
+    trackDetails: VideoTrackDetails,
     host: FrameLayout,
     bounds: IntRect,
     requestFocus: Boolean,
@@ -78,7 +79,7 @@ fun NativeVideoPlayerSurface(
     val typography = MaterialTheme.typography
     val shapes = MaterialTheme.shapes
     val controlsView =
-        remember(player, host, requestFocus, colorScheme, typography, shapes) {
+        remember(player, trackDetails, host, requestFocus, colorScheme, typography, shapes) {
             if (requestFocus) {
                 ComposeView(host.context).apply {
                     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
@@ -88,7 +89,13 @@ fun NativeVideoPlayerSurface(
                             typography = typography,
                             shapes = shapes,
                         ) {
-                            NativeVideoControlsOverlay(player, onExitFullscreen, onChooseAnother, onStop)
+                            NativeVideoControlsOverlay(
+                                player = player,
+                                trackDetails = trackDetails,
+                                onExitFullscreen = onExitFullscreen,
+                                onChooseAnother = onChooseAnother,
+                                onStop = onStop,
+                            )
                         }
                     }
                 }
@@ -179,6 +186,7 @@ fun NativeVideoPlayerSurface(
 @Suppress("CyclomaticComplexMethod")
 private fun NativeVideoControlsOverlay(
     player: NativeVideoPlayer,
+    trackDetails: VideoTrackDetails,
     onExitFullscreen: () -> Unit,
     onChooseAnother: () -> Unit,
     onStop: () -> Unit,
@@ -289,6 +297,7 @@ private fun NativeVideoControlsOverlay(
                         .padding(horizontal = 34.dp, vertical = 22.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                VideoTrackDetailsBlock(trackDetails)
                 LinearProgressIndicator(
                     progress = { if (durationMs > 0L) positionMs.toFloat() / durationMs else 0f },
                     modifier = Modifier.fillMaxWidth().height(6.dp).progressSemantics(),
@@ -445,6 +454,30 @@ private fun NativeVideoControlsOverlay(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VideoTrackDetailsBlock(trackDetails: VideoTrackDetails) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(
+            text = trackDetails.title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text =
+                listOf(trackDetails.artist, trackDetails.album)
+                    .filter(String::isNotBlank)
+                    .joinToString(" • "),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.78f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

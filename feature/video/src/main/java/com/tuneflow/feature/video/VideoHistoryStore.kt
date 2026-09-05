@@ -291,7 +291,7 @@ private data class PreferredVideoWrite(
     val viewCount: Long,
 )
 
-const val VIDEO_HISTORY_LIMIT = 20
+const val VIDEO_HISTORY_LIMIT = 100
 internal const val YOUTUBE_PROVIDER = "youtube"
 private const val API_VERSION = "v1"
 private const val MAX_RESPONSE_CHARACTERS = 256 * 1024
