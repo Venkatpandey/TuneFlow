@@ -51,4 +51,78 @@ class NavidromeApiIntegrationTest {
 
         server.shutdown()
     }
+
+    @Test
+    fun scrobble_sendsSubmissionWithOriginalStartTime() {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "subsonic-response": {
+                    "status": "ok",
+                    "version": "1.16.1"
+                  }
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.start()
+
+        val client =
+            NavidromeClient(
+                SessionData(
+                    serverUrl = server.url("/").toString(),
+                    username = "user",
+                    token = "token",
+                    salt = "salt",
+                ),
+            )
+        val result = kotlinx.coroutines.runBlocking { client.scrobble("track/string-id", 1_725_000_123_456L) }
+
+        assertTrue(result is NetworkResult.Success)
+        val requestUrl = requireNotNull(server.takeRequest().requestUrl)
+        assertEquals("/rest/scrobble.view", requestUrl.encodedPath)
+        assertEquals("track/string-id", requestUrl.queryParameter("id"))
+        assertEquals("1725000123456", requestUrl.queryParameter("time"))
+        assertEquals("true", requestUrl.queryParameter("submission"))
+        assertEquals("user", requestUrl.queryParameter("u"))
+
+        server.shutdown()
+    }
+
+    @Test
+    fun scrobble_returnsServerErrorWithoutThrowing() {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "subsonic-response": {
+                    "status": "failed",
+                    "version": "1.16.1",
+                    "error": {"code": 70, "message": "Track not found"}
+                  }
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.start()
+
+        val client =
+            NavidromeClient(
+                SessionData(
+                    serverUrl = server.url("/").toString(),
+                    username = "user",
+                    token = "token",
+                    salt = "salt",
+                ),
+            )
+        val result = kotlinx.coroutines.runBlocking { client.scrobble("missing-track", 1_725_000_123_456L) }
+
+        assertTrue(result is NetworkResult.Error)
+        assertEquals("Track not found", (result as NetworkResult.Error).message)
+
+        server.shutdown()
+    }
 }

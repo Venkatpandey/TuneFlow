@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tuneflow.core.player.PlaybackController
 import com.tuneflow.core.player.PlaybackQueue
+import com.tuneflow.core.player.ScrobbleReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
@@ -18,11 +19,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.Locale
 
+@Suppress("LargeClass")
 class VideoViewModel(
     private val audio: PlaybackController,
     private val consentStore: VideoConsentStore,
     private val nativeBackend: NativeVideoBackend,
     private val preferredVideoStore: PreferredVideoStore = UnavailablePreferredVideoStore,
+    scrobbleReporter: ScrobbleReporter,
     private val scopeOverride: CoroutineScope? = null,
     private val diagnostic: (String) -> Unit = { message -> Log.w(VIDEO_LOG_TAG, message) },
 ) : ViewModel() {
@@ -51,6 +54,7 @@ class VideoViewModel(
 
     private var searchJob: Job? = null
     private val persistenceMutex = Mutex()
+    private val listenSession = VideoListenSession(scope, scrobbleReporter, diagnostic)
     private var generation = 0L
     private var nowPlayingVisible = false
     private var activeCandidate: VideoCandidate? = null
@@ -197,6 +201,7 @@ class VideoViewModel(
         enableVideoPreferred: Boolean = false,
         automatic: Boolean = false,
     ) {
+        listenSession.reset()
         if (_uiState.value.isVideoSessionActive) releaseVideoPlayer()
         generation += 1
         val queuePosition = audio.queue.value.toVideoQueuePosition()
@@ -340,7 +345,10 @@ class VideoViewModel(
     fun previousTrack(): Boolean = moveFromVideoToQueue(audio::previous)
 
     fun onAppBackgrounded() {
-        if (_uiState.value is VideoUiState.Playing) activePlayer().pause()
+        if (_uiState.value is VideoUiState.Playing) {
+            listenSession.pause(_uiState.value.trackId)
+            activePlayer().pause()
+        }
     }
 
     private fun search(
@@ -438,6 +446,9 @@ class VideoViewModel(
         playerState: NativeVideoPlayerState,
     ) {
         if (source !== activePlayer()) return
+        if (playerState.sessionOrNull()?.let(::isCurrentSession) == true) {
+            listenSession.onPlayerState(playerState, activeCandidate?.durationMs ?: 0L)
+        }
         when (playerState) {
             is NativeVideoPlayerState.Ready -> onPlayerReady(playerState)
             is NativeVideoPlayerState.Playing -> updatePlayingState(playerState, isPlaying = true)
@@ -567,6 +578,7 @@ class VideoViewModel(
 
     private fun releaseVideoPlayer() {
         searchJob?.cancel()
+        listenSession.reset()
         activePlayer().release()
     }
 
