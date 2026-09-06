@@ -6,7 +6,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val MAX_LISTEN_THRESHOLD_MS = 4 * 60 * 1000L
+private const val LISTEN_THRESHOLD_CAP_MS = 60 * 1000L
 
 data class ScrobbleSubmission(
     val accountKey: String,
@@ -173,8 +173,8 @@ class ListenSessionTracker(
 
     private fun Session.thresholdMs(): Long =
         if (durationMs > 0L) {
-            (durationMs / 2L).coerceAtLeast(1L).coerceAtMost(MAX_LISTEN_THRESHOLD_MS)
+            (durationMs / 4L).coerceAtLeast(1L).coerceAtMost(LISTEN_THRESHOLD_CAP_MS)
         } else {
-            MAX_LISTEN_THRESHOLD_MS
+            LISTEN_THRESHOLD_CAP_MS
         }
 }

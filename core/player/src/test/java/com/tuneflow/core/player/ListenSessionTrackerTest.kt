@@ -11,20 +11,20 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ListenSessionTrackerTest {
     @Test
-    fun `submits once after half of a normal track`() =
+    fun `submits once after quarter of a normal track`() =
         runTest {
             val reporter = RecordingScrobbleReporter()
             val tracker = tracker(reporter)
 
             tracker.onPlaying("track-id", 180_000L)
-            advanceTimeBy(89_999L)
+            advanceTimeBy(44_999L)
             runCurrent()
             assertTrue(reporter.submissions.isEmpty())
 
             advanceTimeBy(1L)
             runCurrent()
             tracker.onPlaying("track-id", 180_000L)
-            advanceTimeBy(90_000L)
+            advanceTimeBy(45_000L)
             runCurrent()
 
             assertEquals(
@@ -40,27 +40,27 @@ class ListenSessionTrackerTest {
             val tracker = tracker(reporter)
 
             tracker.onPlaying("track-id", 100_000L)
-            advanceTimeBy(25_000L)
+            advanceTimeBy(12_500L)
             tracker.onPaused("track-id")
             advanceTimeBy(100_000L)
             runCurrent()
             assertTrue(reporter.submissions.isEmpty())
 
             tracker.onPlaying("track-id", 100_000L)
-            advanceTimeBy(25_000L)
+            advanceTimeBy(12_500L)
             runCurrent()
 
             assertEquals(1, reporter.submissions.size)
         }
 
     @Test
-    fun `four minute cap applies to long media`() =
+    fun `one minute cap applies to long media`() =
         runTest {
             val reporter = RecordingScrobbleReporter()
             val tracker = tracker(reporter)
 
             tracker.onPlaying("long-track", 900_000L)
-            advanceTimeBy(239_999L)
+            advanceTimeBy(59_999L)
             runCurrent()
             assertTrue(reporter.submissions.isEmpty())
 
@@ -71,7 +71,7 @@ class ListenSessionTrackerTest {
         }
 
     @Test
-    fun `unknown duration qualifies only on natural end or four minutes`() =
+    fun `unknown duration qualifies on natural end or one minute`() =
         runTest {
             val reporter = RecordingScrobbleReporter()
             val tracker = tracker(reporter)
@@ -82,6 +82,15 @@ class ListenSessionTrackerTest {
             runCurrent()
 
             assertEquals(1, reporter.submissions.size)
+
+            tracker.onPlaying("unknown-timer", 0L)
+            advanceTimeBy(59_999L)
+            runCurrent()
+            assertEquals(1, reporter.submissions.size)
+
+            advanceTimeBy(1L)
+            runCurrent()
+            assertEquals(2, reporter.submissions.size)
         }
 
     @Test
@@ -111,15 +120,15 @@ class ListenSessionTrackerTest {
             val tracker = tracker(reporter)
 
             tracker.onPlaying("track-id", 100_000L)
-            advanceTimeBy(25_000L)
+            advanceTimeBy(12_500L)
             tracker.onMediaChanged("track-id")
-            advanceTimeBy(25_000L)
+            advanceTimeBy(12_500L)
             runCurrent()
             assertEquals(1, reporter.submissions.size)
 
             tracker.onMediaChanged("track-id", forceNewSession = true)
             tracker.onPlaying("track-id", 100_000L)
-            advanceTimeBy(50_000L)
+            advanceTimeBy(25_000L)
             runCurrent()
 
             assertEquals(2, reporter.submissions.size)
