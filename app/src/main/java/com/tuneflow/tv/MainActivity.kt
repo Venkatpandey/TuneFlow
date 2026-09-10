@@ -21,6 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -400,6 +401,24 @@ private fun rememberPlaybackScreensaverState(
     return state
 }
 
+internal fun shouldKeepScreenOn(
+    audioTrackPresent: Boolean,
+    audioPlaying: Boolean,
+    audioExpectedToPlay: Boolean,
+    videoVisible: Boolean,
+): Boolean =
+    videoVisible ||
+        (audioTrackPresent && (audioPlaying || audioExpectedToPlay))
+
+@Composable
+private fun KeepScreenOnDuringPlayback(enabled: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(view, enabled) {
+        view.keepScreenOn = enabled
+        onDispose { view.keepScreenOn = false }
+    }
+}
+
 @Composable
 private fun ObserveVideoLifecycle(videoViewModel: VideoViewModel) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -459,6 +478,15 @@ private fun TuneFlowShell(
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val lyricsState by playbackViewModel.lyricsState.collectAsStateWithLifecycle()
     val videoState by videoViewModel.uiState.collectAsStateWithLifecycle()
+    KeepScreenOnDuringPlayback(
+        enabled =
+            shouldKeepScreenOn(
+                audioTrackPresent = playbackState.queue.currentItem != null,
+                audioPlaying = playbackState.isPlaying,
+                audioExpectedToPlay = playbackState.playbackStatus.expectedToPlay,
+                videoVisible = videoState.hasVisiblePlayer,
+            ),
+    )
     DisposableEffect(videoViewModel, onVideoMediaKeyHandlerChanged) {
         onVideoMediaKeyHandlerChanged { keyCode ->
             handleVideoModeMediaKey(keyCode, videoViewModel)
