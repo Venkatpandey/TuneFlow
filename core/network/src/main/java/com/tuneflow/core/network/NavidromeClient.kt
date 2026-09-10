@@ -246,6 +246,31 @@ open class NavidromeClient(private val session: SessionData) {
         }
     }
 
+    open suspend fun scrobble(
+        trackId: String,
+        startedAtEpochMs: Long,
+    ): NetworkResult<Unit> {
+        return safeCall {
+            val response =
+                api.scrobble(
+                    trackId = trackId,
+                    startedAtEpochMs = startedAtEpochMs,
+                    username = session.username,
+                    token = session.token,
+                    salt = session.salt,
+                ).response
+
+            if (response.status != "ok") {
+                NetworkResult.Error(
+                    message = response.error?.message ?: "Failed to scrobble track.",
+                    code = response.error?.code,
+                )
+            } else {
+                NetworkResult.Success(Unit)
+            }
+        }
+    }
+
     open fun streamOptions(trackId: String): TrackStreamOptions {
         val base =
             "${session.serverUrl}/rest/stream.view" +

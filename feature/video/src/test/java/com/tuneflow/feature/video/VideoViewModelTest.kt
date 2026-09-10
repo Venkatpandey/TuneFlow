@@ -2,11 +2,14 @@ package com.tuneflow.feature.video
 
 import android.content.Context
 import android.view.View
+import com.tuneflow.core.player.NoOpScrobbleReporter
 import com.tuneflow.core.player.PlaybackController
 import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlaybackStatus
 import com.tuneflow.core.player.QueueItem
+import com.tuneflow.core.player.ScrobbleReporter
+import com.tuneflow.core.player.ScrobbleSubmission
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -363,6 +366,49 @@ class VideoViewModelTest {
         }
 
     @Test
+    fun completedTrackLinkedVideoScrobblesNavidromeTrackId() =
+        runTest {
+            val audio =
+                VideoViewModelFakeAudio(
+                    PlaybackQueue(
+                        items =
+                            listOf(
+                                QueueItem(
+                                    id = "video-track-id",
+                                    title = "Track",
+                                    artist = "Artist",
+                                    album = "Album",
+                                    streamUrl = "stream",
+                                    durationMs = 0L,
+                                ),
+                            ),
+                    ),
+                )
+            val nativePlayer = FakeNativePlayer()
+            val reporter = RecordingVideoScrobbleReporter()
+            val viewModel =
+                createViewModel(
+                    audio = audio,
+                    scope = backgroundScope,
+                    nativeBackend = FakeNativeBackend(nativePlayer),
+                    scrobbleReporter = reporter,
+                )
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+            viewModel.selectCandidate((viewModel.uiState.value as VideoUiState.Candidates).candidates.first())
+            nativePlayer.emitPlaying(positionMs = 0L, durationMs = 0L)
+            runCurrent()
+            advanceTimeBy(1_000L)
+            nativePlayer.emitEnded(positionMs = 1_000L, durationMs = 0L)
+            runCurrent()
+
+            assertEquals(1, reporter.submissions.size)
+            assertEquals("video-track-id", reporter.submissions.single().trackId)
+        }
+
+    @Test
     fun trackChangeReleasesNativeSession() =
         runTest {
             val audio = VideoViewModelFakeAudio()
@@ -564,12 +610,14 @@ class VideoViewModelTest {
         scope: CoroutineScope,
         nativeBackend: NativeVideoBackend = FakeNativeBackend(),
         preferredVideoStore: PreferredVideoStore = FakePreferredVideoStore(),
+        scrobbleReporter: ScrobbleReporter = NoOpScrobbleReporter,
     ): VideoViewModel =
         VideoViewModel(
             audio = audio,
             consentStore = AcceptedConsentStore,
             nativeBackend = nativeBackend,
             preferredVideoStore = preferredVideoStore,
+            scrobbleReporter = scrobbleReporter,
             scopeOverride = scope,
             diagnostic = {},
         )
@@ -682,8 +730,21 @@ private class FakeNativePlayer : NativeVideoPlayer {
         mutableState.value = NativeVideoPlayerState.Playing(requireNotNull(session), positionMs, durationMs)
     }
 
-    fun emitEnded() {
-        mutableState.value = NativeVideoPlayerState.Ended(requireNotNull(session), 180_000L, 180_000L)
+    fun emitEnded(
+        positionMs: Long = 180_000L,
+        durationMs: Long = 180_000L,
+    ) {
+        mutableState.value = NativeVideoPlayerState.Ended(requireNotNull(session), positionMs, durationMs)
+    }
+}
+
+private class RecordingVideoScrobbleReporter : ScrobbleReporter {
+    val submissions = mutableListOf<ScrobbleSubmission>()
+
+    override fun currentAccountKey(): String = "server\u0000user"
+
+    override suspend fun scrobble(submission: ScrobbleSubmission) {
+        submissions += submission
     }
 }
 

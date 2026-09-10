@@ -79,7 +79,9 @@ class MainActivity : ComponentActivity() {
         val authRepository = AuthRepository(sessionStore)
         val browseRepository = BrowseRepository(sessionStore)
         val lyricsRepository = LyricsRepository(sessionStore)
+        val scrobbleReporter = NavidromeScrobbleReporter(sessionStore)
         playerManager = PlayerGraph.get(applicationContext)
+        playerManager.setScrobbleReporter(scrobbleReporter)
         playbackServiceIntent = Intent(this, TuneFlowPlaybackService::class.java)
         startService(playbackServiceIntent)
 
@@ -117,6 +119,7 @@ class MainActivity : ComponentActivity() {
                         playbackPreferencesStore = playbackPreferencesStore,
                         searchHistoryStore = searchHistoryStore,
                         lyricsRepository = lyricsRepository,
+                        scrobbleReporter = scrobbleReporter,
                         preferredVideoStore = preferredVideoStore,
                         preferredVideoServiceUrl = preferredVideoServiceUrl,
                         onPreferredVideoServiceUrlChanged = { serviceUrl ->
@@ -418,6 +421,7 @@ private fun TuneFlowShell(
     playbackPreferencesStore: PlaybackPreferencesStore,
     searchHistoryStore: SearchHistoryStore,
     lyricsRepository: LyricsRepository,
+    scrobbleReporter: com.tuneflow.core.player.ScrobbleReporter,
     preferredVideoStore: PreferredVideoStore,
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
@@ -449,6 +453,7 @@ private fun TuneFlowShell(
                     androidx.compose.ui.platform.LocalContext.current,
                     playerManager,
                     preferredVideoStore,
+                    scrobbleReporter,
                 ),
         )
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
