@@ -1,6 +1,7 @@
 package com.tuneflow.core.youtubenative
 
 import android.content.Context
+import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItem
 import com.liskovsoft.mediaserviceinterfaces.data.SearchOptions
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager
@@ -19,24 +20,79 @@ class SmartTubeYouTubeNativeSearchClient(
     override suspend fun search(
         artist: String,
         title: String,
-        limit: Int,
     ): List<YouTubeNativeSearchResult> =
         withContext(Dispatchers.IO) {
-            val query = listOf(artist.trim(), title.trim()).filter(String::isNotBlank).joinToString(" ")
-            require(query.isNotBlank()) { "Artist and title cannot both be blank." }
-            val options = SearchOptions.TYPE_VIDEO or SearchOptions.SORT_BY_RELEVANCE
-            val groups = YouTubeServiceManager.instance().contentService.getSearch(query, options).orEmpty()
+            val query = buildSmartTubeVideoSearchQuery(artist, title)
+            val options = SearchOptions.TYPE_VIDEO or SearchOptions.SORT_BY_VIEW_COUNT
+            val contentService = YouTubeServiceManager.instance().contentService
+            val groups =
+                collectSmartTubeSearchGroups(
+                    initialGroups = contentService.getSearch(query, options).orEmpty(),
+                    maximumPagesPerGroup = MAX_SEARCH_PAGES,
+                    continueGroup = contentService::continueGroup,
+                )
             mapSmartTubeSearchItems(
                 groups.flatMap { it.mediaItems.orEmpty() },
-                limit.coerceIn(1, MAX_RESULTS),
             )
         }
 }
 
-internal fun mapSmartTubeSearchItems(
-    items: List<MediaItem?>,
-    limit: Int,
-): List<YouTubeNativeSearchResult> =
+internal fun collectSmartTubeSearchGroups(
+    initialGroups: List<MediaGroup>,
+    maximumPagesPerGroup: Int,
+    continueGroup: (MediaGroup) -> MediaGroup?,
+): List<MediaGroup> {
+    require(maximumPagesPerGroup > 0) { "Search page limit must be positive." }
+    return buildList {
+        initialGroups.forEach { initialGroup ->
+            val seenPageKeys = mutableSetOf<String>()
+            var currentGroup: MediaGroup? = initialGroup
+            var collectedPageCount = 0
+            while (currentGroup != null && collectedPageCount < maximumPagesPerGroup) {
+                val group = currentGroup
+                add(group)
+                collectedPageCount += 1
+                val nextPageKey = group.nextPageKey?.takeIf(String::isNotBlank)
+                currentGroup =
+                    if (
+                        collectedPageCount < maximumPagesPerGroup &&
+                        nextPageKey != null &&
+                        seenPageKeys.add(nextPageKey)
+                    ) {
+                        continueGroup(group)
+                    } else {
+                        null
+                    }
+            }
+        }
+    }
+}
+
+internal fun buildSmartTubeVideoSearchQuery(
+    artist: String,
+    title: String,
+): String {
+    val cleanedArtist = artist.trim()
+    val cleanedTitle = cleanTrackTitleForVideoSearch(title)
+    require(cleanedArtist.isNotBlank() || cleanedTitle.isNotBlank()) {
+        "Artist and title cannot both be blank."
+    }
+    return listOf(cleanedArtist, cleanedTitle, OFFICIAL_VIDEO_QUERY)
+        .filter(String::isNotBlank)
+        .joinToString(" ")
+}
+
+private fun cleanTrackTitleForVideoSearch(title: String): String {
+    val withoutFeatureCredit = title.replace(FEATURE_CREDIT_SUFFIX, "")
+    val withoutBracketedMetadata = withoutFeatureCredit.replace(BRACKETED_AUDIO_METADATA, "")
+    return withoutBracketedMetadata
+        .replace(TRAILING_AUDIO_METADATA, "")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .ifBlank { title.trim() }
+}
+
+internal fun mapSmartTubeSearchItems(items: List<MediaItem?>): List<YouTubeNativeSearchResult> =
     items
         .asSequence()
         .filterNotNull()
@@ -44,7 +100,6 @@ internal fun mapSmartTubeSearchItems(
         .filterNot { it.isLive || it.isUpcoming || it.isShorts }
         .mapNotNull(::mapSmartTubeItem)
         .distinctBy(YouTubeNativeSearchResult::videoId)
-        .take(limit)
         .toList()
 
 internal fun isPlayableSmartTubeSearchResult(
@@ -133,10 +188,23 @@ private fun parseAbbreviatedNumber(token: String): Double? {
     return "$whole.$fraction".toDoubleOrNull()
 }
 
-private const val MAX_RESULTS = 25
 private val YOUTUBE_VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
 private val DETAIL_SEPARATOR = Regex("[•·]")
+private val FEATURE_CREDIT_SUFFIX =
+    Regex("""\s*(?:[\[(]\s*)?(?:feat(?:uring)?|ft)\.?\s+.*$""", RegexOption.IGNORE_CASE)
+private val BRACKETED_AUDIO_METADATA =
+    Regex(
+        """\s*[\[(][^)\]]*(?:remaster(?:ed)?|album version|single version|radio edit|explicit|clean|mono|stereo|bonus track|original mix)[^)\]]*[)\]]""",
+        RegexOption.IGNORE_CASE,
+    )
+private val TRAILING_AUDIO_METADATA =
+    Regex(
+        """\s*[-–—]\s*(?:\d{4}\s*)?(?:remaster(?:ed)?|album version|single version|radio edit|explicit|clean|mono|stereo|bonus track|original mix).*$""",
+        RegexOption.IGNORE_CASE,
+    )
 private val VIEW_MARKERS = listOf("view", "aufruf", "vue", "visualiz", "watched")
 private val THOUSAND_MARKERS = listOf("k view", "k aufruf", "tsd")
 private val MILLION_MARKERS = listOf("m view", "m aufruf", "mio", "million")
 private val BILLION_MARKERS = listOf("b view", "b aufruf", "mrd", "billion", "milliard")
+private const val MAX_SEARCH_PAGES = 3
+private const val OFFICIAL_VIDEO_QUERY = "official music video"

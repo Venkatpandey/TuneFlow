@@ -18,11 +18,13 @@ import com.tuneflow.core.network.SearchBundle
 import com.tuneflow.core.network.SessionData
 import com.tuneflow.core.network.SessionProvider
 import com.tuneflow.core.network.SessionStore
+import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.network.TrackStreamOptions
 import com.tuneflow.core.network.toBundle
 import com.tuneflow.core.network.toDetail
 import com.tuneflow.core.network.toFavoritesBundle
 import com.tuneflow.core.network.toSummary
+import com.tuneflow.core.network.toTrack
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -30,6 +32,7 @@ import kotlinx.coroutines.coroutineScope
 class BrowseRepository(
     private val sessionProvider: SessionProvider,
     private val clientProvider: NavidromeClientProvider = DefaultNavidromeClientProvider,
+    val favoriteStore: TrackFavoriteStore = TrackFavoriteStore(sessionProvider, clientProvider),
 ) {
     private data class SessionClient(
         val session: SessionData,
@@ -39,9 +42,17 @@ class BrowseRepository(
     private val playlistArtCache = mutableMapOf<String, List<String>>()
     private val artistArtCache = mutableMapOf<String, String?>()
 
-    constructor(sessionStore: SessionStore) : this(
+    constructor(
+        sessionStore: SessionStore,
+        favoriteStore: TrackFavoriteStore? = null,
+    ) : this(
         sessionProvider = DataStoreSessionProvider(sessionStore),
         clientProvider = DefaultNavidromeClientProvider,
+        favoriteStore =
+            favoriteStore ?: TrackFavoriteStore(
+                DataStoreSessionProvider(sessionStore),
+                DefaultNavidromeClientProvider,
+            ),
     )
 
     suspend fun getAlbums(
@@ -58,7 +69,11 @@ class BrowseRepository(
     suspend fun getAlbumDetail(albumId: String): Result<AlbumDetail> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
         return when (val result = sessionClient.client.getAlbum(albumId)) {
-            is NetworkResult.Success -> Result.success(result.data.toDetail().withArtwork(sessionClient.session))
+            is NetworkResult.Success -> {
+                val detail = result.data.toDetail().withArtwork(sessionClient.session)
+                favoriteStore.seed(sessionClient.session, detail.tracks)
+                Result.success(detail)
+            }
             is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
         }
     }
@@ -121,7 +136,11 @@ class BrowseRepository(
     suspend fun getPlaylistDetail(playlistId: String): Result<PlaylistDetail> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
         return when (val result = sessionClient.client.getPlaylist(playlistId)) {
-            is NetworkResult.Success -> Result.success(result.data.toDetail().withArtwork(sessionClient.session))
+            is NetworkResult.Success -> {
+                val detail = result.data.toDetail().withArtwork(sessionClient.session)
+                favoriteStore.seed(sessionClient.session, detail.tracks)
+                Result.success(detail)
+            }
             is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
         }
     }
@@ -129,7 +148,11 @@ class BrowseRepository(
     suspend fun getFavorites(): Result<FavoritesBundle> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
         return when (val result = sessionClient.client.getStarred2()) {
-            is NetworkResult.Success -> Result.success(result.data.toFavoritesBundle().withArtwork(sessionClient.session))
+            is NetworkResult.Success -> {
+                val favorites = result.data.toFavoritesBundle().withArtwork(sessionClient.session)
+                favoriteStore.seedFavoritesSnapshot(sessionClient.session, favorites.tracks)
+                Result.success(favorites)
+            }
             is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
         }
     }
@@ -137,7 +160,11 @@ class BrowseRepository(
     suspend fun search(query: String): Result<SearchBundle> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
         return when (val result = sessionClient.client.search(query)) {
-            is NetworkResult.Success -> Result.success(result.data.toBundle().withArtwork(sessionClient.session))
+            is NetworkResult.Success -> {
+                val bundle = result.data.toBundle().withArtwork(sessionClient.session)
+                favoriteStore.seed(sessionClient.session, bundle.tracks)
+                Result.success(bundle)
+            }
             is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
         }
     }
@@ -170,6 +197,7 @@ class BrowseRepository(
 
     private suspend fun requireSessionClient(): Result<SessionClient> {
         val session = requireSession() ?: return Result.failure(IllegalStateException("Not logged in"))
+        favoriteStore.synchronizeSession(session)
         return clientOrFailure(session).map { client ->
             SessionClient(session = session, client = client)
         }
@@ -187,6 +215,12 @@ class BrowseRepository(
             when (val result = sessionClient.client.getPlaylist(playlistId)) {
                 is NetworkResult.Success ->
                     result.data.entry
+                        .also { tracks ->
+                            favoriteStore.seed(
+                                sessionClient.session,
+                                tracks.map { it.toTrack() },
+                            )
+                        }
                         .mapNotNull { track -> coverArtUrl(sessionClient.session, track.coverArt) }
                         .distinct()
                         .take(4)

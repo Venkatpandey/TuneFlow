@@ -1,9 +1,17 @@
 package com.tuneflow.core.network
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MappersTest {
+    @Test
+    fun songStarred_isMappedToFavoriteBoolean() {
+        val track = SongDto(id = "song-1", title = "Song", starred = "2026-09-10T08:00:00Z").toTrack()
+
+        assertTrue(track.isFavorite)
+    }
+
     @Test
     fun songToTrack_fillsMissingFields() {
         val dto =

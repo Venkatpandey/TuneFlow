@@ -69,6 +69,7 @@ data class SongDto(
     @SerializedName("coverArt") val coverArt: String? = null,
     val contentType: String? = null,
     val suffix: String? = null,
+    val starred: String? = null,
 )
 
 data class PlaylistsResponse(
@@ -354,6 +355,28 @@ interface NavidromeApi {
         @Query("id") trackId: String,
         @Query("time") startedAtEpochMs: Long,
         @Query("submission") submission: Boolean = true,
+        @Query("u") username: String,
+        @Query("t") token: String,
+        @Query("s") salt: String,
+        @Query("v") version: String = API_VERSION,
+        @Query("c") client: String = CLIENT_NAME,
+        @Query("f") format: String = FORMAT,
+    ): SubsonicEnvelope<BaseResponse>
+
+    @GET("rest/star.view")
+    suspend fun star(
+        @Query("id") trackId: String,
+        @Query("u") username: String,
+        @Query("t") token: String,
+        @Query("s") salt: String,
+        @Query("v") version: String = API_VERSION,
+        @Query("c") client: String = CLIENT_NAME,
+        @Query("f") format: String = FORMAT,
+    ): SubsonicEnvelope<BaseResponse>
+
+    @GET("rest/unstar.view")
+    suspend fun unstar(
+        @Query("id") trackId: String,
         @Query("u") username: String,
         @Query("t") token: String,
         @Query("s") salt: String,

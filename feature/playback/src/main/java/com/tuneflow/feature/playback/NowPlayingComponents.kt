@@ -49,8 +49,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
+import com.tuneflow.core.design.TrackFavoriteButton
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.network.TrackFavoriteState
 import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.QueueItem
 import com.tuneflow.feature.video.VideoActionButton
@@ -109,11 +111,13 @@ internal fun NowPlayingPrimaryColumn(
     hasLyrics: Boolean,
     videoPreferred: Boolean,
     videoPreferenceEnabled: Boolean,
+    favoriteState: TrackFavoriteState,
     onCycleStreamMode: () -> Unit,
     onToggleQueue: () -> Unit,
     onToggleLyrics: () -> Unit,
     onVideoAction: () -> Unit,
     onToggleVideoPreference: () -> Unit,
+    onToggleFavorite: () -> Unit,
     onEnterFullscreen: () -> Unit,
     onStopVideo: () -> Unit,
     onVideoViewportBoundsChanged: (IntRect?) -> Unit,
@@ -159,6 +163,7 @@ internal fun NowPlayingPrimaryColumn(
             hasLyrics = hasLyrics,
             videoPreferred = videoPreferred,
             videoPreferenceEnabled = videoPreferenceEnabled,
+            favoriteState = favoriteState,
             videoState = videoState,
             videoEnabled = item != null,
             onCycleStreamMode = onCycleStreamMode,
@@ -168,6 +173,7 @@ internal fun NowPlayingPrimaryColumn(
             onToggleLyrics = onToggleLyrics,
             onVideoAction = onVideoAction,
             onToggleVideoPreference = onToggleVideoPreference,
+            onToggleFavorite = onToggleFavorite,
             playbackMode = state.playbackMode,
             onCyclePlaybackMode = onCyclePlaybackMode,
             autoFocusQueue = autoFocusQueue,
@@ -375,6 +381,7 @@ internal fun StreamControlRow(
     videoEnabled: Boolean,
     videoPreferred: Boolean,
     videoPreferenceEnabled: Boolean,
+    favoriteState: TrackFavoriteState,
     playbackMode: PlaybackMode,
     onCycleStreamMode: () -> Unit,
     autoFocusStreamMode: Boolean,
@@ -383,6 +390,7 @@ internal fun StreamControlRow(
     onToggleLyrics: () -> Unit,
     onVideoAction: () -> Unit,
     onToggleVideoPreference: () -> Unit,
+    onToggleFavorite: () -> Unit,
     onCyclePlaybackMode: () -> Unit,
     autoFocusQueue: Boolean,
     autoFocusLyrics: Boolean,
@@ -402,6 +410,12 @@ internal fun StreamControlRow(
         PlaybackModeIconButton(
             playbackMode = playbackMode,
             onClick = onCyclePlaybackMode,
+        )
+        TrackFavoriteButton(
+            isFavorite = favoriteState.isFavorite,
+            isPending = favoriteState.isPending,
+            onClick = onToggleFavorite,
+            modifier = Modifier.size(44.dp),
         )
         QueueToggleIconButton(
             active = activePanel == NowPlayingPanel.TrackList,

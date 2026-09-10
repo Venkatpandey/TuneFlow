@@ -271,6 +271,48 @@ open class NavidromeClient(private val session: SessionData) {
         }
     }
 
+    open suspend fun star(trackId: String): NetworkResult<Unit> {
+        return safeCall {
+            val response =
+                api.star(
+                    trackId = trackId,
+                    username = session.username,
+                    token = session.token,
+                    salt = session.salt,
+                ).response
+
+            if (response.status != "ok") {
+                NetworkResult.Error(
+                    message = response.error?.message ?: "Failed to favorite track.",
+                    code = response.error?.code,
+                )
+            } else {
+                NetworkResult.Success(Unit)
+            }
+        }
+    }
+
+    open suspend fun unstar(trackId: String): NetworkResult<Unit> {
+        return safeCall {
+            val response =
+                api.unstar(
+                    trackId = trackId,
+                    username = session.username,
+                    token = session.token,
+                    salt = session.salt,
+                ).response
+
+            if (response.status != "ok") {
+                NetworkResult.Error(
+                    message = response.error?.message ?: "Failed to unfavorite track.",
+                    code = response.error?.code,
+                )
+            } else {
+                NetworkResult.Success(Unit)
+            }
+        }
+    }
+
     open fun streamOptions(trackId: String): TrackStreamOptions {
         val base =
             "${session.serverUrl}/rest/stream.view" +

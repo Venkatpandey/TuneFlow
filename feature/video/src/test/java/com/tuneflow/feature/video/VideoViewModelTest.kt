@@ -67,10 +67,10 @@ class VideoViewModelTest {
         }
 
     @Test
-    fun ambiguousSearchRequiresManualSelectionAndReturnsUpToTwentyFiveMatches() =
+    fun ambiguousSearchFiltersAllMatchesThenReturnsTopFifty() =
         runTest {
             val audio = VideoViewModelFakeAudio()
-            val nativeBackend = FakeNativeBackend(resultCount = 30)
+            val nativeBackend = FakeNativeBackend(resultCount = 60, excludedResultCount = 20)
             val viewModel = createViewModel(audio, backgroundScope, nativeBackend)
             runCurrent()
 
@@ -78,7 +78,8 @@ class VideoViewModelTest {
             runCurrent()
 
             val state = viewModel.uiState.value as VideoUiState.Candidates
-            assertEquals(25, state.candidates.size)
+            assertEquals(50, state.candidates.size)
+            assertTrue(state.candidates.none { "cover" in it.title })
             assertEquals(0, audio.pauseCalls)
         }
 
@@ -627,6 +628,7 @@ private class FakeNativeBackend(
     override val player: NativeVideoPlayer = FakeNativePlayer(),
     private val searchDelayMs: Long = 0L,
     private val resultCount: Int = 2,
+    private val excludedResultCount: Int = 0,
 ) : NativeVideoBackend {
     var cancelled = false
     var searchCalls = 0
@@ -639,7 +641,9 @@ private class FakeNativeBackend(
             cancelled = true
             throw error
         }
-        return List(resultCount) { index -> nativeCandidate(index.toString(), query) }
+        return List(excludedResultCount) { index ->
+            nativeCandidate("excluded-$index", query).copy(title = "${query.artist} ${query.title} cover")
+        } + List(resultCount) { index -> nativeCandidate(index.toString(), query) }
     }
 
     private fun nativeCandidate(

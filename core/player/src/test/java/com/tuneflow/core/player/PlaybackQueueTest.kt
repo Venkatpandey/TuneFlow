@@ -1,6 +1,8 @@
 package com.tuneflow.core.player
 
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -53,5 +55,16 @@ class PlaybackQueueTest {
         assertNull(queue.currentItem)
         assertEquals(0, queue.currentIndex)
         assertNull(queue.sourcePlaylistName)
+    }
+
+    @Test
+    fun favoriteFlag_isNotPersistedAsLocalCache() {
+        val queue = PlaybackQueue(items = listOf(items.first().copy(isFavorite = true)))
+
+        val encoded = Json.encodeToString(PlaybackQueue.serializer(), queue)
+        val restored = Json.decodeFromString(PlaybackQueue.serializer(), encoded)
+
+        assertFalse(encoded.contains("isFavorite"))
+        assertFalse(requireNotNull(restored.currentItem).isFavorite)
     }
 }

@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.network.ScreenScaleOption
+import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.QueueItem
 import com.tuneflow.feature.playback.Lyrics
@@ -85,6 +86,7 @@ internal fun TuneFlowShellLayout(
     screensaverActive: Boolean,
     lyricsState: LyricsUiState,
     homeViewModel: HomeViewModel,
+    favoriteStore: TrackFavoriteStore,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel,
     albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
@@ -120,6 +122,7 @@ internal fun TuneFlowShellLayout(
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
     showExitPrompt: Boolean,
+    favoriteErrorMessage: String?,
 ) {
     val videoSurfacePlayer by videoViewModel.surfacePlayer.collectAsState()
     var videoViewportBounds by remember { mutableStateOf<IntRect?>(null) }
@@ -212,6 +215,7 @@ internal fun TuneFlowShellLayout(
                                 playbackQueue = playbackQueue,
                                 playbackPositionMs = playbackPositionMs,
                                 homeViewModel = homeViewModel,
+                                favoriteStore = favoriteStore,
                                 albumsViewModel = albumsViewModel,
                                 homeCategoryViewModel = homeCategoryViewModel,
                                 albumDetailViewModel = albumDetailViewModel,
@@ -254,6 +258,14 @@ internal fun TuneFlowShellLayout(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 28.dp),
+        )
+
+        FavoriteFeedbackBanner(
+            message = favoriteErrorMessage,
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = if (showExitPrompt) 84.dp else 28.dp),
         )
 
         if (screensaverActive) {

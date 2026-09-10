@@ -821,5 +821,5 @@ private enum class DisclosureAction {
     EnableVideoPreferred,
 }
 
-private const val YOUTUBE_SEARCH_RESULT_LIMIT = 25
+private const val YOUTUBE_SEARCH_RESULT_LIMIT = 50
 private const val VIDEO_LOG_TAG = "TuneFlowVideo"

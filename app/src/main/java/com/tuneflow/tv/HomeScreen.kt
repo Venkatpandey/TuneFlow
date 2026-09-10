@@ -57,6 +57,8 @@ import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.ArtistSummary
 import com.tuneflow.core.network.FavoritesBundle
 import com.tuneflow.core.network.PlaylistSummary
+import com.tuneflow.core.network.TrackFavoriteState
+import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.network.TrackSummary
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.feature.browse.BrowseFocusTarget
@@ -69,6 +71,7 @@ import android.view.KeyEvent as AndroidKeyEvent
 @Suppress("CyclomaticComplexMethod")
 fun HomeScreen(
     viewModel: HomeViewModel,
+    favoriteStore: TrackFavoriteStore,
     playbackQueue: PlaybackQueue,
     focusRestoreTarget: BrowseFocusTarget? = null,
     onFocusRestoreConsumed: () -> Unit = {},
@@ -87,6 +90,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val favoriteStates by favoriteStore.states.collectAsStateWithLifecycle()
     val homeListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val videoHistoryRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val favoritesRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
@@ -95,6 +99,14 @@ fun HomeScreen(
     val playlistsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val restoredItemFocusRequester = remember { FocusRequester() }
     var showPreferredVideoServiceDialog by rememberSaveable { mutableStateOf(false) }
+    val visibleFavorites =
+        state.favorites.copy(
+            tracks =
+                state.favorites.tracks.filter { track ->
+                    val favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false)
+                    favoriteState.isFavorite || favoriteState.isPending
+                },
+        )
 
     LaunchedEffect(focusRestoreTarget, state) {
         val target = focusRestoreTarget ?: return@LaunchedEffect
@@ -162,11 +174,11 @@ fun HomeScreen(
             }
         }
 
-        if (state.favorites.albums.isNotEmpty() || state.favorites.tracks.isNotEmpty()) {
+        if (visibleFavorites.albums.isNotEmpty() || visibleFavorites.tracks.isNotEmpty()) {
             item { SectionHeading("Favorites") }
             item {
                 FavoriteRail(
-                    favorites = state.favorites,
+                    favorites = visibleFavorites,
                     listState = favoritesRowState,
                     focusRestoreTarget = focusRestoreTarget,
                     restoredItemFocusRequester = restoredItemFocusRequester,

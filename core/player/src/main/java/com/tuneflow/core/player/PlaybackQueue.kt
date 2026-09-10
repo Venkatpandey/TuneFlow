@@ -1,6 +1,7 @@
 package com.tuneflow.core.player
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 const val FLAC_AUDIO_MIME_TYPE = "audio/flac"
 const val MPEG_AUDIO_MIME_TYPE = "audio/mpeg"
@@ -20,6 +21,7 @@ data class QueueItem(
     val streamMimeType: String? = null,
     val directStreamMimeType: String? = null,
     val directStreamFormatLabel: String = "FLAC",
+    @Transient val isFavorite: Boolean = false,
 )
 
 @Serializable

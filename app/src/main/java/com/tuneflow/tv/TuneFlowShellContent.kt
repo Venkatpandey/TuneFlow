@@ -3,6 +3,7 @@ package com.tuneflow.tv
 import androidx.compose.animation.Crossfade
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.IntRect
+import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.feature.browse.AlbumDetailScreen
 import com.tuneflow.feature.browse.AlbumsScreen
@@ -20,6 +21,7 @@ internal fun ShellContent(
     playbackQueue: PlaybackQueue,
     playbackPositionMs: Long,
     homeViewModel: HomeViewModel,
+    favoriteStore: TrackFavoriteStore,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel,
     albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
@@ -56,6 +58,7 @@ internal fun ShellContent(
                 NowPlayingScreen(
                     viewModel = playbackViewModel,
                     videoViewModel = videoViewModel,
+                    favoriteStore = favoriteStore,
                     lyricsPositionMs = playbackPositionMs,
                     streamModeLabel = streamModeLabel,
                     onCycleStreamMode = onCycleStreamMode,
@@ -68,6 +71,7 @@ internal fun ShellContent(
                 AlbumDetailScreen(
                     albumId = targetScreen.albumId,
                     viewModel = albumDetailViewModel,
+                    favoriteStore = favoriteStore,
                     onPlayAlbum = onPlayTracks,
                     onShuffleAlbum = onShuffleTracks,
                 )
@@ -84,6 +88,7 @@ internal fun ShellContent(
             ShellDestination.Home -> {
                 HomeScreen(
                     viewModel = homeViewModel,
+                    favoriteStore = favoriteStore,
                     playbackQueue = playbackQueue,
                     focusRestoreTarget = focusRestoreTarget,
                     onFocusRestoreConsumed = onFocusRestoreConsumed,
@@ -111,6 +116,7 @@ internal fun ShellContent(
                 HomeCategoryScreen(
                     category = targetScreen.category,
                     viewModel = homeCategoryViewModel,
+                    favoriteStore = favoriteStore,
                     focusRestoreTarget = focusRestoreTarget,
                     onFocusRestoreConsumed = onFocusRestoreConsumed,
                     onOpenArtist = onOpenArtist,
@@ -130,6 +136,7 @@ internal fun ShellContent(
             ShellDestination.Playlists -> {
                 PlaylistsScreen(
                     viewModel = playlistsViewModel,
+                    favoriteStore = favoriteStore,
                     preselectedPlaylistId = preselectedPlaylistId,
                     onPreselectedPlaylistConsumed = onPreselectedPlaylistConsumed,
                     currentTrackId = playbackQueue.currentItem?.id,
@@ -140,6 +147,7 @@ internal fun ShellContent(
             ShellDestination.Search -> {
                 SearchScreen(
                     viewModel = searchViewModel,
+                    favoriteStore = favoriteStore,
                     focusRestoreTarget = focusRestoreTarget,
                     onFocusRestoreConsumed = onFocusRestoreConsumed,
                     onOpenArtist = onOpenArtist,

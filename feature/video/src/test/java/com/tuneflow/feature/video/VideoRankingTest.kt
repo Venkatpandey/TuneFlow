@@ -100,6 +100,76 @@ class VideoRankingTest {
         assertEquals("artist", ranked.first().videoId)
     }
 
+    @Test
+    fun officialArtistVideoWithManyViewsWinsForNoisyAudioTitle() {
+        val noisyQuery = query.copy(title = "Enjoy the Silence (2011 Remastered) [Explicit]")
+        val ranked =
+            VideoCandidateRanker.rank(
+                noisyQuery,
+                listOf(
+                    candidate(
+                        "fan",
+                        "Depeche Mode - Enjoy the Silence",
+                        "Classic Music Uploads",
+                        250_000L,
+                        950_000_000L,
+                    ),
+                    candidate(
+                        "artist-official",
+                        "Depeche Mode - Enjoy the Silence (Official Music Video)",
+                        "DepecheModeVEVO",
+                        251_000L,
+                        860_000_000L,
+                    ),
+                ),
+            )
+
+        assertEquals("artist-official", ranked.first().videoId)
+        assertEquals("enjoy the silence", normalizeTrackTitleForMatching(noisyQuery.title))
+    }
+
+    @Test
+    fun anyCreditedArtistChannelCanBeTheOfficialPublisher() {
+        val collaboration = query.copy(artist = "Artist One feat. Artist Two", title = "Shared Song")
+        val ranked =
+            VideoCandidateRanker.rank(
+                collaboration,
+                listOf(
+                    candidate(
+                        "fan",
+                        "Artist One Artist Two - Shared Song (Official Music Video)",
+                        "Fan Archive",
+                        250_000L,
+                        900_000_000L,
+                    ),
+                    candidate(
+                        "second-artist",
+                        "Artist One & Artist Two - Shared Song [Official Video]",
+                        "ArtistTwoVEVO",
+                        250_000L,
+                        400_000_000L,
+                    ),
+                ),
+            )
+
+        assertEquals(listOf("artist one feat artist two", "artist one", "artist two"), videoArtistAliases(collaboration.artist))
+        assertEquals("second-artist", ranked.first().videoId)
+    }
+
+    @Test
+    fun unrelatedPopularVideoIsRejected() {
+        val ranked =
+            VideoCandidateRanker.rank(
+                query,
+                listOf(
+                    candidate("unrelated", "Completely Different Hit", "DepecheModeVEVO", 250_000L, 9_000_000_000L),
+                    candidate("match", "Enjoy the Silence (Official Music Video)", "Depeche Mode", 250_000L, 1_000_000L),
+                ),
+            )
+
+        assertEquals(listOf("match"), ranked.map(VideoCandidate::videoId))
+    }
+
     private fun candidate(
         id: String,
         title: String,
