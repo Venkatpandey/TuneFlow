@@ -11,19 +11,21 @@ import org.junit.Test
 
 class YouTubeNativeLogicTest {
     @Test
-    fun collectsEveryAvailableSearchContinuation() {
+    fun collectsSearchContinuationsUpToPageBudget() {
         val first = FakeMediaGroup("page-2")
         val second = FakeMediaGroup("page-3")
-        val third = FakeMediaGroup(null)
+        val third = FakeMediaGroup("page-4")
+        val fourth = FakeMediaGroup(null)
         val requestedPageKeys = mutableListOf<String>()
 
         val groups =
-            collectSmartTubeSearchGroups(listOf(first)) { group ->
+            collectSmartTubeSearchGroups(listOf(first), maximumPagesPerGroup = 3) { group ->
                 val pageKey = group.nextPageKey
                 if (pageKey != null) requestedPageKeys += pageKey
                 when (pageKey) {
                     "page-2" -> second
                     "page-3" -> third
+                    "page-4" -> fourth
                     else -> null
                 }
             }
@@ -39,13 +41,31 @@ class YouTubeNativeLogicTest {
         var continuationCalls = 0
 
         val groups =
-            collectSmartTubeSearchGroups(listOf(first)) {
+            collectSmartTubeSearchGroups(listOf(first), maximumPagesPerGroup = 3) {
                 continuationCalls += 1
                 repeated
             }
 
         assertEquals(listOf(first, repeated), groups)
         assertEquals(1, continuationCalls)
+    }
+
+    @Test
+    fun buildsFocusedOfficialVideoQueryWithoutAudioMetadata() {
+        assertEquals(
+            "Depeche Mode Enjoy the Silence official music video",
+            buildSmartTubeVideoSearchQuery(
+                artist = "Depeche Mode",
+                title = "Enjoy the Silence (2011 Remastered) [Explicit]",
+            ),
+        )
+        assertEquals(
+            "Artist Song official music video",
+            buildSmartTubeVideoSearchQuery(
+                artist = "Artist",
+                title = "Song - 2009 Remaster (feat. Guest)",
+            ),
+        )
     }
 
     @Test
