@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.network.PlaylistFavoriteStore
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.player.PlaybackQueue
@@ -87,6 +88,7 @@ internal fun TuneFlowShellLayout(
     lyricsState: LyricsUiState,
     homeViewModel: HomeViewModel,
     favoriteStore: TrackFavoriteStore,
+    playlistFavoriteStore: PlaylistFavoriteStore,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel,
     albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
@@ -117,8 +119,8 @@ internal fun TuneFlowShellLayout(
     onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
-    onPlayPlaylistTracks: (String, List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
-    onShufflePlaylistTracks: (String, List<com.tuneflow.core.network.TrackSummary>) -> Unit,
+    onPlayPlaylistTracks: (String, String, List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
+    onShufflePlaylistTracks: (String, String, List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
     showExitPrompt: Boolean,
@@ -216,6 +218,7 @@ internal fun TuneFlowShellLayout(
                                 playbackPositionMs = playbackPositionMs,
                                 homeViewModel = homeViewModel,
                                 favoriteStore = favoriteStore,
+                                playlistFavoriteStore = playlistFavoriteStore,
                                 albumsViewModel = albumsViewModel,
                                 homeCategoryViewModel = homeCategoryViewModel,
                                 albumDetailViewModel = albumDetailViewModel,

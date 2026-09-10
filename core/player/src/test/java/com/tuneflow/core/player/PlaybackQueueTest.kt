@@ -22,11 +22,19 @@ class PlaybackQueueTest {
     }
 
     @Test
-    fun replace_keepsPlaylistNameAcrossQueueNavigation() {
-        val queue = PlaybackQueue().replace(items, sourcePlaylistName = "Evening Mix")
+    fun replace_keepsPlaylistIdentityAcrossQueueNavigation() {
+        val queue =
+            PlaybackQueue().replace(
+                items,
+                sourcePlaylistId = "playlist-1",
+                sourcePlaylistName = "Evening Mix",
+            )
 
+        assertEquals("playlist-1", queue.sourcePlaylistId)
         assertEquals("Evening Mix", queue.sourcePlaylistName)
+        assertEquals("playlist-1", queue.next().sourcePlaylistId)
         assertEquals("Evening Mix", queue.next().sourcePlaylistName)
+        assertEquals("playlist-1", queue.next().previous().sourcePlaylistId)
         assertEquals("Evening Mix", queue.next().previous().sourcePlaylistName)
     }
 
@@ -50,10 +58,12 @@ class PlaybackQueueTest {
             PlaybackQueue(
                 items = items,
                 currentIndex = 1,
+                sourcePlaylistId = "playlist-1",
                 sourcePlaylistName = "Evening Mix",
             ).replace(emptyList())
         assertNull(queue.currentItem)
         assertEquals(0, queue.currentIndex)
+        assertNull(queue.sourcePlaylistId)
         assertNull(queue.sourcePlaylistName)
     }
 

@@ -5,6 +5,7 @@ import com.tuneflow.core.network.NavidromeClientProvider
 import com.tuneflow.core.network.NetworkResult
 import com.tuneflow.core.network.PlaylistDetailDto
 import com.tuneflow.core.network.PlaylistDto
+import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.core.network.SessionData
 import com.tuneflow.core.network.SessionProvider
 import kotlinx.coroutines.CompletableDeferred
@@ -55,6 +56,55 @@ class PlaylistsViewModelTest {
             assertNull(viewModel.uiState.value.selectedPlaylistId)
             assertNull(viewModel.uiState.value.selected)
         }
+
+    @Test
+    fun playlistRowsForDisplay_filtersByNameAndFavorites() {
+        val playlists = playlists()
+
+        val result =
+            playlistRowsForDisplay(
+                playlists = playlists,
+                query = "focus",
+                favoritePlaylistIds = setOf("playlist-2", "playlist-3"),
+                favoritesOnly = true,
+                currentPlaylistId = null,
+            )
+
+        assertEquals(listOf("playlist-3"), result.map { it.id })
+    }
+
+    @Test
+    fun playlistRowsForDisplay_putsCurrentPlaylistFirst() {
+        val result =
+            playlistRowsForDisplay(
+                playlists = playlists(),
+                query = "",
+                favoritePlaylistIds = emptySet(),
+                favoritesOnly = false,
+                currentPlaylistId = "playlist-3",
+            )
+
+        assertEquals(listOf("playlist-3", "playlist-1", "playlist-2"), result.map { it.id })
+    }
+
+    @Test
+    fun resolveCurrentPlaylistId_fallsBackToLegacyPlaylistName() {
+        val result =
+            resolveCurrentPlaylistId(
+                playlists = playlists(),
+                currentPlaylistId = null,
+                currentPlaylistName = " deep focus ",
+            )
+
+        assertEquals("playlist-3", result)
+    }
+
+    private fun playlists(): List<PlaylistSummary> =
+        listOf(
+            PlaylistSummary(id = "playlist-1", name = "Morning Mix", songCount = 10, durationSec = 1_800),
+            PlaylistSummary(id = "playlist-2", name = "Workout", songCount = 20, durationSec = 3_600),
+            PlaylistSummary(id = "playlist-3", name = "Deep Focus", songCount = 30, durationSec = 5_400),
+        )
 
     private fun playlistRepository(detailResponse: CompletableDeferred<NetworkResult<PlaylistDetailDto>>): BrowseRepository {
         val session = SessionData("https://demo", "user", "token", "salt")
