@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,14 +55,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tuneflow.core.design.HorizontalFocusDirection
+import com.tuneflow.core.design.TrackFavoriteButton
+import com.tuneflow.core.design.TrackRowFocusTarget
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.design.trackRowFocusDestination
+import com.tuneflow.core.network.TrackFavoriteState
+import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.feature.video.VideoCandidatePicker
 import com.tuneflow.feature.video.VideoDisclosureOverlay
 import com.tuneflow.feature.video.VideoUiState
 import com.tuneflow.feature.video.VideoViewModel
 import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
@@ -69,6 +77,7 @@ import android.view.KeyEvent as AndroidKeyEvent
 fun NowPlayingScreen(
     viewModel: PlaybackViewModel,
     videoViewModel: VideoViewModel,
+    favoriteStore: TrackFavoriteStore,
     lyricsPositionMs: Long,
     streamModeLabel: String,
     onCycleStreamMode: () -> Unit,
@@ -81,7 +90,12 @@ fun NowPlayingScreen(
     val lyricsState by viewModel.lyricsState.collectAsStateWithLifecycle()
     val videoState by videoViewModel.uiState.collectAsStateWithLifecycle()
     val videoPreferred by videoViewModel.videoPreferred.collectAsStateWithLifecycle()
+    val favoriteStates by favoriteStore.states.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     val item = state.queue.currentItem
+    val currentFavoriteState =
+        item?.let { favoriteStates[it.id] ?: TrackFavoriteState(isFavorite = false) }
+            ?: TrackFavoriteState(isFavorite = false)
     val availableLyrics =
         (lyricsState as? LyricsUiState.Available)
             ?.takeIf { it.trackId == item?.id }
@@ -202,6 +216,7 @@ fun NowPlayingScreen(
                 hasLyrics = availableLyrics != null,
                 videoPreferred = videoPreferred,
                 videoPreferenceEnabled = !state.queue.sourcePlaylistName.isNullOrBlank(),
+                favoriteState = currentFavoriteState,
                 onCycleStreamMode = onCycleStreamMode,
                 onToggleQueue = {
                     activePanel = toggleNowPlayingPanel(activePanel, NowPlayingPanel.TrackList)
@@ -223,6 +238,9 @@ fun NowPlayingScreen(
                     clearRequestedFocus()
                 },
                 onToggleVideoPreference = videoViewModel::toggleVideoPreferredMode,
+                onToggleFavorite = {
+                    item?.let { track -> scope.launch { favoriteStore.toggle(track.id) } }
+                },
                 onEnterFullscreen = videoViewModel::enterFullscreen,
                 onStopVideo = videoViewModel::stopVideo,
                 onVideoViewportBoundsChanged = onVideoViewportBoundsChanged,
@@ -270,6 +288,8 @@ fun NowPlayingScreen(
                             playlistName = state.queue.sourcePlaylistName,
                             state = state,
                             onSelectTrack = viewModel::playFromIndex,
+                            favoriteStates = favoriteStates,
+                            onToggleFavorite = { trackId -> scope.launch { favoriteStore.toggle(trackId) } },
                             onQueueExit = ::closeQueue,
                             onFocusedIndexChanged = { focusedQueueIndex = it },
                             preferredExitTarget =
@@ -448,6 +468,8 @@ private fun QueuePanel(
     playlistName: String?,
     state: NowPlayingUiState,
     onSelectTrack: (Int) -> Unit,
+    favoriteStates: Map<String, TrackFavoriteState>,
+    onToggleFavorite: (String) -> Unit,
     onQueueExit: (QueueExitTarget) -> Unit,
     onFocusedIndexChanged: (Int) -> Unit,
     preferredExitTarget: QueueExitTarget,
@@ -479,17 +501,6 @@ private fun QueuePanel(
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
                     shape = TuneFlowShapes.panel,
                 )
-                .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    when (event.nativeKeyEvent.keyCode) {
-                        AndroidKeyEvent.KEYCODE_DPAD_LEFT,
-                        -> {
-                            onQueueExit(preferredExitTarget)
-                            true
-                        }
-                        else -> false
-                    }
-                }
                 .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -513,23 +524,21 @@ private fun QueuePanel(
         ) {
             itemsIndexed(state.queue.items, key = { _, track -> track.id }) { index, track ->
                 QueueRow(
+                    trackId = track.id,
                     title = track.title,
                     subtitle = track.artist,
                     isCurrent = index == currentIndex,
+                    favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
                     onClick = { onSelectTrack(index) },
+                    onToggleFavorite = { onToggleFavorite(track.id) },
+                    onExitLeft = { onQueueExit(preferredExitTarget) },
                     onFocused = { onFocusedIndexChanged(index) },
+                    externalRowFocusRequester = currentFocusRequester.takeIf { index == currentIndex },
                     modifier =
                         Modifier
                             .boundaryLockedVerticalItem(
                                 index = index,
                                 lastIndex = state.queue.items.lastIndex,
-                            )
-                            .then(
-                                if (index == currentIndex) {
-                                    Modifier.focusRequester(currentFocusRequester)
-                                } else {
-                                    Modifier
-                                },
                             ),
                 )
             }
@@ -538,77 +547,140 @@ private fun QueuePanel(
 }
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 private fun QueueRow(
+    trackId: String,
     title: String,
     subtitle: String,
     isCurrent: Boolean,
+    favoriteState: TrackFavoriteState,
     onClick: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onExitLeft: () -> Unit,
     onFocused: () -> Unit,
+    externalRowFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val rowFocusRequester = remember(trackId) { FocusRequester() }
+    val favoriteFocusRequester = remember(trackId) { FocusRequester() }
 
-    Box(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .scale(if (focused) 1.01f else 1f)
-                .clip(TuneFlowShapes.row)
-                .background(
-                    when {
-                        focused -> MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-                        isCurrent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f)
-                    },
-                )
-                .border(
-                    width = if (focused || isCurrent) 2.dp else 1.dp,
-                    color =
-                        when {
-                            focused || isCurrent -> MaterialTheme.colorScheme.primary
-                            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
-                        },
-                    shape = TuneFlowShapes.row,
-                )
-                .onFocusChanged {
-                    focused = it.hasFocus
-                    if (it.hasFocus) onFocused()
-                }
-                .focusable()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Box(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .focusRequester(rowFocusRequester)
+                    .then(externalRowFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                    .scale(if (focused) 1.01f else 1f)
+                    .clip(TuneFlowShapes.row)
+                    .background(
+                        when {
+                            focused -> MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                            isCurrent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f)
+                        },
+                    )
+                    .border(
+                        width = if (focused || isCurrent) 2.dp else 1.dp,
+                        color =
+                            when {
+                                focused || isCurrent -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
+                            },
+                        shape = TuneFlowShapes.row,
+                    )
+                    .onFocusChanged {
+                        focused = it.hasFocus
+                        if (it.hasFocus) onFocused()
+                    }
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when (event.nativeKeyEvent.keyCode) {
+                            AndroidKeyEvent.KEYCODE_DPAD_LEFT -> {
+                                onExitLeft()
+                                true
+                            }
+                            AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                if (
+                                    trackRowFocusDestination(
+                                        TrackRowFocusTarget.RowBody,
+                                        HorizontalFocusDirection.Right,
+                                    ) == TrackRowFocusTarget.FavoriteButton
+                                ) {
+                                    favoriteFocusRequester.requestFocus()
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            else -> false
+                        }
+                    }
+                    .focusable()
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
-            if (isCurrent) {
-                Image(
-                    painter = painterResource(id = R.drawable.currently_playing),
-                    contentDescription = "Currently playing",
-                    modifier = Modifier.size(18.dp),
-                    contentScale = ContentScale.Fit,
-                )
-            } else {
-                Spacer(modifier = Modifier.size(18.dp))
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (isCurrent) {
+                    Image(
+                        painter = painterResource(id = R.drawable.currently_playing),
+                        contentDescription = "Currently playing",
+                        modifier = Modifier.size(18.dp),
+                        contentScale = ContentScale.Fit,
+                    )
+                } else {
+                    Spacer(modifier = Modifier.size(18.dp))
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
+        TrackFavoriteButton(
+            isFavorite = favoriteState.isFavorite,
+            isPending = favoriteState.isPending,
+            onClick = onToggleFavorite,
+            modifier =
+                Modifier
+                    .focusRequester(favoriteFocusRequester)
+                    .onFocusChanged { if (it.hasFocus) onFocused() }
+                    .onPreviewKeyEvent { event ->
+                        if (
+                            event.type == KeyEventType.KeyDown &&
+                            event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT &&
+                            trackRowFocusDestination(
+                                TrackRowFocusTarget.FavoriteButton,
+                                HorizontalFocusDirection.Left,
+                            ) == TrackRowFocusTarget.RowBody
+                        ) {
+                            rowFocusRequester.requestFocus()
+                            true
+                        } else {
+                            false
+                        }
+                    },
+        )
     }
 }
 

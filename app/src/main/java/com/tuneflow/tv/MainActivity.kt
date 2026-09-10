@@ -26,10 +26,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tuneflow.core.network.DataStoreSessionProvider
 import com.tuneflow.core.network.PlaybackPreferencesStore
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
+import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.network.TrackStreamOptions
 import com.tuneflow.core.player.FLAC_AUDIO_MIME_TYPE
 import com.tuneflow.core.player.MPEG_AUDIO_MIME_TYPE
@@ -50,6 +52,7 @@ import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -78,7 +81,8 @@ class MainActivity : ComponentActivity() {
             PreferredVideoServiceConfigStore(applicationContext, BuildConfig.PREFERRED_VIDEO_SERVICE_URL)
         val preferredVideoStore = RemotePreferredVideoStore(preferredVideoServiceConfigStore.serviceUrl)
         val authRepository = AuthRepository(sessionStore)
-        val browseRepository = BrowseRepository(sessionStore)
+        val favoriteStore = TrackFavoriteStore(DataStoreSessionProvider(sessionStore))
+        val browseRepository = BrowseRepository(sessionStore, favoriteStore)
         val lyricsRepository = LyricsRepository(sessionStore)
         val scrobbleReporter = NavidromeScrobbleReporter(sessionStore)
         playerManager = PlayerGraph.get(applicationContext)
@@ -100,6 +104,11 @@ class MainActivity : ComponentActivity() {
                         factory = authViewModelFactory(authRepository, sessionStore),
                     )
                 val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+                LaunchedEffect(authState.isLoggedIn) {
+                    favoriteStore.synchronizeSession(
+                        if (authState.isLoggedIn) sessionStore.sessionFlow.first() else null,
+                    )
+                }
                 val screenScaleOption = ScreenScaleOption.Compact
                 var preferredVideoServiceUrl by remember {
                     mutableStateOf(preferredVideoServiceConfigStore.serviceUrl)
@@ -115,6 +124,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     TuneFlowShell(
                         browseRepository = browseRepository,
+                        favoriteStore = favoriteStore,
                         playerManager = playerManager,
                         sessionStore = sessionStore,
                         playbackPreferencesStore = playbackPreferencesStore,
@@ -281,6 +291,7 @@ internal fun com.tuneflow.core.network.TrackSummary.toQueueItem(
         streamMimeType = if (preferDirectWithFallback) directMimeType else MPEG_AUDIO_MIME_TYPE,
         directStreamMimeType = directMimeType,
         directStreamFormatLabel = directFormatLabel,
+        isFavorite = isFavorite,
     )
 }
 
@@ -435,6 +446,7 @@ private fun ObserveVideoLifecycle(videoViewModel: VideoViewModel) {
 @Composable
 private fun TuneFlowShell(
     browseRepository: BrowseRepository,
+    favoriteStore: TrackFavoriteStore,
     playerManager: com.tuneflow.core.player.TvPlayerManager,
     sessionStore: SessionStore,
     playbackPreferencesStore: PlaybackPreferencesStore,
@@ -478,6 +490,7 @@ private fun TuneFlowShell(
     val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
     val lyricsState by playbackViewModel.lyricsState.collectAsStateWithLifecycle()
     val videoState by videoViewModel.uiState.collectAsStateWithLifecycle()
+    val favoriteError by favoriteStore.error.collectAsStateWithLifecycle()
     KeepScreenOnDuringPlayback(
         enabled =
             shouldKeepScreenOn(
@@ -505,6 +518,16 @@ private fun TuneFlowShell(
     val preferDirectWithFallback by playbackPreferencesStore.preferDirectWithFallbackFlow.collectAsStateWithLifecycle(initialValue = false)
     var playbackPositionMs by remember { mutableLongStateOf(0L) }
     var navClockText by remember { mutableStateOf(currentTime24h()) }
+
+    LaunchedEffect(session?.serverUrl, session?.username) {
+        favoriteStore.synchronizeSession(session)
+    }
+
+    LaunchedEffect(favoriteError?.id) {
+        val errorId = favoriteError?.id ?: return@LaunchedEffect
+        delay(FAVORITE_ERROR_DURATION_MS)
+        favoriteStore.clearError(errorId)
+    }
 
     var shellState by rememberSaveable(stateSaver = TuneFlowShellState.Saver) {
         mutableStateOf(TuneFlowShellState())
@@ -618,6 +641,7 @@ private fun TuneFlowShell(
         screensaverActive = screensaverState.active,
         lyricsState = lyricsState,
         homeViewModel = homeViewModel,
+        favoriteStore = favoriteStore,
         albumsViewModel = albumsViewModel,
         homeCategoryViewModel = homeCategoryViewModel,
         albumDetailViewModel = albumDetailViewModel,
@@ -663,8 +687,11 @@ private fun TuneFlowShell(
             scope.launch { preferredVideoStore.refreshHistory(VIDEO_HISTORY_LIMIT) }
         },
         showExitPrompt = shellState.showExitPrompt,
+        favoriteErrorMessage = favoriteError?.message,
     )
 }
+
+private const val FAVORITE_ERROR_DURATION_MS = 4_000L
 
 private val shellClockFormatter = SimpleDateFormat("HH:mm", Locale.getDefault())
 

@@ -75,7 +75,13 @@ class HomeCategoryViewModel(
 
     fun load(category: HomeCategoryKind) {
         val currentState = _uiState.value
-        if (currentState.category == category && hasLoadedContent(currentState)) return
+        if (
+            category != HomeCategoryKind.Favorites &&
+            currentState.category == category &&
+            hasLoadedContent(currentState)
+        ) {
+            return
+        }
 
         _uiState.update {
             it.copy(

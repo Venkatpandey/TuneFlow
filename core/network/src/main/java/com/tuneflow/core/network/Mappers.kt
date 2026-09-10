@@ -27,6 +27,7 @@ data class TrackSummary(
     val artUrl: String? = null,
     val contentType: String? = null,
     val suffix: String? = null,
+    val isFavorite: Boolean = false,
 )
 
 data class PlaylistSummary(
@@ -98,6 +99,7 @@ fun SongDto.toTrack(): TrackSummary {
         coverArtId = coverArt,
         contentType = contentType,
         suffix = suffix,
+        isFavorite = starred != null,
     )
 }
 
@@ -139,7 +141,7 @@ fun ArtistDetailDto.toDetail(): ArtistDetail {
 fun Starred2Dto.toFavoritesBundle(): FavoritesBundle {
     return FavoritesBundle(
         albums = album.map { it.toSummary() },
-        tracks = song.map { it.toTrack() },
+        tracks = song.map { it.toTrack().copy(isFavorite = true) },
     )
 }
 
