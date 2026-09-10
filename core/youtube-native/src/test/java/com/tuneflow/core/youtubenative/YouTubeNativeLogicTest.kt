@@ -1,6 +1,7 @@
 package com.tuneflow.core.youtubenative
 
 import com.google.android.exoplayer2.Player
+import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -9,6 +10,44 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class YouTubeNativeLogicTest {
+    @Test
+    fun collectsEveryAvailableSearchContinuation() {
+        val first = FakeMediaGroup("page-2")
+        val second = FakeMediaGroup("page-3")
+        val third = FakeMediaGroup(null)
+        val requestedPageKeys = mutableListOf<String>()
+
+        val groups =
+            collectSmartTubeSearchGroups(listOf(first)) { group ->
+                val pageKey = group.nextPageKey
+                if (pageKey != null) requestedPageKeys += pageKey
+                when (pageKey) {
+                    "page-2" -> second
+                    "page-3" -> third
+                    else -> null
+                }
+            }
+
+        assertEquals(listOf(first, second, third), groups)
+        assertEquals(listOf("page-2", "page-3"), requestedPageKeys)
+    }
+
+    @Test
+    fun stopsWhenSearchContinuationTokenRepeats() {
+        val first = FakeMediaGroup("same-page")
+        val repeated = FakeMediaGroup("same-page")
+        var continuationCalls = 0
+
+        val groups =
+            collectSmartTubeSearchGroups(listOf(first)) {
+                continuationCalls += 1
+                repeated
+            }
+
+        assertEquals(listOf(first, repeated), groups)
+        assertEquals(1, continuationCalls)
+    }
+
     @Test
     fun mapsSmartTubeSearchMetadata() {
         val mapped =
@@ -113,4 +152,26 @@ class YouTubeNativeLogicTest {
         codec: String,
         hardware: Boolean,
     ) = YouTubeVideoFormat(id, width, height, 30f, 1_000, "video/$codec", codec, hardware)
+}
+
+private data class FakeMediaGroup(
+    private val pageKey: String?,
+) : MediaGroup {
+    override fun getType(): Int = MediaGroup.TYPE_SEARCH
+
+    override fun getMediaItems(): List<MediaItem> = emptyList()
+
+    override fun getTitle(): String = "Search"
+
+    override fun getChannelId(): String? = null
+
+    override fun getParams(): String? = null
+
+    override fun getReloadPageKey(): String? = null
+
+    override fun getNextPageKey(): String? = pageKey
+
+    override fun getChannelUrl(): String? = null
+
+    override fun isEmpty(): Boolean = false
 }

@@ -1,6 +1,7 @@
 package com.tuneflow.core.youtubenative
 
 import android.content.Context
+import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItem
 import com.liskovsoft.mediaserviceinterfaces.data.SearchOptions
 import com.liskovsoft.youtubeapi.service.YouTubeServiceManager
@@ -19,24 +20,46 @@ class SmartTubeYouTubeNativeSearchClient(
     override suspend fun search(
         artist: String,
         title: String,
-        limit: Int,
     ): List<YouTubeNativeSearchResult> =
         withContext(Dispatchers.IO) {
             val query = listOf(artist.trim(), title.trim()).filter(String::isNotBlank).joinToString(" ")
             require(query.isNotBlank()) { "Artist and title cannot both be blank." }
             val options = SearchOptions.TYPE_VIDEO or SearchOptions.SORT_BY_RELEVANCE
-            val groups = YouTubeServiceManager.instance().contentService.getSearch(query, options).orEmpty()
+            val contentService = YouTubeServiceManager.instance().contentService
+            val groups =
+                collectSmartTubeSearchGroups(
+                    initialGroups = contentService.getSearch(query, options).orEmpty(),
+                    continueGroup = contentService::continueGroup,
+                )
             mapSmartTubeSearchItems(
                 groups.flatMap { it.mediaItems.orEmpty() },
-                limit.coerceIn(1, MAX_RESULTS),
             )
         }
 }
 
-internal fun mapSmartTubeSearchItems(
-    items: List<MediaItem?>,
-    limit: Int,
-): List<YouTubeNativeSearchResult> =
+internal fun collectSmartTubeSearchGroups(
+    initialGroups: List<MediaGroup>,
+    continueGroup: (MediaGroup) -> MediaGroup?,
+): List<MediaGroup> =
+    buildList {
+        initialGroups.forEach { initialGroup ->
+            val seenPageKeys = mutableSetOf<String>()
+            var currentGroup: MediaGroup? = initialGroup
+            while (currentGroup != null) {
+                val group = currentGroup
+                add(group)
+                val nextPageKey = group.nextPageKey?.takeIf(String::isNotBlank)
+                currentGroup =
+                    if (nextPageKey != null && seenPageKeys.add(nextPageKey)) {
+                        continueGroup(group)
+                    } else {
+                        null
+                    }
+            }
+        }
+    }
+
+internal fun mapSmartTubeSearchItems(items: List<MediaItem?>): List<YouTubeNativeSearchResult> =
     items
         .asSequence()
         .filterNotNull()
@@ -44,7 +67,6 @@ internal fun mapSmartTubeSearchItems(
         .filterNot { it.isLive || it.isUpcoming || it.isShorts }
         .mapNotNull(::mapSmartTubeItem)
         .distinctBy(YouTubeNativeSearchResult::videoId)
-        .take(limit)
         .toList()
 
 internal fun isPlayableSmartTubeSearchResult(
@@ -133,7 +155,6 @@ private fun parseAbbreviatedNumber(token: String): Double? {
     return "$whole.$fraction".toDoubleOrNull()
 }
 
-private const val MAX_RESULTS = 50
 private val YOUTUBE_VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
 private val DETAIL_SEPARATOR = Regex("[•·]")
 private val VIEW_MARKERS = listOf("view", "aufruf", "vue", "visualiz", "watched")
