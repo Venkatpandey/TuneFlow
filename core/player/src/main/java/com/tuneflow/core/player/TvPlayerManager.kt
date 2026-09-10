@@ -195,12 +195,13 @@ class TvPlayerManager(
     fun playQueue(
         items: List<QueueItem>,
         startIndex: Int = 0,
+        sourcePlaylistId: String? = null,
         sourcePlaylistName: String? = null,
     ) {
         if (items.isEmpty()) return
 
         listenSessionTracker.reset()
-        val queue = PlaybackQueue().replace(items, startIndex, sourcePlaylistName)
+        val queue = PlaybackQueue().replace(items, startIndex, sourcePlaylistId, sourcePlaylistName)
         _queue.value = queue
         lastError = null
         expectedToPlay = true

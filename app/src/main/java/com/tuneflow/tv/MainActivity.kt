@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tuneflow.core.network.DataStoreSessionProvider
 import com.tuneflow.core.network.PlaybackPreferencesStore
+import com.tuneflow.core.network.PlaylistFavoriteStore
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
@@ -76,6 +77,7 @@ class MainActivity : ComponentActivity() {
 
         val sessionStore = SessionStore(applicationContext)
         val searchHistoryStore = SearchHistoryStore(applicationContext)
+        val playlistFavoriteStore = PlaylistFavoriteStore(applicationContext, sessionStore)
         val playbackPreferencesStore = PlaybackPreferencesStore(applicationContext)
         val preferredVideoServiceConfigStore =
             PreferredVideoServiceConfigStore(applicationContext, BuildConfig.PREFERRED_VIDEO_SERVICE_URL)
@@ -125,6 +127,7 @@ class MainActivity : ComponentActivity() {
                     TuneFlowShell(
                         browseRepository = browseRepository,
                         favoriteStore = favoriteStore,
+                        playlistFavoriteStore = playlistFavoriteStore,
                         playerManager = playerManager,
                         sessionStore = sessionStore,
                         playbackPreferencesStore = playbackPreferencesStore,
@@ -361,6 +364,7 @@ private suspend fun cyclePlaybackStreamMode(
     playerManager.playQueue(
         items = updatedItems,
         startIndex = queue.currentIndex,
+        sourcePlaylistId = queue.sourcePlaylistId,
         sourcePlaylistName = queue.sourcePlaylistName,
     )
     playerManager.seekTo(positionMs)
@@ -447,6 +451,7 @@ private fun ObserveVideoLifecycle(videoViewModel: VideoViewModel) {
 private fun TuneFlowShell(
     browseRepository: BrowseRepository,
     favoriteStore: TrackFavoriteStore,
+    playlistFavoriteStore: PlaylistFavoriteStore,
     playerManager: com.tuneflow.core.player.TvPlayerManager,
     sessionStore: SessionStore,
     playbackPreferencesStore: PlaybackPreferencesStore,
@@ -561,18 +566,30 @@ private fun TuneFlowShell(
     fun playTracks(
         tracks: List<com.tuneflow.core.network.TrackSummary>,
         index: Int,
+        sourcePlaylistId: String? = null,
         sourcePlaylistName: String? = null,
     ) {
         scope.launch {
             val queue = buildQueueItems(tracks, browseRepository, preferDirectWithFallback)
-            playerManager.playQueue(queue, index, sourcePlaylistName)
+            playerManager.playQueue(
+                items = queue,
+                startIndex = index,
+                sourcePlaylistId = sourcePlaylistId,
+                sourcePlaylistName = sourcePlaylistName,
+            )
         }
     }
 
     fun shuffleTracks(
         tracks: List<com.tuneflow.core.network.TrackSummary>,
+        sourcePlaylistId: String? = null,
         sourcePlaylistName: String? = null,
-    ) = playTracks(tracks.shuffled(), index = 0, sourcePlaylistName)
+    ) = playTracks(
+        tracks = tracks.shuffled(),
+        index = 0,
+        sourcePlaylistId = sourcePlaylistId,
+        sourcePlaylistName = sourcePlaylistName,
+    )
 
     fun cycleStreamMode() {
         scope.launch {
@@ -642,6 +659,7 @@ private fun TuneFlowShell(
         lyricsState = lyricsState,
         homeViewModel = homeViewModel,
         favoriteStore = favoriteStore,
+        playlistFavoriteStore = playlistFavoriteStore,
         albumsViewModel = albumsViewModel,
         homeCategoryViewModel = homeCategoryViewModel,
         albumDetailViewModel = albumDetailViewModel,
@@ -675,11 +693,11 @@ private fun TuneFlowShell(
         },
         onPlayTracks = { tracks, index -> playTracks(tracks, index) },
         onShuffleTracks = { tracks -> shuffleTracks(tracks) },
-        onPlayPlaylistTracks = { playlistName, tracks, index ->
-            playTracks(tracks, index, playlistName)
+        onPlayPlaylistTracks = { playlistId, playlistName, tracks, index ->
+            playTracks(tracks, index, playlistId, playlistName)
         },
-        onShufflePlaylistTracks = { playlistName, tracks ->
-            shuffleTracks(tracks, playlistName)
+        onShufflePlaylistTracks = { playlistId, playlistName, tracks ->
+            shuffleTracks(tracks, playlistId, playlistName)
         },
         preferredVideoServiceUrl = preferredVideoServiceUrl,
         onPreferredVideoServiceUrlChanged = { serviceUrl ->

@@ -3,6 +3,7 @@ package com.tuneflow.tv
 import androidx.compose.animation.Crossfade
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.IntRect
+import com.tuneflow.core.network.PlaylistFavoriteStore
 import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.feature.browse.AlbumDetailScreen
@@ -22,6 +23,7 @@ internal fun ShellContent(
     playbackPositionMs: Long,
     homeViewModel: HomeViewModel,
     favoriteStore: TrackFavoriteStore,
+    playlistFavoriteStore: PlaylistFavoriteStore,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel,
     albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
@@ -47,8 +49,8 @@ internal fun ShellContent(
     onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
-    onPlayPlaylistTracks: (String, List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
-    onShufflePlaylistTracks: (String, List<com.tuneflow.core.network.TrackSummary>) -> Unit,
+    onPlayPlaylistTracks: (String, String, List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
+    onShufflePlaylistTracks: (String, String, List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
 ) {
@@ -137,9 +139,12 @@ internal fun ShellContent(
                 PlaylistsScreen(
                     viewModel = playlistsViewModel,
                     favoriteStore = favoriteStore,
+                    playlistFavoriteStore = playlistFavoriteStore,
                     preselectedPlaylistId = preselectedPlaylistId,
                     onPreselectedPlaylistConsumed = onPreselectedPlaylistConsumed,
                     currentTrackId = playbackQueue.currentItem?.id,
+                    currentPlaylistId = playbackQueue.sourcePlaylistId,
+                    currentPlaylistName = playbackQueue.sourcePlaylistName,
                     onPlayTracks = onPlayPlaylistTracks,
                     onShuffleTracks = onShufflePlaylistTracks,
                 )

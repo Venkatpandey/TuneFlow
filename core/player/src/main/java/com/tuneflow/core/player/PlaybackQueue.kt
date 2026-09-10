@@ -29,6 +29,7 @@ data class PlaybackQueue(
     val items: List<QueueItem> = emptyList(),
     val currentIndex: Int = 0,
     val currentPositionMs: Long = 0L,
+    val sourcePlaylistId: String? = null,
     val sourcePlaylistName: String? = null,
 ) {
     val currentItem: QueueItem?
@@ -37,6 +38,7 @@ data class PlaybackQueue(
     fun replace(
         items: List<QueueItem>,
         startIndex: Int = 0,
+        sourcePlaylistId: String? = null,
         sourcePlaylistName: String? = null,
     ): PlaybackQueue {
         if (items.isEmpty()) return PlaybackQueue()
@@ -45,6 +47,7 @@ data class PlaybackQueue(
             items = items,
             currentIndex = clamped,
             currentPositionMs = 0L,
+            sourcePlaylistId = sourcePlaylistId?.trim()?.takeIf(String::isNotEmpty),
             sourcePlaylistName = sourcePlaylistName?.trim()?.takeIf(String::isNotEmpty),
         )
     }

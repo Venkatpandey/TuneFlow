@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusDirection
@@ -76,6 +77,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,6 +96,7 @@ import com.tuneflow.core.design.trackRowFocusDestination
 import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.ArtistSummary
 import com.tuneflow.core.network.FavoriteToggleResult
+import com.tuneflow.core.network.PlaylistFavoriteStore
 import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.core.network.TrackFavoriteState
 import com.tuneflow.core.network.TrackFavoriteStore
@@ -431,24 +439,46 @@ fun ArtistDetailScreen(
 fun PlaylistsScreen(
     viewModel: PlaylistsViewModel,
     favoriteStore: TrackFavoriteStore,
+    playlistFavoriteStore: PlaylistFavoriteStore,
     preselectedPlaylistId: String? = null,
     onPreselectedPlaylistConsumed: () -> Unit = {},
     currentTrackId: String? = null,
-    onPlayTracks: (playlistName: String, tracks: List<TrackSummary>, index: Int) -> Unit,
-    onShuffleTracks: (playlistName: String, tracks: List<TrackSummary>) -> Unit,
+    currentPlaylistId: String? = null,
+    currentPlaylistName: String? = null,
+    onPlayTracks: (playlistId: String, playlistName: String, tracks: List<TrackSummary>, index: Int) -> Unit,
+    onShuffleTracks: (playlistId: String, playlistName: String, tracks: List<TrackSummary>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val favoriteStates by favoriteStore.states.collectAsStateWithLifecycle()
+    val favoritePlaylistIds by
+        playlistFavoriteStore.favoritePlaylistIds.collectAsStateWithLifecycle(initialValue = emptySet())
     val scope = rememberCoroutineScope()
-    val firstPlaylistFocusRequester = remember { FocusRequester() }
+    val playlistSearchFocusRequester = remember { FocusRequester() }
     val playPlaylistFocusRequester = remember { FocusRequester() }
     val playlistReturnFocusRequester = remember { FocusRequester() }
     val playlistListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
-    var initialPlaylistFocusRequested by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var editingQuery by remember { mutableStateOf(false) }
+    var favoritesOnly by rememberSaveable { mutableStateOf(false) }
+    var requestSearchFocus by rememberSaveable { mutableStateOf(preselectedPlaylistId == null) }
     var detailActionFocusRequested by rememberSaveable(state.selected?.id) { mutableStateOf(false) }
     var returnFocusPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     var restorePlaylistFocus by rememberSaveable { mutableStateOf(false) }
+    val resolvedCurrentPlaylistId =
+        resolveCurrentPlaylistId(
+            playlists = state.playlists,
+            currentPlaylistId = currentPlaylistId,
+            currentPlaylistName = currentPlaylistName,
+        )
+    val displayedPlaylists =
+        playlistRowsForDisplay(
+            playlists = state.playlists,
+            query = query,
+            favoritePlaylistIds = favoritePlaylistIds,
+            favoritesOnly = favoritesOnly,
+            currentPlaylistId = resolvedCurrentPlaylistId,
+        )
 
     LaunchedEffect(preselectedPlaylistId) {
         if (preselectedPlaylistId != null) {
@@ -458,24 +488,22 @@ fun PlaylistsScreen(
         }
     }
 
-    LaunchedEffect(state.playlists.size) {
-        if (!initialPlaylistFocusRequested && state.playlists.isNotEmpty() && preselectedPlaylistId == null) {
-            firstPlaylistFocusRequester.requestFocus()
-            initialPlaylistFocusRequested = true
-        }
-    }
-
-    LaunchedEffect(state.playlists, state.selected?.id, preselectedPlaylistId) {
+    LaunchedEffect(displayedPlaylists, state.selected?.id, preselectedPlaylistId) {
         val targetPlaylistId = state.selected?.id ?: preselectedPlaylistId ?: return@LaunchedEffect
-        val targetIndex = state.playlists.indexOfFirst { it.id == targetPlaylistId }
+        val targetIndex = displayedPlaylists.indexOfFirst { it.id == targetPlaylistId }
         if (targetIndex >= 0) {
             playlistListState.scrollToItem(targetIndex)
-            initialPlaylistFocusRequested = true
         }
     }
 
     val hasPlaylistDetailLayer = state.selectedPlaylistId != null
     val showDetail = state.selected != null
+
+    LaunchedEffect(resolvedCurrentPlaylistId) {
+        if (resolvedCurrentPlaylistId != null && !hasPlaylistDetailLayer && displayedPlaylists.isNotEmpty()) {
+            playlistListState.scrollToItem(0)
+        }
+    }
 
     fun closePlaylistDetail() {
         restorePlaylistFocus = true
@@ -484,12 +512,14 @@ fun PlaylistsScreen(
 
     BackHandler(enabled = hasPlaylistDetailLayer, onBack = ::closePlaylistDetail)
 
-    LaunchedEffect(hasPlaylistDetailLayer, restorePlaylistFocus, state.playlists) {
+    LaunchedEffect(hasPlaylistDetailLayer, restorePlaylistFocus, displayedPlaylists) {
         if (!hasPlaylistDetailLayer && restorePlaylistFocus) {
-            val targetIndex = state.playlists.indexOfFirst { it.id == returnFocusPlaylistId }
+            val targetIndex = displayedPlaylists.indexOfFirst { it.id == returnFocusPlaylistId }
             if (targetIndex >= 0) {
                 playlistListState.scrollToItem(targetIndex)
                 runCatching { playlistReturnFocusRequester.requestFocus() }
+            } else {
+                requestSearchFocus = true
             }
             restorePlaylistFocus = false
         }
@@ -526,6 +556,37 @@ fun PlaylistsScreen(
         ) {
             SectionTitle(title = "Playlists")
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SearchField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Filter playlists") },
+                    placeholder = { Text("Playlist name") },
+                    emptyDisplayText = "Playlist name",
+                    editing = editingQuery,
+                    onEditingChange = { editingQuery = it },
+                    requestFocusOnDisplay = requestSearchFocus,
+                    onRequestFocusConsumed = { requestSearchFocus = false },
+                    displayFocusRequesterOverride = playlistSearchFocusRequester,
+                    modifier = Modifier.weight(1f),
+                )
+                PlaylistFavoriteButton(
+                    isFavorite = favoritesOnly,
+                    contentDescription =
+                        if (favoritesOnly) {
+                            "Show all playlists"
+                        } else {
+                            "Show favorite playlists"
+                        },
+                    onClick = { favoritesOnly = !favoritesOnly },
+                    modifier = Modifier.size(64.dp),
+                )
+            }
+
             if (state.isLoading && state.playlists.isEmpty()) {
                 PlaylistListSkeleton()
             } else {
@@ -534,29 +595,45 @@ fun PlaylistsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 32.dp),
                 ) {
-                    itemsIndexed(state.playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
+                    if (displayedPlaylists.isEmpty()) {
+                        item {
+                            Text(
+                                text =
+                                    if (favoritesOnly) {
+                                        "No favorite playlists match your filter."
+                                    } else {
+                                        "No playlists match your filter."
+                                    },
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(8.dp),
+                            )
+                        }
+                    }
+                    itemsIndexed(displayedPlaylists, key = { _, playlist -> playlist.id }) { index, playlist ->
+                        val isFavorite = playlist.id in favoritePlaylistIds
                         PremiumPlaylistRow(
                             playlist = playlist,
+                            isCurrentlyPlaying = playlist.id == resolvedCurrentPlaylistId,
+                            isFavorite = isFavorite,
+                            onToggleFavorite = {
+                                if (favoritesOnly && isFavorite) requestSearchFocus = true
+                                scope.launch { playlistFavoriteStore.toggle(playlist.id) }
+                            },
                             onClick = {
                                 returnFocusPlaylistId = playlist.id
                                 viewModel.loadPlaylistDetail(playlist.id)
                             },
+                            containerModifier =
+                                Modifier.boundaryLockedVerticalItem(
+                                    index = index + 1,
+                                    lastIndex = displayedPlaylists.size,
+                                ),
                             modifier =
                                 Modifier
-                                    .boundaryLockedVerticalItem(
-                                        index = index,
-                                        lastIndex = state.playlists.lastIndex,
-                                    )
                                     .then(
                                         if (playlist.id == returnFocusPlaylistId) {
                                             Modifier.focusRequester(playlistReturnFocusRequester)
-                                        } else {
-                                            Modifier
-                                        },
-                                    )
-                                    .then(
-                                        if (index == 0) {
-                                            Modifier.focusRequester(firstPlaylistFocusRequester)
                                         } else {
                                             Modifier
                                         },
@@ -595,12 +672,12 @@ fun PlaylistsScreen(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     BrowseActionButton(
-                        onClick = { onPlayTracks(selected.name, selected.tracks, 0) },
+                        onClick = { onPlayTracks(selected.id, selected.name, selected.tracks, 0) },
                         modifier = Modifier.focusRequester(playPlaylistFocusRequester),
                     ) {
                         BrowsePlayIcon()
                     }
-                    BrowseActionButton(onClick = { onShuffleTracks(selected.name, selected.tracks) }) {
+                    BrowseActionButton(onClick = { onShuffleTracks(selected.id, selected.name, selected.tracks) }) {
                         BrowseShuffleIcon()
                     }
                 }
@@ -623,6 +700,7 @@ fun PlaylistsScreen(
                             },
                             onClick = {
                                 onPlayTracks(
+                                    selected.id,
                                     selected.name,
                                     selected.tracks,
                                     index,
@@ -1410,42 +1488,110 @@ private fun PremiumPlaylistRow(
     playlist: PlaylistSummary,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    containerModifier: Modifier = Modifier,
+    isCurrentlyPlaying: Boolean = false,
+    isFavorite: Boolean? = null,
+    onToggleFavorite: () -> Unit = {},
 ) {
-    FocusScaleCard(
-        modifier = modifier.fillMaxWidth(),
-        shape = TuneFlowShapes.row,
-        onClick = onClick,
+    val rowBodyFocusRequester = remember(playlist.id) { FocusRequester() }
+    val favoriteFocusRequester = remember(playlist.id) { FocusRequester() }
+
+    Row(
+        modifier = containerModifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        FocusScaleCard(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .focusRequester(rowBodyFocusRequester)
+                    .then(modifier)
+                    .onPreviewKeyEvent { event ->
+                        if (
+                            isFavorite != null &&
+                            event.type == KeyEventType.KeyDown &&
+                            event.key == Key.DirectionRight
+                        ) {
+                            favoriteFocusRequester.requestFocus()
+                            true
+                        } else {
+                            false
+                        }
+                    },
+            shape = TuneFlowShapes.row,
+            onClick = onClick,
         ) {
-            PlaylistArtworkGrid(
-                artUrls = playlist.artUrls,
-                label = playlist.name,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PlaylistArtworkGrid(
+                    artUrls = playlist.artUrls,
+                    label = playlist.name,
+                    modifier =
+                        Modifier
+                            .size(58.dp)
+                            .clip(TuneFlowShapes.artwork),
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (isCurrentlyPlaying) CurrentlyPlayingIndicator()
+                        Text(
+                            text = playlist.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Text(
+                        text = "${playlist.songCount} tracks • ${formatTotalDuration(playlist.durationSec)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color =
+                            if (isCurrentlyPlaying) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                    )
+                }
+            }
+        }
+
+        isFavorite?.let {
+            PlaylistFavoriteButton(
+                isFavorite = it,
+                contentDescription =
+                    if (it) {
+                        "Remove ${playlist.name} from favorites"
+                    } else {
+                        "Add ${playlist.name} to favorites"
+                    },
+                onClick = onToggleFavorite,
                 modifier =
                     Modifier
-                        .size(58.dp)
-                        .clip(TuneFlowShapes.artwork),
+                        .size(48.dp)
+                        .focusRequester(favoriteFocusRequester)
+                        .onPreviewKeyEvent { event ->
+                            if (
+                                event.type == KeyEventType.KeyDown &&
+                                event.key == Key.DirectionLeft
+                            ) {
+                                rowBodyFocusRequester.requestFocus()
+                                true
+                            } else {
+                                false
+                            }
+                        },
             )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = playlist.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "${playlist.songCount} tracks • ${formatTotalDuration(playlist.durationSec)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
@@ -1461,6 +1607,8 @@ private fun SearchField(
     requestFocusOnDisplay: Boolean = false,
     onRequestFocusConsumed: () -> Unit = {},
     displayFocusRequesterOverride: FocusRequester? = null,
+    emptyDisplayText: String = "Artist, album, or track",
+    modifier: Modifier = Modifier,
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -1507,6 +1655,7 @@ private fun SearchField(
             placeholder = placeholder,
             focusRequester = editFocusRequester,
             onKeyExit = ::stopEditing,
+            modifier = modifier,
         )
     } else {
         SearchDisplayField(
@@ -1516,6 +1665,8 @@ private fun SearchField(
             focusRequester = displayFocusRequester,
             onFocusedChange = { focused = it },
             onClick = { onEditingChange(true) },
+            emptyDisplayText = emptyDisplayText,
+            modifier = modifier,
         )
     }
 }
@@ -1554,6 +1705,7 @@ private fun EditingSearchField(
     placeholder: @Composable () -> Unit,
     focusRequester: FocusRequester,
     onKeyExit: (FocusDirection?) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     OutlinedTextField(
         value = value,
@@ -1566,7 +1718,7 @@ private fun EditingSearchField(
         visualTransformation = VisualTransformation.None,
         shape = TuneFlowShapes.field,
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
                 .onPreviewKeyEvent {
@@ -1596,10 +1748,12 @@ private fun SearchDisplayField(
     focusRequester: FocusRequester,
     onFocusedChange: (Boolean) -> Unit,
     onClick: () -> Unit,
+    emptyDisplayText: String,
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
                 .scale(if (focused) 1.005f else 1f)
@@ -1623,7 +1777,7 @@ private fun SearchDisplayField(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Box { label() }
             Text(
-                text = if (value.isNotBlank()) value else "Artist, album, or track",
+                text = if (value.isNotBlank()) value else emptyDisplayText,
                 style = MaterialTheme.typography.bodyLarge,
                 color =
                     if (value.isNotBlank()) {
@@ -1857,6 +2011,35 @@ internal fun focusAfterFavoriteRemoval(
     return tracks.getOrNull(removedIndex + 1)?.id ?: tracks.getOrNull(removedIndex - 1)?.id
 }
 
+internal fun resolveCurrentPlaylistId(
+    playlists: List<PlaylistSummary>,
+    currentPlaylistId: String?,
+    currentPlaylistName: String?,
+): String? {
+    val exactId = currentPlaylistId?.takeIf { id -> playlists.any { it.id == id } }
+    val normalizedName = currentPlaylistName?.trim()?.takeIf(String::isNotEmpty)
+    return exactId ?: normalizedName?.let { name ->
+        playlists.firstOrNull { it.name.equals(name, ignoreCase = true) }?.id
+    }
+}
+
+internal fun playlistRowsForDisplay(
+    playlists: List<PlaylistSummary>,
+    query: String,
+    favoritePlaylistIds: Set<String>,
+    favoritesOnly: Boolean,
+    currentPlaylistId: String?,
+): List<PlaylistSummary> {
+    val normalizedQuery = query.trim()
+    val filtered =
+        playlists.filter { playlist ->
+            (!favoritesOnly || playlist.id in favoritePlaylistIds) &&
+                (normalizedQuery.isEmpty() || playlist.name.contains(normalizedQuery, ignoreCase = true))
+        }
+    val current = filtered.firstOrNull { it.id == currentPlaylistId } ?: return filtered
+    return listOf(current) + filtered.filterNot { it.id == current.id }
+}
+
 @Composable
 private fun CurrentlyPlayingIndicator() {
     Image(
@@ -1865,6 +2048,62 @@ private fun CurrentlyPlayingIndicator() {
         modifier = Modifier.size(20.dp),
         contentScale = ContentScale.Fit,
     )
+}
+
+@Composable
+private fun PlaylistFavoriteButton(
+    isFavorite: Boolean,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier.size(48.dp),
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier =
+            modifier
+                .scale(if (focused) 1.06f else 1f)
+                .alpha(if (focused) 1f else 0.92f)
+                .clip(TuneFlowShapes.button)
+                .background(
+                    when {
+                        focused -> MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
+                        isFavorite -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
+                    },
+                )
+                .border(
+                    width = if (focused) 3.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)
+                        },
+                    shape = TuneFlowShapes.button,
+                )
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable()
+                .semantics {
+                    role = Role.Button
+                    this.contentDescription = contentDescription
+                    stateDescription = if (isFavorite) "Selected" else "Not selected"
+                }
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = if (isFavorite) "★" else "☆",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color =
+                if (isFavorite) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+        )
+    }
 }
 
 @Composable
