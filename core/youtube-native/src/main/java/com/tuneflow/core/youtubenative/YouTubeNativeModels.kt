@@ -19,7 +19,7 @@ interface YouTubeNativeSearchClient {
     suspend fun search(
         artist: String,
         title: String,
-        limit: Int = 25,
+        limit: Int = 50,
     ): List<YouTubeNativeSearchResult>
 }
 

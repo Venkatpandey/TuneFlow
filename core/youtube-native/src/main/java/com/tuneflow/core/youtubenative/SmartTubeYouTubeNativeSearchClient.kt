@@ -133,7 +133,7 @@ private fun parseAbbreviatedNumber(token: String): Double? {
     return "$whole.$fraction".toDoubleOrNull()
 }
 
-private const val MAX_RESULTS = 25
+private const val MAX_RESULTS = 50
 private val YOUTUBE_VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
 private val DETAIL_SEPARATOR = Regex("[•·]")
 private val VIEW_MARKERS = listOf("view", "aufruf", "vue", "visualiz", "watched")

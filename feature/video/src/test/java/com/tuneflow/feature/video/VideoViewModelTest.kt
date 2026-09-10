@@ -67,10 +67,10 @@ class VideoViewModelTest {
         }
 
     @Test
-    fun ambiguousSearchRequiresManualSelectionAndReturnsUpToTwentyFiveMatches() =
+    fun ambiguousSearchRequiresManualSelectionAndReturnsUpToFiftyMatches() =
         runTest {
             val audio = VideoViewModelFakeAudio()
-            val nativeBackend = FakeNativeBackend(resultCount = 30)
+            val nativeBackend = FakeNativeBackend(resultCount = 60)
             val viewModel = createViewModel(audio, backgroundScope, nativeBackend)
             runCurrent()
 
@@ -78,7 +78,7 @@ class VideoViewModelTest {
             runCurrent()
 
             val state = viewModel.uiState.value as VideoUiState.Candidates
-            assertEquals(25, state.candidates.size)
+            assertEquals(50, state.candidates.size)
             assertEquals(0, audio.pauseCalls)
         }
 
