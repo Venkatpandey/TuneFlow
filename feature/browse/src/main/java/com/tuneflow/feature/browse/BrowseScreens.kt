@@ -440,6 +440,7 @@ fun PlaylistsScreen(
     viewModel: PlaylistsViewModel,
     favoriteStore: TrackFavoriteStore,
     playlistFavoriteStore: PlaylistFavoriteStore,
+    recentPlaylistIds: List<String> = emptyList(),
     preselectedPlaylistId: String? = null,
     onPreselectedPlaylistConsumed: () -> Unit = {},
     currentTrackId: String? = null,
@@ -478,6 +479,7 @@ fun PlaylistsScreen(
             favoritePlaylistIds = favoritePlaylistIds,
             favoritesOnly = favoritesOnly,
             currentPlaylistId = resolvedCurrentPlaylistId,
+            recentPlaylistIds = recentPlaylistIds,
         )
 
     LaunchedEffect(preselectedPlaylistId) {
@@ -2029,6 +2031,7 @@ internal fun playlistRowsForDisplay(
     favoritePlaylistIds: Set<String>,
     favoritesOnly: Boolean,
     currentPlaylistId: String?,
+    recentPlaylistIds: List<String> = emptyList(),
 ): List<PlaylistSummary> {
     val normalizedQuery = query.trim()
     val filtered =
@@ -2036,8 +2039,13 @@ internal fun playlistRowsForDisplay(
             (!favoritesOnly || playlist.id in favoritePlaylistIds) &&
                 (normalizedQuery.isEmpty() || playlist.name.contains(normalizedQuery, ignoreCase = true))
         }
-    val current = filtered.firstOrNull { it.id == currentPlaylistId } ?: return filtered
-    return listOf(current) + filtered.filterNot { it.id == current.id }
+    val orderedIds = (listOfNotNull(currentPlaylistId) + recentPlaylistIds).distinct()
+    if (orderedIds.isEmpty()) return filtered
+
+    val playlistsById = filtered.associateBy(PlaylistSummary::id)
+    val used = orderedIds.mapNotNull(playlistsById::get)
+    val usedIds = used.mapTo(mutableSetOf(), PlaylistSummary::id)
+    return used + filtered.filterNot { it.id in usedIds }
 }
 
 @Composable

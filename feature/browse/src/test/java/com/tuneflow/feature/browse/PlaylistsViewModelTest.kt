@@ -88,6 +88,21 @@ class PlaylistsViewModelTest {
     }
 
     @Test
+    fun playlistRowsForDisplay_sortsAllUsedPlaylistsByRecency() {
+        val result =
+            playlistRowsForDisplay(
+                playlists = playlists(),
+                query = "",
+                favoritePlaylistIds = emptySet(),
+                favoritesOnly = false,
+                currentPlaylistId = null,
+                recentPlaylistIds = listOf("playlist-2", "playlist-3", "playlist-1"),
+            )
+
+        assertEquals(listOf("playlist-2", "playlist-3", "playlist-1"), result.map { it.id })
+    }
+
+    @Test
     fun resolveCurrentPlaylistId_fallsBackToLegacyPlaylistName() {
         val result =
             resolveCurrentPlaylistId(

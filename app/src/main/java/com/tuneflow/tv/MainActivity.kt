@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tuneflow.core.network.DataStoreSessionProvider
 import com.tuneflow.core.network.PlaybackPreferencesStore
 import com.tuneflow.core.network.PlaylistFavoriteStore
+import com.tuneflow.core.network.PlaylistUsageStore
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
@@ -43,6 +44,7 @@ import com.tuneflow.core.player.TuneFlowPlaybackService
 import com.tuneflow.feature.auth.AuthRepository
 import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.BrowseRepository
+import com.tuneflow.feature.browse.FileBrowseCacheStorage
 import com.tuneflow.feature.playback.LyricsRepository
 import com.tuneflow.feature.video.PreferredVideoServiceConfigStore
 import com.tuneflow.feature.video.PreferredVideoStore
@@ -53,7 +55,6 @@ import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -78,13 +79,19 @@ class MainActivity : ComponentActivity() {
         val sessionStore = SessionStore(applicationContext)
         val searchHistoryStore = SearchHistoryStore(applicationContext)
         val playlistFavoriteStore = PlaylistFavoriteStore(applicationContext, sessionStore)
+        val playlistUsageStore = PlaylistUsageStore(applicationContext, sessionStore)
         val playbackPreferencesStore = PlaybackPreferencesStore(applicationContext)
         val preferredVideoServiceConfigStore =
             PreferredVideoServiceConfigStore(applicationContext, BuildConfig.PREFERRED_VIDEO_SERVICE_URL)
         val preferredVideoStore = RemotePreferredVideoStore(preferredVideoServiceConfigStore.serviceUrl)
         val authRepository = AuthRepository(sessionStore)
         val favoriteStore = TrackFavoriteStore(DataStoreSessionProvider(sessionStore))
-        val browseRepository = BrowseRepository(sessionStore, favoriteStore)
+        val browseRepository =
+            BrowseRepository(
+                sessionStore = sessionStore,
+                favoriteStore = favoriteStore,
+                cacheStorage = FileBrowseCacheStorage(applicationContext),
+            )
         val lyricsRepository = LyricsRepository(sessionStore)
         val scrobbleReporter = NavidromeScrobbleReporter(sessionStore)
         playerManager = PlayerGraph.get(applicationContext)
@@ -106,10 +113,10 @@ class MainActivity : ComponentActivity() {
                         factory = authViewModelFactory(authRepository, sessionStore),
                     )
                 val authState by authViewModel.uiState.collectAsStateWithLifecycle()
-                LaunchedEffect(authState.isLoggedIn) {
-                    favoriteStore.synchronizeSession(
-                        if (authState.isLoggedIn) sessionStore.sessionFlow.first() else null,
-                    )
+                LaunchedEffect(Unit) {
+                    sessionStore.sessionFlow.collect { session ->
+                        browseRepository.synchronizeSession(session)
+                    }
                 }
                 val screenScaleOption = ScreenScaleOption.Compact
                 var preferredVideoServiceUrl by remember {
@@ -128,6 +135,7 @@ class MainActivity : ComponentActivity() {
                         browseRepository = browseRepository,
                         favoriteStore = favoriteStore,
                         playlistFavoriteStore = playlistFavoriteStore,
+                        playlistUsageStore = playlistUsageStore,
                         playerManager = playerManager,
                         sessionStore = sessionStore,
                         playbackPreferencesStore = playbackPreferencesStore,
@@ -452,6 +460,7 @@ private fun TuneFlowShell(
     browseRepository: BrowseRepository,
     favoriteStore: TrackFavoriteStore,
     playlistFavoriteStore: PlaylistFavoriteStore,
+    playlistUsageStore: PlaylistUsageStore,
     playerManager: com.tuneflow.core.player.TvPlayerManager,
     sessionStore: SessionStore,
     playbackPreferencesStore: PlaybackPreferencesStore,
@@ -496,6 +505,8 @@ private fun TuneFlowShell(
     val lyricsState by playbackViewModel.lyricsState.collectAsStateWithLifecycle()
     val videoState by videoViewModel.uiState.collectAsStateWithLifecycle()
     val favoriteError by favoriteStore.error.collectAsStateWithLifecycle()
+    val recentPlaylistIds by
+        playlistUsageStore.recentPlaylistIds.collectAsStateWithLifecycle(initialValue = emptyList())
     KeepScreenOnDuringPlayback(
         enabled =
             shouldKeepScreenOn(
@@ -577,6 +588,7 @@ private fun TuneFlowShell(
                 sourcePlaylistId = sourcePlaylistId,
                 sourcePlaylistName = sourcePlaylistName,
             )
+            playlistUsageStore.record(sourcePlaylistId)
         }
     }
 
@@ -660,6 +672,7 @@ private fun TuneFlowShell(
         homeViewModel = homeViewModel,
         favoriteStore = favoriteStore,
         playlistFavoriteStore = playlistFavoriteStore,
+        recentPlaylistIds = recentPlaylistIds,
         albumsViewModel = albumsViewModel,
         homeCategoryViewModel = homeCategoryViewModel,
         albumDetailViewModel = albumDetailViewModel,
