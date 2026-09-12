@@ -70,6 +70,27 @@ class TrackFavoriteStore(
         }
     }
 
+    suspend fun seedMissing(
+        session: SessionData,
+        tracks: Iterable<TrackSummary>,
+    ) {
+        val account = session.favoriteAccount()
+        if (sessionProvider.currentSession()?.favoriteAccount() != account) return
+
+        mutex.withLock {
+            if (activeAccount == null) activateAccount(account)
+            if (activeAccount != account) return
+
+            val updated = _states.value.toMutableMap()
+            tracks.forEach { track ->
+                if (track.id !in updated) {
+                    updated[track.id] = TrackFavoriteState(isFavorite = track.isFavorite)
+                }
+            }
+            _states.value = updated
+        }
+    }
+
     suspend fun seedFavoritesSnapshot(
         session: SessionData,
         favoriteTracks: Iterable<TrackSummary>,

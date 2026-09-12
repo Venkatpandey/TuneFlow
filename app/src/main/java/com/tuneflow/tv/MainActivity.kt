@@ -43,6 +43,7 @@ import com.tuneflow.core.player.TuneFlowPlaybackService
 import com.tuneflow.feature.auth.AuthRepository
 import com.tuneflow.feature.auth.LoginScreen
 import com.tuneflow.feature.browse.BrowseRepository
+import com.tuneflow.feature.browse.FileBrowseCacheStorage
 import com.tuneflow.feature.playback.LyricsRepository
 import com.tuneflow.feature.video.PreferredVideoServiceConfigStore
 import com.tuneflow.feature.video.PreferredVideoStore
@@ -53,7 +54,6 @@ import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -84,7 +84,12 @@ class MainActivity : ComponentActivity() {
         val preferredVideoStore = RemotePreferredVideoStore(preferredVideoServiceConfigStore.serviceUrl)
         val authRepository = AuthRepository(sessionStore)
         val favoriteStore = TrackFavoriteStore(DataStoreSessionProvider(sessionStore))
-        val browseRepository = BrowseRepository(sessionStore, favoriteStore)
+        val browseRepository =
+            BrowseRepository(
+                sessionStore = sessionStore,
+                favoriteStore = favoriteStore,
+                cacheStorage = FileBrowseCacheStorage(applicationContext),
+            )
         val lyricsRepository = LyricsRepository(sessionStore)
         val scrobbleReporter = NavidromeScrobbleReporter(sessionStore)
         playerManager = PlayerGraph.get(applicationContext)
@@ -106,10 +111,10 @@ class MainActivity : ComponentActivity() {
                         factory = authViewModelFactory(authRepository, sessionStore),
                     )
                 val authState by authViewModel.uiState.collectAsStateWithLifecycle()
-                LaunchedEffect(authState.isLoggedIn) {
-                    favoriteStore.synchronizeSession(
-                        if (authState.isLoggedIn) sessionStore.sessionFlow.first() else null,
-                    )
+                LaunchedEffect(Unit) {
+                    sessionStore.sessionFlow.collect { session ->
+                        browseRepository.synchronizeSession(session)
+                    }
                 }
                 val screenScaleOption = ScreenScaleOption.Compact
                 var preferredVideoServiceUrl by remember {

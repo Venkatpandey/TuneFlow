@@ -128,6 +128,25 @@ class TrackFavoriteStoreTest {
             assertEquals(TrackFavoriteState(isFavorite = false), store.states.value[TRACK_ID])
         }
 
+    @Test
+    fun seedMissing_preservesCurrentStateAndAddsUnknownTrack() =
+        runTest {
+            val store = favoriteStore(session = { firstSession })
+            store.synchronizeSession(firstSession)
+            store.seed(firstSession, listOf(track(isFavorite = false)))
+
+            store.seedMissing(
+                firstSession,
+                listOf(
+                    track(isFavorite = true),
+                    track(isFavorite = true).copy(id = "other-track"),
+                ),
+            )
+
+            assertEquals(TrackFavoriteState(isFavorite = false), store.states.value[TRACK_ID])
+            assertEquals(TrackFavoriteState(isFavorite = true), store.states.value["other-track"])
+        }
+
     private fun favoriteStore(
         session: suspend () -> SessionData?,
         star: suspend (String) -> NetworkResult<Unit> = { NetworkResult.Success(Unit) },

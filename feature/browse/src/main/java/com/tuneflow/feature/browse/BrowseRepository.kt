@@ -24,27 +24,28 @@ import com.tuneflow.core.network.toBundle
 import com.tuneflow.core.network.toDetail
 import com.tuneflow.core.network.toFavoritesBundle
 import com.tuneflow.core.network.toSummary
-import com.tuneflow.core.network.toTrack
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import java.util.Locale
 
 class BrowseRepository(
     private val sessionProvider: SessionProvider,
     private val clientProvider: NavidromeClientProvider = DefaultNavidromeClientProvider,
     val favoriteStore: TrackFavoriteStore = TrackFavoriteStore(sessionProvider, clientProvider),
+    cacheStorage: BrowseCacheStorage = NoOpBrowseCacheStorage,
 ) {
     private data class SessionClient(
         val session: SessionData,
         val client: NavidromeClient,
     )
 
-    private val playlistArtCache = mutableMapOf<String, List<String>>()
-    private val artistArtCache = mutableMapOf<String, String?>()
+    private val requestCache = BrowseRequestCache(cacheStorage)
 
     constructor(
         sessionStore: SessionStore,
         favoriteStore: TrackFavoriteStore? = null,
+        cacheStorage: BrowseCacheStorage = NoOpBrowseCacheStorage,
     ) : this(
         sessionProvider = DataStoreSessionProvider(sessionStore),
         clientProvider = DefaultNavidromeClientProvider,
@@ -53,6 +54,7 @@ class BrowseRepository(
                 DataStoreSessionProvider(sessionStore),
                 DefaultNavidromeClientProvider,
             ),
+        cacheStorage = cacheStorage,
     )
 
     suspend fun getAlbums(
@@ -68,24 +70,30 @@ class BrowseRepository(
 
     suspend fun getAlbumDetail(albumId: String): Result<AlbumDetail> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
-        return when (val result = sessionClient.client.getAlbum(albumId)) {
-            is NetworkResult.Success -> {
-                val detail = result.data.toDetail().withArtwork(sessionClient.session)
-                favoriteStore.seed(sessionClient.session, detail.tracks)
-                Result.success(detail)
+        val detail =
+            requestCache.album(sessionClient.session, albumId) {
+                when (val result = sessionClient.client.getAlbum(albumId)) {
+                    is NetworkResult.Success -> {
+                        val loaded = result.data.toDetail().withArtwork(sessionClient.session)
+                        favoriteStore.seed(sessionClient.session, loaded.tracks)
+                        Result.success(loaded)
+                    }
+                    is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
+                }
             }
-            is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
-        }
+        detail.getOrNull()?.let { favoriteStore.seedMissing(sessionClient.session, it.tracks) }
+        return detail
     }
 
     suspend fun getArtists(): Result<List<ArtistSummary>> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
+        val artwork = requestCache.artistArtwork(sessionClient.session)
         return when (val result = sessionClient.client.getArtists()) {
             is NetworkResult.Success ->
                 Result.success(
                     result.data
                         .map { artist ->
-                            artist.toSummary().withArtwork(artistArtCache[artist.id])
+                            artist.toSummary().withArtwork(artwork[artist.id])
                         }
                         .sortedBy { it.name.lowercase() },
                 )
@@ -95,26 +103,30 @@ class BrowseRepository(
 
     suspend fun getArtistDetail(artistId: String): Result<ArtistDetail> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
-        return when (val result = sessionClient.client.getArtist(artistId)) {
-            is NetworkResult.Success -> {
-                val detail = result.data.toDetail().withArtwork(sessionClient.session)
-                artistArtCache[detail.id] = detail.artUrl
-                Result.success(detail)
+        return requestCache.artist(sessionClient.session, artistId) {
+            when (val result = sessionClient.client.getArtist(artistId)) {
+                is NetworkResult.Success -> {
+                    val detail = result.data.toDetail().withArtwork(sessionClient.session)
+                    requestCache.putArtistArtwork(sessionClient.session, detail.id, detail.artUrl)
+                    Result.success(detail)
+                }
+                is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
             }
-            is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
         }
     }
 
     suspend fun getPlaylists(): Result<List<PlaylistSummary>> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
         return when (val result = sessionClient.client.getPlaylists()) {
-            is NetworkResult.Success ->
-                Result.success(
+            is NetworkResult.Success -> {
+                val playlists =
                     result.data.map { playlist ->
                         val summary = playlist.toSummary()
-                        summary.withArtwork(playlistArtCache[summary.id].orEmpty())
-                    },
-                )
+                        val artUrls = requestCache.playlistArtwork(sessionClient.session, summary.id).orEmpty()
+                        summary.withArtwork(artUrls)
+                    }
+                Result.success(playlists)
+            }
             is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
         }
     }
@@ -135,14 +147,7 @@ class BrowseRepository(
 
     suspend fun getPlaylistDetail(playlistId: String): Result<PlaylistDetail> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
-        return when (val result = sessionClient.client.getPlaylist(playlistId)) {
-            is NetworkResult.Success -> {
-                val detail = result.data.toDetail().withArtwork(sessionClient.session)
-                favoriteStore.seed(sessionClient.session, detail.tracks)
-                Result.success(detail)
-            }
-            is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
-        }
+        return loadPlaylistDetail(playlistId, sessionClient)
     }
 
     suspend fun getFavorites(): Result<FavoritesBundle> {
@@ -159,14 +164,26 @@ class BrowseRepository(
 
     suspend fun search(query: String): Result<SearchBundle> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
-        return when (val result = sessionClient.client.search(query)) {
-            is NetworkResult.Success -> {
-                val bundle = result.data.toBundle().withArtwork(sessionClient.session)
-                favoriteStore.seed(sessionClient.session, bundle.tracks)
-                Result.success(bundle)
+        val requestQuery = query.trim()
+        val cacheKey = requestQuery.lowercase(Locale.ROOT)
+        val search =
+            requestCache.search(sessionClient.session, cacheKey) {
+                when (val result = sessionClient.client.search(requestQuery)) {
+                    is NetworkResult.Success -> {
+                        val bundle = result.data.toBundle().withArtwork(sessionClient.session)
+                        favoriteStore.seed(sessionClient.session, bundle.tracks)
+                        Result.success(bundle)
+                    }
+                    is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
+                }
             }
-            is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
-        }
+        search.getOrNull()?.let { favoriteStore.seedMissing(sessionClient.session, it.tracks) }
+        return search
+    }
+
+    suspend fun synchronizeSession(session: SessionData?) {
+        requestCache.synchronizeSession(session)
+        favoriteStore.synchronizeSession(session)
     }
 
     suspend fun streamOptions(trackId: String): TrackStreamOptions {
@@ -196,8 +213,9 @@ class BrowseRepository(
     }
 
     private suspend fun requireSessionClient(): Result<SessionClient> {
-        val session = requireSession() ?: return Result.failure(IllegalStateException("Not logged in"))
-        favoriteStore.synchronizeSession(session)
+        val session = requireSession()
+        synchronizeSession(session)
+        session ?: return Result.failure(IllegalStateException("Not logged in"))
         return clientOrFailure(session).map { client ->
             SessionClient(session = session, client = client)
         }
@@ -209,25 +227,37 @@ class BrowseRepository(
         playlistId: String,
         sessionClient: SessionClient,
     ): List<String> {
-        playlistArtCache[playlistId]?.let { return it }
+        requestCache.playlistArtwork(sessionClient.session, playlistId)?.let { return it }
 
+        val detail = loadPlaylistDetail(playlistId, sessionClient)
         val artUrls =
-            when (val result = sessionClient.client.getPlaylist(playlistId)) {
-                is NetworkResult.Success ->
-                    result.data.entry
-                        .also { tracks ->
-                            favoriteStore.seed(
-                                sessionClient.session,
-                                tracks.map { it.toTrack() },
-                            )
-                        }
-                        .mapNotNull { track -> coverArtUrl(sessionClient.session, track.coverArt) }
-                        .distinct()
-                        .take(4)
-                is NetworkResult.Error -> emptyList()
-            }
+            detail.fold(
+                onSuccess = { playlist -> playlist.tracks.mapNotNull { it.artUrl }.distinct().take(4) },
+                onFailure = { emptyList() },
+            )
 
-        playlistArtCache[playlistId] = artUrls
+        if (detail.isSuccess) {
+            requestCache.putPlaylistArtwork(sessionClient.session, playlistId, artUrls)
+        }
         return artUrls
+    }
+
+    private suspend fun loadPlaylistDetail(
+        playlistId: String,
+        sessionClient: SessionClient,
+    ): Result<PlaylistDetail> {
+        val detail =
+            requestCache.playlist(sessionClient.session, playlistId) {
+                when (val result = sessionClient.client.getPlaylist(playlistId)) {
+                    is NetworkResult.Success -> {
+                        val loaded = result.data.toDetail().withArtwork(sessionClient.session)
+                        favoriteStore.seed(sessionClient.session, loaded.tracks)
+                        Result.success(loaded)
+                    }
+                    is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
+                }
+            }
+        detail.getOrNull()?.let { favoriteStore.seedMissing(sessionClient.session, it.tracks) }
+        return detail
     }
 }
