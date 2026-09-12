@@ -114,9 +114,11 @@ class MainActivity : ComponentActivity() {
         playerManager.setScrobbleReporter(scrobbleReporter)
         playbackServiceIntent = Intent(this, TuneFlowPlaybackService::class.java)
         startService(playbackServiceIntent)
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                appUpdateCoordinator.monitor()
+        if (BuildConfig.APP_UPDATE_ENABLED) {
+            lifecycleScope.launch {
+                repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    appUpdateCoordinator.monitor()
+                }
             }
         }
 
