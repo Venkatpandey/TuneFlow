@@ -40,6 +40,7 @@ class AppUpdateRepositoryTest {
                       "tag_name": "v1.3.0",
                       "draft": false,
                       "prerelease": false,
+                      "body": "Playback fixes and faster browsing.",
                       "assets": [
                         {
                           "name": "checksums.txt",
@@ -74,6 +75,7 @@ class AppUpdateRepositoryTest {
                 assertEquals("1.3.0", release.version)
                 assertEquals(2048L, release.apkSizeBytes)
                 assertEquals("a".repeat(64), release.sha256)
+                assertEquals("Playback fixes and faster browsing.", release.releaseNotes)
             } finally {
                 server.shutdown()
             }
@@ -90,6 +92,7 @@ class AppUpdateRepositoryTest {
                       "tag_name": "v1.3.0",
                       "draft": false,
                       "prerelease": false,
+                      "body": null,
                       "assets": []
                     }
                     """.trimIndent(),

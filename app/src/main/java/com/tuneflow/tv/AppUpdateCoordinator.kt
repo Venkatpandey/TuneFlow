@@ -85,17 +85,20 @@ internal class AppUpdateCoordinator(
     private val promptedVersions = mutableSetOf<String>()
     private var lastFailedCheckAtMs = 0L
     private var downloadJob: Job? = null
+    private var startupCheckPerformed = false
 
     val state: StateFlow<AppUpdateUiState> = mutableState.asStateFlow()
 
     suspend fun monitor() {
         while (currentCoroutineContext().isActive) {
-            checkForUpdate()
+            val forceCheck = !startupCheckPerformed
+            startupCheckPerformed = true
+            checkForUpdate(forceCheck)
             delay(delayUntilNextCheck())
         }
     }
 
-    suspend fun checkForUpdate() {
+    suspend fun checkForUpdate(force: Boolean = false) {
         if (mutableState.value != AppUpdateUiState.Hidden) return
         val now = currentTimeMs()
         if (!isUpdateCheckDue(
@@ -103,6 +106,7 @@ internal class AppUpdateCoordinator(
                 lastSuccessfulCheckAtMs = promptStore.lastSuccessfulCheckAtMs,
                 snoozeUntilMs = promptStore.snoozeUntilMs,
                 lastFailedCheckAtMs = lastFailedCheckAtMs,
+                force = force,
             )
         ) {
             return
@@ -236,12 +240,13 @@ internal fun isUpdateCheckDue(
     lastSuccessfulCheckAtMs: Long,
     snoozeUntilMs: Long,
     lastFailedCheckAtMs: Long,
+    force: Boolean = false,
 ): Boolean {
     val snoozeExpired = nowMs >= snoozeUntilMs
     val successfulCheckDue =
         lastSuccessfulCheckAtMs <= 0L || nowMs >= safeAdd(lastSuccessfulCheckAtMs, UPDATE_CHECK_INTERVAL_MS)
     val failedCheckDue = lastFailedCheckAtMs <= 0L || nowMs >= safeAdd(lastFailedCheckAtMs, UPDATE_RETRY_MS)
-    return snoozeExpired && successfulCheckDue && failedCheckDue
+    return snoozeExpired && (force || successfulCheckDue && failedCheckDue)
 }
 
 private fun AppUpdateUiState.releaseOrNull(): AppRelease? =

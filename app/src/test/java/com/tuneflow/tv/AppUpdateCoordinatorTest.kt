@@ -27,6 +27,19 @@ class AppUpdateCoordinatorTest {
         }
 
     @Test
+    fun forcedStartupCheckIgnoresRecentSuccessfulCheck() =
+        runTest {
+            val repository = FakeUpdateRepository(RELEASE)
+            val store = FakePromptStore().apply { recordSuccessfulCheck(999L) }
+            val coordinator = coordinator(repository, store, nowMs = 1_000L)
+
+            coordinator.checkForUpdate(force = true)
+
+            assertEquals(1, repository.checkCount)
+            assertTrue(coordinator.state.value is AppUpdateUiState.Available)
+        }
+
+    @Test
     fun checkDoesNotPromptForCurrentOrOlderRelease() =
         runTest {
             val repository = FakeUpdateRepository(RELEASE.copy(version = "1.2.0"))
@@ -81,6 +94,24 @@ class AppUpdateCoordinatorTest {
                 lastSuccessfulCheckAtMs = 0L,
                 snoozeUntilMs = 0L,
                 lastFailedCheckAtMs = 1_000L,
+            ),
+        )
+        assertTrue(
+            isUpdateCheckDue(
+                nowMs = 2_000L,
+                lastSuccessfulCheckAtMs = 1_999L,
+                snoozeUntilMs = 0L,
+                lastFailedCheckAtMs = 1_999L,
+                force = true,
+            ),
+        )
+        assertFalse(
+            isUpdateCheckDue(
+                nowMs = 2_000L,
+                lastSuccessfulCheckAtMs = 0L,
+                snoozeUntilMs = 3_000L,
+                lastFailedCheckAtMs = 0L,
+                force = true,
             ),
         )
     }

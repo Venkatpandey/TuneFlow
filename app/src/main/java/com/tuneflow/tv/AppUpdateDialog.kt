@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -72,6 +73,9 @@ internal fun AppUpdateDialog(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                (state as? AppUpdateUiState.Available)?.release?.releaseNotes?.let { releaseNotes ->
+                    ReleaseNotes(releaseNotes)
+                }
 
                 UpdateDialogControls(
                     state = state,
@@ -88,6 +92,23 @@ internal fun AppUpdateDialog(
     LaunchedEffect(state::class) {
         if (canDismiss) primaryFocusRequester.requestFocus()
     }
+}
+
+@Composable
+private fun ReleaseNotes(releaseNotes: String) {
+    Text(
+        text = "What's new",
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    Text(
+        text = releaseNotes,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = RELEASE_NOTES_MAX_LINES,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 @Composable
@@ -206,3 +227,5 @@ private fun AppUpdateUiState.message(): String =
         is AppUpdateUiState.Failed -> message
         AppUpdateUiState.Hidden -> ""
     }
+
+private const val RELEASE_NOTES_MAX_LINES = 8

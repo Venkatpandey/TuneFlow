@@ -25,6 +25,7 @@ data class AppRelease(
     val apkUrl: String,
     val apkSizeBytes: Long,
     val sha256: String?,
+    val releaseNotes: String? = null,
 )
 
 interface AppUpdateRepository {
@@ -97,6 +98,7 @@ internal class GitHubAppUpdateRepository(
             apkUrl = downloadUrl,
             apkSizeBytes = asset.size,
             sha256 = sha256,
+            releaseNotes = normalizeReleaseNotes(response.body),
         )
     }
 
@@ -228,6 +230,7 @@ internal data class GitHubReleaseResponse(
     @SerializedName("tag_name") val tagName: String,
     val draft: Boolean,
     val prerelease: Boolean,
+    val body: String?,
     val assets: List<GitHubReleaseAsset>,
 )
 
@@ -320,6 +323,18 @@ private fun parseSha256(digest: String?): String? =
         ?.lowercase(Locale.ROOT)
         ?.takeIf { it.length == SHA_256_HEX_LENGTH && it.all(Char::isHexDigit) }
 
+private fun normalizeReleaseNotes(body: String?): String? =
+    body
+        ?.trim()
+        ?.takeIf(String::isNotEmpty)
+        ?.let { notes ->
+            if (notes.length <= MAX_RELEASE_NOTES_LENGTH) {
+                notes
+            } else {
+                notes.take(MAX_RELEASE_NOTES_LENGTH).trimEnd() + "\u2026"
+            }
+        }
+
 private fun validatedDownloadUrl(value: String): String? {
     val uri =
         try {
@@ -345,5 +360,6 @@ private const val APK_EXTENSION = ".apk"
 private const val APK_CONTENT_TYPE = "application/vnd.android.package-archive"
 private const val SHA_256 = "SHA-256"
 private const val SHA_256_HEX_LENGTH = 64
+private const val MAX_RELEASE_NOTES_LENGTH = 4_000
 private const val DOWNLOAD_BUFFER_SIZE = 64 * 1024
 private const val MAX_APK_SIZE_BYTES = 512L * 1024L * 1024L
