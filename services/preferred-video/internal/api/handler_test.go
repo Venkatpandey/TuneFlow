@@ -30,6 +30,28 @@ func TestGetPreferredVideoSuccess(t *testing.T) {
 	}
 }
 
+func TestGetPreferredVideoPassesCanonicalTrackIdentity(t *testing.T) {
+	wanted := storedVideo("duplicate-id", "aaaaaaaaaaa")
+	store := &fakeStore{getVideo: wanted}
+	response := serve(
+		t,
+		store,
+		http.MethodGet,
+		"/v1/tracks/duplicate-id/preferred-video?trackTitle=Makeba&trackArtist=Jain&trackDurationMs=219000",
+		"",
+	)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if store.resolveTrackID != "duplicate-id" || store.resolveIdentity == nil {
+		t.Fatalf("unexpected resolve call: track=%s identity=%+v", store.resolveTrackID, store.resolveIdentity)
+	}
+	if store.resolveIdentity.Title != "Makeba" || store.resolveIdentity.Artist != "Jain" || store.resolveIdentity.DurationMS != 219_000 {
+		t.Fatalf("unexpected track identity: %+v", store.resolveIdentity)
+	}
+}
+
 func TestGetPreferredVideoMissing(t *testing.T) {
 	store := &fakeStore{getErr: storage.ErrNotFound}
 	response := serve(t, store, http.MethodGet, "/v1/tracks/missing/preferred-video", "")
@@ -57,13 +79,39 @@ func TestPutPreferredVideoValidatesInput(t *testing.T) {
 func TestPutPreferredVideoPersistsValidatedInput(t *testing.T) {
 	store := &fakeStore{putVideo: storedVideo("track-1", "aaaaaaaaaaa")}
 	body := `{"provider":"youtube","videoId":"aaaaaaaaaaa","title":"Title","publisher":"Artist","thumbnailUrl":null,"durationMs":180000,"viewCount":42}`
-	response := serve(t, store, http.MethodPut, "/v1/tracks/track-1/preferred-video", body)
+	response := serve(
+		t,
+		store,
+		http.MethodPut,
+		"/v1/tracks/track-1/preferred-video?trackTitle=Song&trackArtist=Artist&trackDurationMs=180000",
+		body,
+	)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
 	if store.putTrackID != "track-1" || store.putInput.VideoID != "aaaaaaaaaaa" {
 		t.Fatalf("unexpected put call: track=%s input=%+v", store.putTrackID, store.putInput)
+	}
+	if store.putIdentity == nil || store.putIdentity.Title != "Song" || store.putIdentity.DurationMS != 180_000 {
+		t.Fatalf("unexpected put identity: %+v", store.putIdentity)
+	}
+}
+
+func TestTrackIdentityRequiresCompleteValidFields(t *testing.T) {
+	tests := []string{
+		"?trackTitle=Song",
+		"?trackTitle=Song&trackArtist=Artist&trackDurationMs=invalid",
+		"?trackTitle=Song&trackArtist=Artist&trackDurationMs=0",
+	}
+	for _, query := range tests {
+		response := serve(t, &fakeStore{}, http.MethodGet, "/v1/tracks/track-1/preferred-video"+query, "")
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("query %q status = %d, body = %s", query, response.Code, response.Body.String())
+		}
+		if !strings.Contains(response.Body.String(), `"code":"invalid_track_identity"`) {
+			t.Fatalf("query %q returned unexpected response: %s", query, response.Body.String())
+		}
 	}
 }
 
@@ -105,20 +153,25 @@ func serve(t *testing.T, store VideoStore, method, target, body string) *httptes
 }
 
 type fakeStore struct {
-	getVideo     model.PreferredVideo
-	getErr       error
-	putVideo     model.PreferredVideo
-	putErr       error
-	putTrackID   string
-	putInput     model.UpsertPreferredVideo
-	recentVideos []model.PreferredVideo
-	recentErr    error
-	recentLimit  int
+	getVideo        model.PreferredVideo
+	getErr          error
+	putVideo        model.PreferredVideo
+	putErr          error
+	putTrackID      string
+	putInput        model.UpsertPreferredVideo
+	putIdentity     *model.TrackIdentity
+	resolveTrackID  string
+	resolveIdentity *model.TrackIdentity
+	recentVideos    []model.PreferredVideo
+	recentErr       error
+	recentLimit     int
 }
 
 func (f *fakeStore) Health(context.Context) error { return nil }
 
-func (f *fakeStore) Get(context.Context, string) (model.PreferredVideo, error) {
+func (f *fakeStore) Resolve(_ context.Context, trackID string, identity *model.TrackIdentity) (model.PreferredVideo, error) {
+	f.resolveTrackID = trackID
+	f.resolveIdentity = identity
 	return f.getVideo, f.getErr
 }
 
@@ -126,9 +179,11 @@ func (f *fakeStore) Put(
 	_ context.Context,
 	trackID string,
 	input model.UpsertPreferredVideo,
+	identity *model.TrackIdentity,
 ) (model.PreferredVideo, error) {
 	f.putTrackID = trackID
 	f.putInput = input
+	f.putIdentity = identity
 	return f.putVideo, f.putErr
 }
 

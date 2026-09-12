@@ -11,6 +11,7 @@ import com.tuneflow.core.network.Starred2Dto
 import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.video.PreferredVideoLookupResult
 import com.tuneflow.feature.video.PreferredVideoStore
+import com.tuneflow.feature.video.PreferredVideoTrack
 import com.tuneflow.feature.video.VideoCandidate
 import com.tuneflow.feature.video.VideoHistoryEntry
 import kotlinx.coroutines.Dispatchers
@@ -80,10 +81,10 @@ class HomeViewModelTest {
 private class SlowPreferredVideoStore : PreferredVideoStore {
     override val history: StateFlow<List<VideoHistoryEntry>> = MutableStateFlow(emptyList())
 
-    override suspend fun lookup(trackId: String) = PreferredVideoLookupResult.Missing
+    override suspend fun lookup(track: PreferredVideoTrack) = PreferredVideoLookupResult.Missing
 
     override suspend fun savePreferredVideo(
-        trackId: String,
+        track: PreferredVideoTrack,
         candidate: VideoCandidate,
     ) = true
 

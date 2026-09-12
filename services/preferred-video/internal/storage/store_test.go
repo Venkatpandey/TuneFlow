@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -16,14 +17,14 @@ func TestPutReplacesMappingAndRefreshesBothTimestamps(t *testing.T) {
 	secondTime := firstTime.Add(time.Hour)
 	store.now = func() time.Time { return firstTime }
 
-	first, err := store.Put(context.Background(), "track-1", videoInput("aaaaaaaaaaa"))
+	first, err := store.Put(context.Background(), "track-1", videoInput("aaaaaaaaaaa"), nil)
 	if err != nil {
 		t.Fatalf("put first mapping: %v", err)
 	}
 	store.now = func() time.Time { return secondTime }
 	secondInput := videoInput("bbbbbbbbbbb")
 	secondInput.Title = "Replacement"
-	second, err := store.Put(context.Background(), "track-1", secondInput)
+	second, err := store.Put(context.Background(), "track-1", secondInput, nil)
 	if err != nil {
 		t.Fatalf("replace mapping: %v", err)
 	}
@@ -55,7 +56,7 @@ func TestRecentOrdersByPlaybackAndHonorsLimit(t *testing.T) {
 	base := time.Date(2026, time.August, 30, 10, 0, 0, 0, time.UTC)
 	for index, trackID := range []string{"track-1", "track-2", "track-3"} {
 		store.now = func() time.Time { return base.Add(time.Duration(index) * time.Minute) }
-		if _, err := store.Put(context.Background(), trackID, videoInput([]string{"aaaaaaaaaaa", "bbbbbbbbbbb", "ccccccccccc"}[index])); err != nil {
+		if _, err := store.Put(context.Background(), trackID, videoInput([]string{"aaaaaaaaaaa", "bbbbbbbbbbb", "ccccccccccc"}[index]), nil); err != nil {
 			t.Fatalf("put %s: %v", trackID, err)
 		}
 	}
@@ -76,7 +77,7 @@ func TestRecentOrdersByPlaybackAndHonorsLimit(t *testing.T) {
 func TestReopenKeepsDataAndDoesNotReapplyMigration(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "videos.db")
 	first := openTestStore(t, databasePath)
-	if _, err := first.Put(context.Background(), "track-1", videoInput("aaaaaaaaaaa")); err != nil {
+	if _, err := first.Put(context.Background(), "track-1", videoInput("aaaaaaaaaaa"), nil); err != nil {
 		t.Fatalf("put mapping: %v", err)
 	}
 	if err := first.Close(); err != nil {
@@ -100,8 +101,8 @@ func TestReopenKeepsDataAndDoesNotReapplyMigration(t *testing.T) {
 	if err := second.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if migrationCount != 1 {
-		t.Fatalf("migration count = %d, want 1", migrationCount)
+	if migrationCount != 2 {
+		t.Fatalf("migration count = %d, want 2", migrationCount)
 	}
 	var tableCount int
 	if err := second.db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'preferred_videos'").Scan(&tableCount); err != nil {
@@ -109,6 +110,161 @@ func TestReopenKeepsDataAndDoesNotReapplyMigration(t *testing.T) {
 	}
 	if tableCount != 1 {
 		t.Fatalf("preferred_videos table count = %d, want 1", tableCount)
+	}
+}
+
+func TestUpgradeAddsTrackIdentityWithoutLosingLegacyMapping(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "videos.db")
+	db, err := sql.Open("sqlite", databasePath)
+	if err != nil {
+		t.Fatalf("open legacy database: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
+		t.Fatalf("create legacy migration table: %v", err)
+	}
+	initialMigration, err := migrationFiles.ReadFile("migrations/001_initial.sql")
+	if err != nil {
+		t.Fatalf("read initial migration: %v", err)
+	}
+	if _, err := db.Exec(string(initialMigration)); err != nil {
+		t.Fatalf("apply initial migration: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO schema_migrations(name, applied_at) VALUES ('migrations/001_initial.sql', '2026-09-01T00:00:00Z')`); err != nil {
+		t.Fatalf("record initial migration: %v", err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO preferred_videos (
+			track_id, provider, video_id, title, publisher, duration_ms, view_count,
+			mapping_updated_at, last_played_at
+		) VALUES ('legacy-id', 'youtube', 'aaaaaaaaaaa', 'Video', 'Artist', 180000, 42,
+		          '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')`); err != nil {
+		t.Fatalf("insert legacy mapping: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close legacy database: %v", err)
+	}
+
+	store := openTestStore(t, databasePath)
+	identity := trackIdentity("Song", "Artist", 180_000)
+	if _, err := store.Resolve(context.Background(), "legacy-id", identity); err != nil {
+		t.Fatalf("resolve upgraded legacy mapping: %v", err)
+	}
+	duplicate, err := store.Resolve(context.Background(), "duplicate-id", identity)
+	if err != nil {
+		t.Fatalf("resolve duplicate after upgrade: %v", err)
+	}
+	if duplicate.VideoID != "aaaaaaaaaaa" {
+		t.Fatalf("duplicate video ID = %s, want legacy mapping", duplicate.VideoID)
+	}
+}
+
+func TestResolveReusesMappingForDuplicateTrackIdentity(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	identity := trackIdentity("  Makeba ", "JAIN", 219_000)
+	if _, err := store.Put(context.Background(), "original-id", videoInput("aaaaaaaaaaa"), nil); err != nil {
+		t.Fatalf("put original mapping: %v", err)
+	}
+	if _, err := store.Resolve(context.Background(), "original-id", identity); err != nil {
+		t.Fatalf("backfill original identity: %v", err)
+	}
+
+	resolved, err := store.Resolve(
+		context.Background(),
+		"duplicate-id",
+		trackIdentity("makeba", "  Jain  ", 224_000),
+	)
+	if err != nil {
+		t.Fatalf("resolve duplicate mapping: %v", err)
+	}
+	if resolved.TrackID != "duplicate-id" || resolved.VideoID != "aaaaaaaaaaa" {
+		t.Fatalf("unexpected resolved mapping: %+v", resolved)
+	}
+	if _, err := store.MarkPlayed(context.Background(), "duplicate-id"); err != nil {
+		t.Fatalf("resolved alias was not persisted: %v", err)
+	}
+}
+
+func TestResolveDoesNotReuseDifferentDuration(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	if _, err := store.Put(
+		context.Background(),
+		"studio-id",
+		videoInput("aaaaaaaaaaa"),
+		trackIdentity("Song", "Artist", 180_000),
+	); err != nil {
+		t.Fatalf("put studio mapping: %v", err)
+	}
+
+	_, err := store.Resolve(
+		context.Background(),
+		"live-id",
+		trackIdentity("Song", "Artist", 240_000),
+	)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("resolve different duration error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestReplacingDuplicateMappingUpdatesIdentityGroup(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	identity := trackIdentity("Song", "Artist", 180_000)
+	if _, err := store.Put(context.Background(), "track-1", videoInput("aaaaaaaaaaa"), identity); err != nil {
+		t.Fatalf("put original mapping: %v", err)
+	}
+	if _, err := store.Resolve(context.Background(), "track-2", identity); err != nil {
+		t.Fatalf("resolve duplicate mapping: %v", err)
+	}
+	if _, err := store.Put(context.Background(), "track-2", videoInput("bbbbbbbbbbb"), identity); err != nil {
+		t.Fatalf("replace duplicate mapping: %v", err)
+	}
+
+	original, err := store.Get(context.Background(), "track-1")
+	if err != nil {
+		t.Fatalf("get original mapping: %v", err)
+	}
+	if original.VideoID != "bbbbbbbbbbb" {
+		t.Fatalf("original video ID = %s, want propagated replacement", original.VideoID)
+	}
+}
+
+func TestResolveReconcilesLegacyMappingWithNewestIdentityChoice(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	firstTime := time.Date(2026, time.September, 1, 10, 0, 0, 0, time.UTC)
+	store.now = func() time.Time { return firstTime }
+	if _, err := store.Put(context.Background(), "legacy-id", videoInput("aaaaaaaaaaa"), nil); err != nil {
+		t.Fatalf("put legacy mapping: %v", err)
+	}
+
+	identity := trackIdentity("Song", "Artist", 180_000)
+	store.now = func() time.Time { return firstTime.Add(time.Hour) }
+	if _, err := store.Put(context.Background(), "duplicate-id", videoInput("bbbbbbbbbbb"), identity); err != nil {
+		t.Fatalf("put newer duplicate mapping: %v", err)
+	}
+
+	resolved, err := store.Resolve(context.Background(), "legacy-id", identity)
+	if err != nil {
+		t.Fatalf("resolve legacy identity: %v", err)
+	}
+	if resolved.VideoID != "bbbbbbbbbbb" {
+		t.Fatalf("resolved video ID = %s, want newest identity mapping", resolved.VideoID)
+	}
+}
+
+func TestDeleteRemovesDuplicateIdentityGroup(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	identity := trackIdentity("Song", "Artist", 180_000)
+	if _, err := store.Put(context.Background(), "track-1", videoInput("aaaaaaaaaaa"), identity); err != nil {
+		t.Fatalf("put original mapping: %v", err)
+	}
+	if _, err := store.Resolve(context.Background(), "track-2", identity); err != nil {
+		t.Fatalf("resolve duplicate mapping: %v", err)
+	}
+
+	if err := store.Delete(context.Background(), "track-2"); err != nil {
+		t.Fatalf("delete duplicate mapping: %v", err)
+	}
+	if _, err := store.Get(context.Background(), "track-1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("original mapping remains after group delete: %v", err)
 	}
 }
 
@@ -133,4 +289,8 @@ func videoInput(videoID string) model.UpsertPreferredVideo {
 		DurationMS:   180_000,
 		ViewCount:    42,
 	}
+}
+
+func trackIdentity(title, artist string, durationMS int64) *model.TrackIdentity {
+	return &model.TrackIdentity{Title: title, Artist: artist, DurationMS: durationMS}
 }

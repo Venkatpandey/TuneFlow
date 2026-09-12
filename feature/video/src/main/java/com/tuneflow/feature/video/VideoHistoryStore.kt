@@ -42,13 +42,20 @@ sealed interface PreferredVideoLookupResult {
     data object BackendUnavailable : PreferredVideoLookupResult
 }
 
+data class PreferredVideoTrack(
+    val trackId: String,
+    val title: String,
+    val artist: String,
+    val durationMs: Long,
+)
+
 interface PreferredVideoStore {
     val history: StateFlow<List<VideoHistoryEntry>>
 
-    suspend fun lookup(trackId: String): PreferredVideoLookupResult
+    suspend fun lookup(track: PreferredVideoTrack): PreferredVideoLookupResult
 
     suspend fun savePreferredVideo(
-        trackId: String,
+        track: PreferredVideoTrack,
         candidate: VideoCandidate,
     ): Boolean
 
@@ -74,9 +81,9 @@ class RemotePreferredVideoStore(
         _history.value = emptyList()
     }
 
-    override suspend fun lookup(trackId: String): PreferredVideoLookupResult {
+    override suspend fun lookup(track: PreferredVideoTrack): PreferredVideoLookupResult {
         val request =
-            requestBuilder("v1", "tracks", trackId, "preferred-video")?.get()?.build()
+            preferredVideoRequestBuilder(track)?.get()?.build()
                 ?: return PreferredVideoLookupResult.BackendUnavailable
         return executeSafely(request) { response ->
             when (response.code) {
@@ -91,7 +98,7 @@ class RemotePreferredVideoStore(
     }
 
     override suspend fun savePreferredVideo(
-        trackId: String,
+        track: PreferredVideoTrack,
         candidate: VideoCandidate,
     ): Boolean {
         val payload =
@@ -105,7 +112,7 @@ class RemotePreferredVideoStore(
                 viewCount = candidate.viewCount,
             )
         val request =
-            requestBuilder("v1", "tracks", trackId, "preferred-video")
+            preferredVideoRequestBuilder(track)
                 ?.put(json.encodeToString(payload).toRequestBody(JSON_MEDIA_TYPE))
                 ?.build()
                 ?: return false
@@ -170,6 +177,30 @@ class RemotePreferredVideoStore(
             .header("Accept", "application/json")
     }
 
+    private fun preferredVideoRequestBuilder(track: PreferredVideoTrack): Request.Builder? =
+        requestBuilder("v1", "tracks", track.trackId, "preferred-video")?.let { request ->
+            if (!track.hasReliableIdentity) {
+                request
+            } else {
+                val url =
+                    request.build().url.newBuilder()
+                        .addQueryParameter("trackTitle", track.title)
+                        .addQueryParameter("trackArtist", track.artist)
+                        .addQueryParameter("trackDurationMs", track.durationMs.toString())
+                        .build()
+                request.url(url)
+            }
+        }
+
+    private val PreferredVideoTrack.hasReliableIdentity: Boolean
+        get() =
+            title.isNotBlank() &&
+                artist.isNotBlank() &&
+                !artist.equals(UNKNOWN_ARTIST, ignoreCase = true) &&
+                title.length <= MAXIMUM_TRACK_TEXT_LENGTH &&
+                artist.length <= MAXIMUM_TRACK_TEXT_LENGTH &&
+                durationMs > 0L
+
     private suspend fun <T> executeSafely(
         request: Request,
         transform: (Response) -> T,
@@ -201,10 +232,10 @@ class RemotePreferredVideoStore(
 object UnavailablePreferredVideoStore : PreferredVideoStore {
     override val history: StateFlow<List<VideoHistoryEntry>> = MutableStateFlow(emptyList())
 
-    override suspend fun lookup(trackId: String) = PreferredVideoLookupResult.BackendUnavailable
+    override suspend fun lookup(track: PreferredVideoTrack) = PreferredVideoLookupResult.BackendUnavailable
 
     override suspend fun savePreferredVideo(
-        trackId: String,
+        track: PreferredVideoTrack,
         candidate: VideoCandidate,
     ) = false
 
@@ -295,6 +326,8 @@ const val VIDEO_HISTORY_LIMIT = 100
 internal const val YOUTUBE_PROVIDER = "youtube"
 private const val API_VERSION = "v1"
 private const val MAX_RESPONSE_CHARACTERS = 256 * 1024
+private const val MAXIMUM_TRACK_TEXT_LENGTH = 512
+private const val UNKNOWN_ARTIST = "Unknown Artist"
 private val YOUTUBE_VIDEO_ID = Regex("^[A-Za-z0-9_-]{11}$")
 private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 private val EMPTY_JSON_BODY = ByteArray(0).toRequestBody(JSON_MEDIA_TYPE)
