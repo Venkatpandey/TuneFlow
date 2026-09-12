@@ -14,10 +14,19 @@ kotlin {
     }
 }
 
-val releaseBuildRequested =
+val stableReleaseBuildRequested =
     gradle.startParameter.taskNames.any {
-        it.contains("Release", ignoreCase = true)
+        it.contains("Release", ignoreCase = true) &&
+            !it.contains("BetaRelease", ignoreCase = true)
     }
+
+val tuneFlowVersionName =
+    providers.gradleProperty("tuneFlowVersionName")
+        .getOrElse("1.2.0")
+val tuneFlowVersionCode =
+    providers.gradleProperty("tuneFlowVersionCode")
+        .map(String::toInt)
+        .getOrElse(1_002_000)
 
 val preferredVideoServiceUrl =
     providers.gradleProperty("preferredVideoServiceUrl")
@@ -34,10 +43,11 @@ android {
         applicationId = "com.tuneflow.tv"
         minSdk = 25
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = tuneFlowVersionCode
+        versionName = tuneFlowVersionName
 
         buildConfigField("String", "PREFERRED_VIDEO_SERVICE_URL", "\"$preferredVideoServiceUrl\"")
+        buildConfigField("boolean", "APP_UPDATE_ENABLED", "true")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -49,7 +59,7 @@ android {
             val keyAliasValue = System.getenv("SIGNING_KEY_ALIAS")
             val keyPasswordValue = System.getenv("SIGNING_KEY_PASSWORD")
 
-            if (releaseBuildRequested) {
+            if (stableReleaseBuildRequested) {
                 require(!storeFilePath.isNullOrBlank()) {
                     "SIGNING_STORE_FILE is required for release builds."
                 }
@@ -84,6 +94,15 @@ android {
                 "proguard-rules.pro",
             )
             signingConfig = signingConfigs.getByName("release")
+        }
+        create("betaRelease") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".beta"
+            versionNameSuffix = "-beta"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            resValue("string", "app_name", "TuneFlow Beta")
+            buildConfigField("boolean", "APP_UPDATE_ENABLED", "false")
         }
     }
 
