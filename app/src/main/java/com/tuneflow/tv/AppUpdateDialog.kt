@@ -1,14 +1,18 @@
 package com.tuneflow.tv
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -17,17 +21,23 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.tuneflow.core.design.TuneFlowShapes
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
@@ -96,6 +106,8 @@ internal fun AppUpdateDialog(
 
 @Composable
 private fun ReleaseNotes(releaseNotes: String) {
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
     Text(
         text = "What's new",
         style = MaterialTheme.typography.titleMedium,
@@ -106,8 +118,29 @@ private fun ReleaseNotes(releaseNotes: String) {
         text = releaseNotes,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = RELEASE_NOTES_MAX_LINES,
-        overflow = TextOverflow.Ellipsis,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = RELEASE_NOTES_MAX_HEIGHT)
+                .verticalScroll(scrollState)
+                .focusable()
+                .onKeyEvent { event ->
+                    val scrollDelta =
+                        when {
+                            event.type != KeyEventType.KeyDown -> null
+                            event.key == Key.DirectionDown && scrollState.canScrollForward -> RELEASE_NOTES_SCROLL_STEP
+                            event.key == Key.DirectionUp && scrollState.canScrollBackward -> -RELEASE_NOTES_SCROLL_STEP
+                            else -> null
+                        }
+                    scrollDelta?.let {
+                        scope.launch {
+                            scrollState.animateScrollTo(
+                                (scrollState.value + it).coerceIn(0, scrollState.maxValue),
+                            )
+                        }
+                        true
+                    } ?: false
+                },
     )
 }
 
@@ -228,4 +261,5 @@ private fun AppUpdateUiState.message(): String =
         AppUpdateUiState.Hidden -> ""
     }
 
-private const val RELEASE_NOTES_MAX_LINES = 8
+private val RELEASE_NOTES_MAX_HEIGHT = 180.dp
+private const val RELEASE_NOTES_SCROLL_STEP = 96
