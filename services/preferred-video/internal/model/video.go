@@ -26,3 +26,11 @@ type UpsertPreferredVideo struct {
 	DurationMS   int64   `json:"durationMs"`
 	ViewCount    int64   `json:"viewCount"`
 }
+
+// TrackIdentity describes the audio recording independently of a Navidrome
+// track ID. Duplicate library entries can therefore share one video mapping.
+type TrackIdentity struct {
+	Title      string
+	Artist     string
+	DurationMS int64
+}

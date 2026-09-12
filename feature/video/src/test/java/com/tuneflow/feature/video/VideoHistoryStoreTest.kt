@@ -16,12 +16,15 @@ class VideoHistoryStoreTest {
             server.start()
             try {
                 val store = RemotePreferredVideoStore("")
-                assertEquals(PreferredVideoLookupResult.BackendUnavailable, store.lookup("track"))
+                assertEquals(PreferredVideoLookupResult.BackendUnavailable, store.lookup(preferredTrack("track")))
 
                 store.updateServiceUrl(server.url("/").toString())
 
-                assertEquals(PreferredVideoLookupResult.Missing, store.lookup("track"))
-                assertEquals("/v1/tracks/track/preferred-video", server.takeRequest().path)
+                assertEquals(PreferredVideoLookupResult.Missing, store.lookup(preferredTrack("track")))
+                assertEquals(
+                    "/v1/tracks/track/preferred-video?trackTitle=Song&trackArtist=Artist&trackDurationMs=180000",
+                    server.takeRequest().path,
+                )
             } finally {
                 server.shutdown()
             }
@@ -79,11 +82,14 @@ class VideoHistoryStoreTest {
                 server.enqueue(MockResponse().setResponseCode(200).setBody(videoEnvelope("track/1", "aaaaaaaaaaa")))
                 val store = RemotePreferredVideoStore(server.url("/").toString())
 
-                val result = store.lookup("track/1")
+                val result = store.lookup(preferredTrack("track/1", title = "Song & Dance", artist = "Artist One"))
 
                 assertTrue(result is PreferredVideoLookupResult.Found)
                 assertEquals("aaaaaaaaaaa", (result as PreferredVideoLookupResult.Found).video.videoId)
-                assertEquals("/v1/tracks/track%2F1/preferred-video", server.takeRequest().path)
+                assertEquals(
+                    "/v1/tracks/track%2F1/preferred-video?trackTitle=Song%20%26%20Dance&trackArtist=Artist%20One&trackDurationMs=180000",
+                    server.takeRequest().path,
+                )
             }
         }
 
@@ -95,8 +101,41 @@ class VideoHistoryStoreTest {
                 server.enqueue(MockResponse().setResponseCode(500).setBody("{}"))
                 val store = RemotePreferredVideoStore(server.url("/").toString())
 
-                assertEquals(PreferredVideoLookupResult.Missing, store.lookup("track-1"))
-                assertEquals(PreferredVideoLookupResult.BackendUnavailable, store.lookup("track-1"))
+                assertEquals(PreferredVideoLookupResult.Missing, store.lookup(preferredTrack("track-1")))
+                assertEquals(PreferredVideoLookupResult.BackendUnavailable, store.lookup(preferredTrack("track-1")))
+            }
+        }
+
+    @Test
+    fun lookupWithoutCompleteIdentityStillUsesExactTrackEndpoint() =
+        runTest {
+            MockWebServer().use { server ->
+                server.enqueue(MockResponse().setResponseCode(404).setBody("{}"))
+                val store = RemotePreferredVideoStore(server.url("/").toString())
+
+                store.lookup(
+                    PreferredVideoTrack(
+                        trackId = "track-1",
+                        title = "Song",
+                        artist = "Artist",
+                        durationMs = 0L,
+                    ),
+                )
+
+                assertEquals("/v1/tracks/track-1/preferred-video", server.takeRequest().path)
+            }
+        }
+
+    @Test
+    fun lookupWithUnknownArtistDoesNotRiskCanonicalMatch() =
+        runTest {
+            MockWebServer().use { server ->
+                server.enqueue(MockResponse().setResponseCode(404).setBody("{}"))
+                val store = RemotePreferredVideoStore(server.url("/").toString())
+
+                store.lookup(preferredTrack("track-1", artist = "Unknown Artist"))
+
+                assertEquals("/v1/tracks/track-1/preferred-video", server.takeRequest().path)
             }
         }
 
@@ -107,12 +146,16 @@ class VideoHistoryStoreTest {
                 server.enqueue(MockResponse().setResponseCode(200).setBody(videoEnvelope("track-1", "aaaaaaaaaaa")))
                 val store = RemotePreferredVideoStore(server.url("/").toString())
 
-                val success = store.savePreferredVideo("track-1", candidate("aaaaaaaaaaa"))
+                val success = store.savePreferredVideo(preferredTrack("track-1"), candidate("aaaaaaaaaaa"))
 
                 assertTrue(success)
                 assertEquals(listOf("track-1"), store.history.value.map(VideoHistoryEntry::trackId))
                 val request = server.takeRequest()
                 assertEquals("PUT", request.method)
+                assertEquals(
+                    "/v1/tracks/track-1/preferred-video?trackTitle=Song&trackArtist=Artist&trackDurationMs=180000",
+                    request.path,
+                )
                 assertTrue(request.body.readUtf8().contains("\"videoId\":\"aaaaaaaaaaa\""))
             }
         }
@@ -144,6 +187,17 @@ class VideoHistoryStoreTest {
             musicCategory = true,
             viewCount = 42L,
         )
+
+    private fun preferredTrack(
+        trackId: String,
+        title: String = "Song",
+        artist: String = "Artist",
+    ) = PreferredVideoTrack(
+        trackId = trackId,
+        title = title,
+        artist = artist,
+        durationMs = 180_000L,
+    )
 
     private fun videoEnvelope(
         trackId: String,

@@ -125,6 +125,31 @@ class VideoViewModelTest {
         }
 
     @Test
+    fun sameTrackInAnotherPlaylistKeepsUsingMappedVideo() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track"))
+            val nativeBackend = FakeNativeBackend()
+            val store =
+                FakePreferredVideoStore(
+                    lookupResult = PreferredVideoLookupResult.Found(historyEntry("track", "mappedvid01")),
+                )
+            val viewModel = createViewModel(audio, backgroundScope, nativeBackend, store)
+            runCurrent()
+            viewModel.setNowPlayingVisible(true)
+            runCurrent()
+
+            audio.replaceQueue(playlistQueue("track").copy(sourcePlaylistName = "Another Playlist"))
+            runCurrent()
+            viewModel.requestVideo()
+            runCurrent()
+
+            assertEquals(listOf("track", "track"), store.lookupTrackIds)
+            val loading = viewModel.uiState.value as VideoUiState.Loading
+            assertEquals("mappedvid01", loading.candidate.videoId)
+            assertEquals(0, nativeBackend.searchCalls)
+        }
+
+    @Test
     fun mappedPlaybackUpdatesRecentOnlyAfterConfirmedPlaying() =
         runTest {
             val audio = VideoViewModelFakeAudio()
@@ -152,11 +177,15 @@ class VideoViewModelTest {
         }
 
     @Test
-    fun videoClickWhileLookupChecksSearchesImmediatelyAndLateResultDoesNotInterruptPicker() =
+    fun videoClickWhileLookupChecksWaitsForMappedResult() =
         runTest {
             val audio = VideoViewModelFakeAudio()
             val nativeBackend = FakeNativeBackend()
-            val store = FakePreferredVideoStore(lookupDelayMs = 10_000L)
+            val store =
+                FakePreferredVideoStore(
+                    lookupResult = PreferredVideoLookupResult.Found(historyEntry("track", "mappedvid01")),
+                    lookupDelayMs = 10_000L,
+                )
             val viewModel = createViewModel(audio, backgroundScope, nativeBackend, store)
             runCurrent()
 
@@ -167,15 +196,66 @@ class VideoViewModelTest {
             viewModel.requestVideo()
             runCurrent()
 
-            assertTrue(viewModel.uiState.value is VideoUiState.Candidates)
+            assertTrue(viewModel.uiState.value is VideoUiState.Searching)
             assertEquals(1, store.lookupTrackIds.size)
-            assertEquals(1, nativeBackend.searchCalls)
+            assertEquals(0, nativeBackend.searchCalls)
+
+            advanceTimeBy(10_000L)
+            runCurrent()
+
+            val loading = viewModel.uiState.value as VideoUiState.Loading
+            assertEquals("mappedvid01", loading.candidate.videoId)
+            assertEquals(0, nativeBackend.searchCalls)
+        }
+
+    @Test
+    fun videoClickWhileLookupChecksSearchesAfterMissingResult() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativeBackend = FakeNativeBackend()
+            val store = FakePreferredVideoStore(lookupDelayMs = 10_000L)
+            val viewModel = createViewModel(audio, backgroundScope, nativeBackend, store)
+            runCurrent()
+
+            viewModel.setNowPlayingVisible(true)
+            runCurrent()
+            viewModel.requestVideo()
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Searching)
+            assertEquals(0, nativeBackend.searchCalls)
 
             advanceTimeBy(10_000L)
             runCurrent()
 
             assertTrue(viewModel.uiState.value is VideoUiState.Candidates)
             assertTrue(viewModel.preferredVideoState.value is PreferredVideoState.Unmapped)
+            assertEquals(1, nativeBackend.searchCalls)
+        }
+
+    @Test
+    fun leavingNowPlayingCancelsPendingMappedRequest() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativeBackend = FakeNativeBackend()
+            val store =
+                FakePreferredVideoStore(
+                    lookupResult = PreferredVideoLookupResult.Found(historyEntry("track", "mappedvid01")),
+                    lookupDelayMs = 10_000L,
+                )
+            val viewModel = createViewModel(audio, backgroundScope, nativeBackend, store)
+            runCurrent()
+
+            viewModel.setNowPlayingVisible(true)
+            runCurrent()
+            viewModel.requestVideo()
+            runCurrent()
+            viewModel.setNowPlayingVisible(false)
+            advanceTimeBy(10_000L)
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Idle)
+            assertEquals(0, nativeBackend.searchCalls)
         }
 
     @Test
@@ -762,17 +842,17 @@ private class FakePreferredVideoStore(
     val savedMappings = mutableListOf<Pair<String, String>>()
     val playedTrackIds = mutableListOf<String>()
 
-    override suspend fun lookup(trackId: String): PreferredVideoLookupResult {
-        lookupTrackIds += trackId
+    override suspend fun lookup(track: PreferredVideoTrack): PreferredVideoLookupResult {
+        lookupTrackIds += track.trackId
         delay(lookupDelayMs)
-        return lookupResults[trackId] ?: lookupResult
+        return lookupResults[track.trackId] ?: lookupResult
     }
 
     override suspend fun savePreferredVideo(
-        trackId: String,
+        track: PreferredVideoTrack,
         candidate: VideoCandidate,
     ): Boolean {
-        savedMappings += trackId to candidate.videoId
+        savedMappings += track.trackId to candidate.videoId
         return true
     }
 
@@ -790,12 +870,12 @@ private class RapidNavigationPreferredVideoStore : PreferredVideoStore {
     override val history: StateFlow<List<VideoHistoryEntry>> = MutableStateFlow(emptyList())
     private var lookupCount = 0
 
-    override suspend fun lookup(trackId: String): PreferredVideoLookupResult {
+    override suspend fun lookup(track: PreferredVideoTrack): PreferredVideoLookupResult {
         lookupCount += 1
         return if (lookupCount == 1) {
             withContext(NonCancellable) {
                 delay(10_000L)
-                PreferredVideoLookupResult.Found(historyEntry(trackId, "oldmapping1"))
+                PreferredVideoLookupResult.Found(historyEntry(track.trackId, "oldmapping1"))
             }
         } else {
             PreferredVideoLookupResult.Missing
@@ -803,7 +883,7 @@ private class RapidNavigationPreferredVideoStore : PreferredVideoStore {
     }
 
     override suspend fun savePreferredVideo(
-        trackId: String,
+        track: PreferredVideoTrack,
         candidate: VideoCandidate,
     ) = true
 
@@ -873,6 +953,10 @@ private class VideoViewModelFakeAudio(
 
     fun replaceTrack(id: String) {
         queueState.value = queueFor(id)
+    }
+
+    fun replaceQueue(queue: PlaybackQueue) {
+        queueState.value = queue
     }
 
     private companion object {

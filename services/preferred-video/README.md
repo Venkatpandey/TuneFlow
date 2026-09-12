@@ -103,6 +103,17 @@ All JSON responses include `"apiVersion":"v1"`.
 - `POST /v1/tracks/{trackId}/preferred-video/played`
 - `GET /v1/videos/recent?limit=5` (`limit` capped at 100)
 
+`GET` and `PUT` preferred-video requests may include `trackTitle`, `trackArtist`,
+and `trackDurationMs` together. The service still prefers the exact Navidrome
+track ID. If that ID is missing, it can reuse a mapping with the same normalized
+title and artist when the audio durations are within 10 seconds. This lets
+duplicate library entries share a choice without matching different live,
+extended, or remix versions with materially different durations. Older clients
+and servers remain compatible because the identity fields are optional query
+parameters. Existing ID-only mappings gain their identity the next time the
+original track is looked up; mappings saved by an updated client include it
+immediately.
+
 Example mapping write after confirmed playback:
 
 ```bash
@@ -118,12 +129,12 @@ curl --fail-with-body \
     "durationMs": 180000,
     "viewCount": 1
   }' \
-  http://192.168.0.128:8090/v1/tracks/TRACK_ID/preferred-video
+  'http://192.168.0.128:8090/v1/tracks/TRACK_ID/preferred-video?trackTitle=Example%20Song&trackArtist=Example%20Artist&trackDurationMs=180000'
 ```
 
 ## Migrations
 
-SQL migrations are embedded from `internal/storage/migrations` and recorded in `schema_migrations`. Startup applies each migration once, in filename order and inside a transaction. Repeated startup does not recreate tables or reapply completed migrations. Migration SQL also uses `IF NOT EXISTS` as a second safety guard.
+SQL migrations are embedded from `internal/storage/migrations` and recorded in `schema_migrations`. Startup applies each migration once, in filename order and inside a transaction. Repeated startup does not recreate tables or reapply completed migrations. Schema objects use `IF NOT EXISTS` where SQLite supports it; the migration journal remains the source of truth.
 
 Never edit an already-deployed migration. Add the next numbered migration instead.
 

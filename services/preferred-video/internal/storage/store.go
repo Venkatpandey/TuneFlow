@@ -2,8 +2,10 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -18,6 +20,8 @@ import (
 )
 
 var ErrNotFound = errors.New("preferred video not found")
+
+const trackDurationToleranceMS int64 = 10_000
 
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
@@ -146,15 +150,54 @@ func (s *Store) Get(ctx context.Context, trackID string) (model.PreferredVideo, 
 	return scanVideo(row)
 }
 
+// Resolve first checks the exact Navidrome track ID. When that misses, it
+// reuses the newest mapping for the same normalized recording.
+func (s *Store) Resolve(
+	ctx context.Context,
+	trackID string,
+	identity *model.TrackIdentity,
+) (model.PreferredVideo, error) {
+	video, err := s.Get(ctx, trackID)
+	identityKey, hasIdentity := canonicalTrackIdentity(identity)
+	if err == nil {
+		if hasIdentity {
+			if err := s.rememberTrackIdentity(ctx, trackID, identityKey, *identity); err != nil {
+				return model.PreferredVideo{}, err
+			}
+			latest, err := s.getByTrackIdentity(ctx, identityKey, identity.DurationMS)
+			if err != nil {
+				return model.PreferredVideo{}, err
+			}
+			if err := s.synchronizeTrackIdentity(ctx, identityKey, identity.DurationMS, latest); err != nil {
+				return model.PreferredVideo{}, err
+			}
+			return s.Get(ctx, trackID)
+		}
+		return video, nil
+	}
+	if !errors.Is(err, ErrNotFound) || !hasIdentity {
+		return model.PreferredVideo{}, err
+	}
+
+	source, err := s.getByTrackIdentity(ctx, identityKey, identity.DurationMS)
+	if err != nil {
+		return model.PreferredVideo{}, err
+	}
+	return s.copyMappingToTrack(ctx, trackID, identityKey, *identity, source)
+}
+
 func (s *Store) Put(
 	ctx context.Context,
 	trackID string,
 	input model.UpsertPreferredVideo,
+	identity *model.TrackIdentity,
 ) (model.PreferredVideo, error) {
 	now := s.now().UTC().Format(time.RFC3339Nano)
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO preferred_videos (
-			track_id, provider, video_id, title, publisher, thumbnail_url,
+	identityKey, hasIdentity := canonicalTrackIdentity(identity)
+	if !hasIdentity {
+		_, err := s.db.ExecContext(ctx, `
+			INSERT INTO preferred_videos (
+				track_id, provider, video_id, title, publisher, thumbnail_url,
 			duration_ms, view_count, mapping_updated_at, last_played_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(track_id) DO UPDATE SET
@@ -167,6 +210,70 @@ func (s *Store) Put(
 			view_count = excluded.view_count,
 			mapping_updated_at = excluded.mapping_updated_at,
 			last_played_at = excluded.last_played_at`,
+			trackID,
+			input.Provider,
+			input.VideoID,
+			input.Title,
+			input.Publisher,
+			input.ThumbnailURL,
+			input.DurationMS,
+			input.ViewCount,
+			now,
+			now,
+		)
+		if err != nil {
+			return model.PreferredVideo{}, fmt.Errorf("put preferred video: %w", err)
+		}
+		return s.Get(ctx, trackID)
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return model.PreferredVideo{}, fmt.Errorf("begin preferred video update: %w", err)
+	}
+	defer tx.Rollback()
+
+	minimumDuration, maximumDuration := durationRange(identity.DurationMS)
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE preferred_videos
+		SET provider = ?, video_id = ?, title = ?, publisher = ?, thumbnail_url = ?,
+		    duration_ms = ?, view_count = ?, mapping_updated_at = ?
+		WHERE track_identity_key = ? AND track_duration_ms BETWEEN ? AND ?`,
+		input.Provider,
+		input.VideoID,
+		input.Title,
+		input.Publisher,
+		input.ThumbnailURL,
+		input.DurationMS,
+		input.ViewCount,
+		now,
+		identityKey,
+		minimumDuration,
+		maximumDuration,
+	); err != nil {
+		return model.PreferredVideo{}, fmt.Errorf("update matching preferred videos: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO preferred_videos (
+			track_id, provider, video_id, title, publisher, thumbnail_url,
+			duration_ms, view_count, mapping_updated_at, last_played_at,
+			track_identity_key, track_title, track_artist, track_duration_ms
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(track_id) DO UPDATE SET
+			provider = excluded.provider,
+			video_id = excluded.video_id,
+			title = excluded.title,
+			publisher = excluded.publisher,
+			thumbnail_url = excluded.thumbnail_url,
+			duration_ms = excluded.duration_ms,
+			view_count = excluded.view_count,
+			mapping_updated_at = excluded.mapping_updated_at,
+			last_played_at = excluded.last_played_at,
+			track_identity_key = excluded.track_identity_key,
+			track_title = excluded.track_title,
+			track_artist = excluded.track_artist,
+			track_duration_ms = excluded.track_duration_ms`,
 		trackID,
 		input.Provider,
 		input.VideoID,
@@ -177,15 +284,47 @@ func (s *Store) Put(
 		input.ViewCount,
 		now,
 		now,
-	)
-	if err != nil {
+		identityKey,
+		identity.Title,
+		identity.Artist,
+		identity.DurationMS,
+	); err != nil {
 		return model.PreferredVideo{}, fmt.Errorf("put preferred video: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return model.PreferredVideo{}, fmt.Errorf("commit preferred video update: %w", err)
 	}
 	return s.Get(ctx, trackID)
 }
 
 func (s *Store) Delete(ctx context.Context, trackID string) error {
-	result, err := s.db.ExecContext(ctx, "DELETE FROM preferred_videos WHERE track_id = ?", trackID)
+	var identityKey sql.NullString
+	var durationMS sql.NullInt64
+	err := s.db.QueryRowContext(
+		ctx,
+		"SELECT track_identity_key, track_duration_ms FROM preferred_videos WHERE track_id = ?",
+		trackID,
+	).Scan(&identityKey, &durationMS)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("read preferred video identity: %w", err)
+	}
+
+	var result sql.Result
+	if identityKey.Valid && durationMS.Valid {
+		minimumDuration, maximumDuration := durationRange(durationMS.Int64)
+		result, err = s.db.ExecContext(
+			ctx,
+			"DELETE FROM preferred_videos WHERE track_identity_key = ? AND track_duration_ms BETWEEN ? AND ?",
+			identityKey.String,
+			minimumDuration,
+			maximumDuration,
+		)
+	} else {
+		result, err = s.db.ExecContext(ctx, "DELETE FROM preferred_videos WHERE track_id = ?", trackID)
+	}
 	if err != nil {
 		return fmt.Errorf("delete preferred video: %w", err)
 	}
@@ -243,6 +382,134 @@ func (s *Store) Recent(ctx context.Context, limit int) ([]model.PreferredVideo, 
 		return nil, fmt.Errorf("iterate recent videos: %w", err)
 	}
 	return videos, nil
+}
+
+func (s *Store) rememberTrackIdentity(
+	ctx context.Context,
+	trackID string,
+	identityKey string,
+	identity model.TrackIdentity,
+) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE preferred_videos
+		SET track_identity_key = ?, track_title = ?, track_artist = ?, track_duration_ms = ?
+		WHERE track_id = ?`,
+		identityKey,
+		identity.Title,
+		identity.Artist,
+		identity.DurationMS,
+		trackID,
+	)
+	if err != nil {
+		return fmt.Errorf("remember preferred video track identity: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) getByTrackIdentity(
+	ctx context.Context,
+	identityKey string,
+	durationMS int64,
+) (model.PreferredVideo, error) {
+	minimumDuration, maximumDuration := durationRange(durationMS)
+	row := s.db.QueryRowContext(ctx, `
+		SELECT track_id, provider, video_id, title, publisher, thumbnail_url,
+		       duration_ms, view_count, mapping_updated_at, last_played_at
+		FROM preferred_videos
+		WHERE track_identity_key = ? AND track_duration_ms BETWEEN ? AND ?
+		ORDER BY mapping_updated_at DESC, last_played_at DESC, track_id ASC
+		LIMIT 1`, identityKey, minimumDuration, maximumDuration)
+	return scanVideo(row)
+}
+
+func (s *Store) synchronizeTrackIdentity(
+	ctx context.Context,
+	identityKey string,
+	durationMS int64,
+	source model.PreferredVideo,
+) error {
+	minimumDuration, maximumDuration := durationRange(durationMS)
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE preferred_videos
+		SET provider = ?, video_id = ?, title = ?, publisher = ?, thumbnail_url = ?,
+		    duration_ms = ?, view_count = ?, mapping_updated_at = ?
+		WHERE track_identity_key = ? AND track_duration_ms BETWEEN ? AND ?`,
+		source.Provider,
+		source.VideoID,
+		source.Title,
+		source.Publisher,
+		source.ThumbnailURL,
+		source.DurationMS,
+		source.ViewCount,
+		source.MappingUpdatedAt.UTC().Format(time.RFC3339Nano),
+		identityKey,
+		minimumDuration,
+		maximumDuration,
+	)
+	if err != nil {
+		return fmt.Errorf("synchronize preferred video track identity: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) copyMappingToTrack(
+	ctx context.Context,
+	trackID string,
+	identityKey string,
+	identity model.TrackIdentity,
+	source model.PreferredVideo,
+) (model.PreferredVideo, error) {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO preferred_videos (
+			track_id, provider, video_id, title, publisher, thumbnail_url,
+			duration_ms, view_count, mapping_updated_at, last_played_at,
+			track_identity_key, track_title, track_artist, track_duration_ms
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(track_id) DO NOTHING`,
+		trackID,
+		source.Provider,
+		source.VideoID,
+		source.Title,
+		source.Publisher,
+		source.ThumbnailURL,
+		source.DurationMS,
+		source.ViewCount,
+		source.MappingUpdatedAt.UTC().Format(time.RFC3339Nano),
+		source.LastPlayedAt.UTC().Format(time.RFC3339Nano),
+		identityKey,
+		identity.Title,
+		identity.Artist,
+		identity.DurationMS,
+	)
+	if err != nil {
+		return model.PreferredVideo{}, fmt.Errorf("copy preferred video to matching track: %w", err)
+	}
+	return s.Get(ctx, trackID)
+}
+
+func canonicalTrackIdentity(identity *model.TrackIdentity) (string, bool) {
+	if identity == nil || identity.DurationMS <= 0 {
+		return "", false
+	}
+	title := normalizeIdentityPart(identity.Title)
+	artist := normalizeIdentityPart(identity.Artist)
+	if title == "" || artist == "" {
+		return "", false
+	}
+	digest := sha256.Sum256([]byte(artist + "\x00" + title))
+	return hex.EncodeToString(digest[:]), true
+}
+
+func normalizeIdentityPart(value string) string {
+	return strings.ToLower(strings.Join(strings.Fields(value), " "))
+}
+
+func durationRange(durationMS int64) (int64, int64) {
+	minimum := durationMS - trackDurationToleranceMS
+	if minimum < 1 {
+		minimum = 1
+	}
+	return minimum, durationMS + trackDurationToleranceMS
 }
 
 type rowScanner interface {
