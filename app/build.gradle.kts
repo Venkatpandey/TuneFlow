@@ -19,6 +19,14 @@ val releaseBuildRequested =
         it.contains("Release", ignoreCase = true)
     }
 
+val tuneFlowVersionName =
+    providers.gradleProperty("tuneFlowVersionName")
+        .getOrElse("1.2.0")
+val tuneFlowVersionCode =
+    providers.gradleProperty("tuneFlowVersionCode")
+        .map(String::toInt)
+        .getOrElse(1_002_000)
+
 val preferredVideoServiceUrl =
     providers.gradleProperty("preferredVideoServiceUrl")
         .orElse(providers.environmentVariable("PREFERRED_VIDEO_SERVICE_URL"))
@@ -34,8 +42,8 @@ android {
         applicationId = "com.tuneflow.tv"
         minSdk = 25
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = tuneFlowVersionCode
+        versionName = tuneFlowVersionName
 
         buildConfigField("String", "PREFERRED_VIDEO_SERVICE_URL", "\"$preferredVideoServiceUrl\"")
 

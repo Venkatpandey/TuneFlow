@@ -87,6 +87,7 @@ Workflow:
 Behavior:
 
 - builds signed release APK
+- derives `versionName` and monotonic Android `versionCode` from the stable `vMAJOR.MINOR.PATCH` tag
 - verifies APK signature with `apksigner`
 - publishes fixed asset name `tuneflow-tv.apk`
 
