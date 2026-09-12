@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tuneflow.core.network.DataStoreSessionProvider
 import com.tuneflow.core.network.PlaybackPreferencesStore
 import com.tuneflow.core.network.PlaylistFavoriteStore
+import com.tuneflow.core.network.PlaylistUsageStore
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
@@ -78,6 +79,7 @@ class MainActivity : ComponentActivity() {
         val sessionStore = SessionStore(applicationContext)
         val searchHistoryStore = SearchHistoryStore(applicationContext)
         val playlistFavoriteStore = PlaylistFavoriteStore(applicationContext, sessionStore)
+        val playlistUsageStore = PlaylistUsageStore(applicationContext, sessionStore)
         val playbackPreferencesStore = PlaybackPreferencesStore(applicationContext)
         val preferredVideoServiceConfigStore =
             PreferredVideoServiceConfigStore(applicationContext, BuildConfig.PREFERRED_VIDEO_SERVICE_URL)
@@ -133,6 +135,7 @@ class MainActivity : ComponentActivity() {
                         browseRepository = browseRepository,
                         favoriteStore = favoriteStore,
                         playlistFavoriteStore = playlistFavoriteStore,
+                        playlistUsageStore = playlistUsageStore,
                         playerManager = playerManager,
                         sessionStore = sessionStore,
                         playbackPreferencesStore = playbackPreferencesStore,
@@ -457,6 +460,7 @@ private fun TuneFlowShell(
     browseRepository: BrowseRepository,
     favoriteStore: TrackFavoriteStore,
     playlistFavoriteStore: PlaylistFavoriteStore,
+    playlistUsageStore: PlaylistUsageStore,
     playerManager: com.tuneflow.core.player.TvPlayerManager,
     sessionStore: SessionStore,
     playbackPreferencesStore: PlaybackPreferencesStore,
@@ -501,6 +505,8 @@ private fun TuneFlowShell(
     val lyricsState by playbackViewModel.lyricsState.collectAsStateWithLifecycle()
     val videoState by videoViewModel.uiState.collectAsStateWithLifecycle()
     val favoriteError by favoriteStore.error.collectAsStateWithLifecycle()
+    val recentPlaylistIds by
+        playlistUsageStore.recentPlaylistIds.collectAsStateWithLifecycle(initialValue = emptyList())
     KeepScreenOnDuringPlayback(
         enabled =
             shouldKeepScreenOn(
@@ -582,6 +588,7 @@ private fun TuneFlowShell(
                 sourcePlaylistId = sourcePlaylistId,
                 sourcePlaylistName = sourcePlaylistName,
             )
+            playlistUsageStore.record(sourcePlaylistId)
         }
     }
 
@@ -665,6 +672,7 @@ private fun TuneFlowShell(
         homeViewModel = homeViewModel,
         favoriteStore = favoriteStore,
         playlistFavoriteStore = playlistFavoriteStore,
+        recentPlaylistIds = recentPlaylistIds,
         albumsViewModel = albumsViewModel,
         homeCategoryViewModel = homeCategoryViewModel,
         albumDetailViewModel = albumDetailViewModel,
