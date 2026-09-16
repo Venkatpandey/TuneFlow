@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.io.IOException
 import kotlin.math.max
@@ -44,6 +46,19 @@ internal sealed interface AppUpdateUiState {
         val message: String,
         val retryAvailable: Boolean = true,
     ) : AppUpdateUiState
+}
+
+internal sealed interface AppUpdateCheckUiState {
+    data object Idle : AppUpdateCheckUiState
+
+    data object Checking : AppUpdateCheckUiState
+
+    data class Complete(
+        val release: AppRelease,
+        val updateAvailable: Boolean,
+    ) : AppUpdateCheckUiState
+
+    data class Failed(val message: String) : AppUpdateCheckUiState
 }
 
 internal interface AppUpdatePromptStore {
@@ -79,15 +94,20 @@ internal class AppUpdateCoordinator(
     private val updateCacheDirectory: File,
     private val currentVersion: String,
     private val scope: CoroutineScope,
+    private val updatesEnabled: Boolean = true,
     private val currentTimeMs: () -> Long = System::currentTimeMillis,
 ) {
     private val mutableState = MutableStateFlow<AppUpdateUiState>(AppUpdateUiState.Hidden)
+    private val mutableCheckState = MutableStateFlow<AppUpdateCheckUiState>(AppUpdateCheckUiState.Idle)
+    private val checkMutex = Mutex()
     private val promptedVersions = mutableSetOf<String>()
     private var lastFailedCheckAtMs = 0L
+    private var manualCheckJob: Job? = null
     private var downloadJob: Job? = null
     private var startupCheckPerformed = false
 
     val state: StateFlow<AppUpdateUiState> = mutableState.asStateFlow()
+    val checkState: StateFlow<AppUpdateCheckUiState> = mutableCheckState.asStateFlow()
 
     suspend fun monitor() {
         while (currentCoroutineContext().isActive) {
@@ -112,20 +132,58 @@ internal class AppUpdateCoordinator(
             return
         }
 
-        try {
-            val release = repository.latestRelease()
-            promptStore.recordSuccessfulCheck(now)
-            if (
-                release.version !in promptedVersions &&
-                isNewerAppVersion(release.version, currentVersion)
-            ) {
-                promptedVersions += release.version
-                mutableState.value = AppUpdateUiState.Available(release)
+        checkLatestRelease(now, userInitiated = false)
+    }
+
+    fun checkNow() {
+        if (manualCheckJob?.isActive == true) return
+        manualCheckJob =
+            scope.launch {
+                checkLatestRelease(currentTimeMs(), userInitiated = true)
             }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (_: Exception) {
-            lastFailedCheckAtMs = now
+    }
+
+    private suspend fun checkLatestRelease(
+        now: Long,
+        userInitiated: Boolean,
+    ) {
+        checkMutex.withLock {
+            val previousCheckState = mutableCheckState.value
+            mutableCheckState.value = AppUpdateCheckUiState.Checking
+            try {
+                val release = repository.latestRelease()
+                val updateAvailable = isNewerAppVersion(release.version, currentVersion)
+                promptStore.recordSuccessfulCheck(now)
+                mutableCheckState.value = AppUpdateCheckUiState.Complete(release, updateAvailable)
+                offerUpdateIfAvailable(release, updateAvailable, userInitiated)
+            } catch (error: CancellationException) {
+                mutableCheckState.value = previousCheckState
+                throw error
+            } catch (_: Exception) {
+                lastFailedCheckAtMs = now
+                mutableCheckState.value =
+                    if (userInitiated) {
+                        AppUpdateCheckUiState.Failed(MANUAL_CHECK_ERROR)
+                    } else {
+                        previousCheckState
+                    }
+            }
+        }
+    }
+
+    private fun offerUpdateIfAvailable(
+        release: AppRelease,
+        updateAvailable: Boolean,
+        userInitiated: Boolean,
+    ) {
+        if (
+            updatesEnabled &&
+            updateAvailable &&
+            mutableState.value == AppUpdateUiState.Hidden &&
+            (userInitiated || release.version !in promptedVersions)
+        ) {
+            promptedVersions += release.version
+            mutableState.value = AppUpdateUiState.Available(release)
         }
     }
 
@@ -275,3 +333,4 @@ private const val PREFERENCES_NAME = "app_update_preferences"
 private const val LAST_SUCCESSFUL_CHECK_KEY = "last_successful_check_at"
 private const val SNOOZE_UNTIL_KEY = "update_prompt_snooze_until"
 private const val GENERIC_DOWNLOAD_ERROR = "Download failed. Check the connection and try again."
+private const val MANUAL_CHECK_ERROR = "Could not check for updates. Check the connection and try again."

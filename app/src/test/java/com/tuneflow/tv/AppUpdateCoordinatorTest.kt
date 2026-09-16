@@ -2,6 +2,7 @@ package com.tuneflow.tv
 
 import com.tuneflow.core.network.AppRelease
 import com.tuneflow.core.network.AppUpdateRepository
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -9,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class AppUpdateCoordinatorTest {
     @Test
     fun checkFindsNewerReleaseAndDoesNotDuplicateVisiblePrompt() =
@@ -48,6 +50,43 @@ class AppUpdateCoordinatorTest {
             coordinator.checkForUpdate()
 
             assertEquals(AppUpdateUiState.Hidden, coordinator.state.value)
+            assertTrue(coordinator.checkState.value is AppUpdateCheckUiState.Complete)
+        }
+
+    @Test
+    fun manualBetaCheckBypassesThrottleAndSnoozeWithoutOfferingStableApk() =
+        runTest {
+            val repository = FakeUpdateRepository(RELEASE)
+            val store =
+                FakePromptStore().apply {
+                    recordSuccessfulCheck(999L)
+                    snooze(10_000L)
+                }
+            val coordinator = coordinator(repository, store, nowMs = 1_000L, updatesEnabled = false)
+
+            coordinator.checkNow()
+            runCurrent()
+
+            assertEquals(1, repository.checkCount)
+            assertEquals(AppUpdateUiState.Hidden, coordinator.state.value)
+            val result = coordinator.checkState.value as AppUpdateCheckUiState.Complete
+            assertEquals(RELEASE, result.release)
+            assertTrue(result.updateAvailable)
+        }
+
+    @Test
+    fun manualStableCheckReoffersUpdateAfterLater() =
+        runTest {
+            val repository = FakeUpdateRepository(RELEASE)
+            val coordinator = coordinator(repository, FakePromptStore(), nowMs = 1_000L)
+            coordinator.checkForUpdate()
+            coordinator.snooze()
+
+            coordinator.checkNow()
+            runCurrent()
+
+            assertEquals(2, repository.checkCount)
+            assertTrue(coordinator.state.value is AppUpdateUiState.Available)
         }
 
     @Test
@@ -120,11 +159,13 @@ class AppUpdateCoordinatorTest {
         repository: AppUpdateRepository,
         store: AppUpdatePromptStore,
         nowMs: Long,
-    ): AppUpdateCoordinator = coordinator(repository, store) { nowMs }
+        updatesEnabled: Boolean = true,
+    ): AppUpdateCoordinator = coordinator(repository, store, updatesEnabled) { nowMs }
 
     private fun kotlinx.coroutines.test.TestScope.coordinator(
         repository: AppUpdateRepository,
         store: AppUpdatePromptStore,
+        updatesEnabled: Boolean = true,
         currentTimeMs: () -> Long,
     ): AppUpdateCoordinator =
         AppUpdateCoordinator(
@@ -133,6 +174,7 @@ class AppUpdateCoordinatorTest {
             updateCacheDirectory = File(System.getProperty("java.io.tmpdir"), "tuneflow-update-test"),
             currentVersion = "1.2.0",
             scope = backgroundScope,
+            updatesEnabled = updatesEnabled,
             currentTimeMs = currentTimeMs,
         )
 }

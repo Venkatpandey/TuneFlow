@@ -109,18 +109,13 @@ class MainActivity : ComponentActivity() {
                 updateCacheDirectory = File(cacheDir, "updates"),
                 currentVersion = BuildConfig.VERSION_NAME,
                 scope = lifecycleScope,
+                updatesEnabled = BuildConfig.APP_UPDATE_ENABLED,
             )
         playerManager = PlayerGraph.get(applicationContext)
         playerManager.setScrobbleReporter(scrobbleReporter)
         playbackServiceIntent = Intent(this, TuneFlowPlaybackService::class.java)
         startService(playbackServiceIntent)
-        if (BuildConfig.APP_UPDATE_ENABLED) {
-            lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    appUpdateCoordinator.monitor()
-                }
-            }
-        }
+        monitorAppUpdates(appUpdateCoordinator)
 
         val videoOverlayHost =
             FrameLayout(this).apply {
@@ -132,6 +127,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             TuneFlowTheme {
                 val updateState by appUpdateCoordinator.state.collectAsStateWithLifecycle()
+                val updateCheckState by appUpdateCoordinator.checkState.collectAsStateWithLifecycle()
+                var showAboutDialog by rememberSaveable { mutableStateOf(false) }
+                val buildInfo =
+                    remember {
+                        AppBuildInfo(
+                            appName = getString(R.string.app_name),
+                            versionName = BuildConfig.VERSION_NAME,
+                            versionCode = BuildConfig.VERSION_CODE,
+                            applicationId = BuildConfig.APPLICATION_ID,
+                            channel = if (BuildConfig.APP_UPDATE_ENABLED) "Stable" else "Beta",
+                        )
+                    }
                 val installPermissionLauncher =
                     rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                         isExternalUpdateFlowInProgress = false
@@ -182,11 +189,26 @@ class MainActivity : ComponentActivity() {
                         userActivityEvents = userActivityEvents,
                         onScreensaverActiveChanged = { screensaverActive = it },
                         onVideoMediaKeyHandlerChanged = { videoMediaKeyHandler = it },
+                        appVersionName = BuildConfig.VERSION_NAME,
+                        onOpenAbout = { showAboutDialog = true },
                         onExitApp = ::closeAppToSystem,
                     )
                 }
 
+                if (showAboutDialog) {
+                    AppAboutDialog(
+                        buildInfo = buildInfo,
+                        updateCheckState = updateCheckState,
+                        updatesEnabled = BuildConfig.APP_UPDATE_ENABLED,
+                        onCheckForUpdates = appUpdateCoordinator::checkNow,
+                        onDismiss = { showAboutDialog = false },
+                    )
+                }
+
                 LaunchedEffect(updateState) {
+                    if (updateState is AppUpdateUiState.Available) {
+                        showAboutDialog = false
+                    }
                     val ready = updateState as? AppUpdateUiState.ReadyToInstall ?: return@LaunchedEffect
                     val errorMessage = launchPackageInstaller(ready.apkFile)
                     if (errorMessage == null) {
@@ -281,6 +303,15 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private fun monitorAppUpdates(appUpdateCoordinator: AppUpdateCoordinator) {
+        if (!BuildConfig.APP_UPDATE_ENABLED) return
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                appUpdateCoordinator.monitor()
             }
         }
     }
@@ -629,6 +660,8 @@ private fun TuneFlowShell(
     userActivityEvents: Flow<UserInputCategory>,
     onScreensaverActiveChanged: (Boolean) -> Unit,
     onVideoMediaKeyHandlerChanged: (((Int) -> Boolean)?) -> Unit,
+    appVersionName: String,
+    onOpenAbout: () -> Unit,
     onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -870,6 +903,8 @@ private fun TuneFlowShell(
         },
         showExitPrompt = shellState.showExitPrompt,
         favoriteErrorMessage = favoriteError?.message,
+        appVersionName = appVersionName,
+        onOpenAbout = onOpenAbout,
     )
 }
 

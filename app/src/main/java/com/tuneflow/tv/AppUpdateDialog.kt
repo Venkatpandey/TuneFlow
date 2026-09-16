@@ -84,7 +84,7 @@ internal fun AppUpdateDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 (state as? AppUpdateUiState.Available)?.release?.releaseNotes?.let { releaseNotes ->
-                    ReleaseNotes(releaseNotes)
+                    AppReleaseNotes(releaseNotes)
                 }
 
                 UpdateDialogControls(
@@ -105,7 +105,7 @@ internal fun AppUpdateDialog(
 }
 
 @Composable
-private fun ReleaseNotes(releaseNotes: String) {
+internal fun AppReleaseNotes(releaseNotes: String) {
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     Text(
