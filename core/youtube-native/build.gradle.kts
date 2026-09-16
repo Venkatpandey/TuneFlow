@@ -63,7 +63,7 @@ dependencies {
     implementation("dnsjava:dnsjava:2.1.9")
     implementation("com.github.florianingerl.util:regex:1.1.11")
     implementation("com.grack:nanojson:1.10")
-    implementation("com.google.protobuf:protobuf-javalite:3.17.3")
+    implementation("com.google.protobuf:protobuf-javalite:4.36.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
