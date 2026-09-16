@@ -1,14 +1,22 @@
 package com.tuneflow.tv
 
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -22,10 +30,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
+import androidx.core.content.FileProvider
+import androidx.core.content.pm.PackageInfoCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tuneflow.core.network.AppUpdateRepositoryFactory
 import com.tuneflow.core.network.DataStoreSessionProvider
 import com.tuneflow.core.network.PlaybackPreferencesStore
 import com.tuneflow.core.network.PlaylistFavoriteStore
@@ -56,6 +69,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -69,6 +83,7 @@ class MainActivity : ComponentActivity() {
     private val videoConsumedKeyCodes = mutableSetOf<Int>()
     private var consumeWakeTouchGesture = false
     private var videoMediaKeyHandler: ((Int) -> Boolean)? = null
+    private var isExternalUpdateFlowInProgress = false
 
     @Volatile
     private var screensaverActive = false
@@ -94,10 +109,20 @@ class MainActivity : ComponentActivity() {
             )
         val lyricsRepository = LyricsRepository(sessionStore)
         val scrobbleReporter = NavidromeScrobbleReporter(sessionStore)
+        val appUpdateCoordinator =
+            AppUpdateCoordinator(
+                repository = AppUpdateRepositoryFactory.create(),
+                promptStore = SharedPreferencesAppUpdatePromptStore(applicationContext),
+                updateCacheDirectory = File(cacheDir, "updates"),
+                currentVersion = BuildConfig.VERSION_NAME,
+                scope = lifecycleScope,
+                updatesEnabled = BuildConfig.APP_UPDATE_ENABLED,
+            )
         playerManager = PlayerGraph.get(applicationContext)
         playerManager.setScrobbleReporter(scrobbleReporter)
         playbackServiceIntent = Intent(this, TuneFlowPlaybackService::class.java)
         startService(playbackServiceIntent)
+        monitorAppUpdates(appUpdateCoordinator)
 
         val videoOverlayHost =
             FrameLayout(this).apply {
@@ -108,6 +133,24 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             TuneFlowTheme {
+                val updateState by appUpdateCoordinator.state.collectAsStateWithLifecycle()
+                val updateCheckState by appUpdateCoordinator.checkState.collectAsStateWithLifecycle()
+                var showAboutDialog by rememberSaveable { mutableStateOf(false) }
+                val buildInfo =
+                    remember {
+                        AppBuildInfo(
+                            appName = getString(R.string.app_name),
+                            versionName = BuildConfig.VERSION_NAME,
+                            versionCode = BuildConfig.VERSION_CODE,
+                            applicationId = BuildConfig.APPLICATION_ID,
+                            channel = if (BuildConfig.APP_UPDATE_ENABLED) "Stable" else "Beta",
+                        )
+                    }
+                val installPermissionLauncher =
+                    rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+                        isExternalUpdateFlowInProgress = false
+                        appUpdateCoordinator.onInstallPermissionResult(canInstallPackages())
+                    }
                 val authViewModel: com.tuneflow.feature.auth.AuthViewModel =
                     viewModel(
                         factory = authViewModelFactory(authRepository, sessionStore),
@@ -154,9 +197,64 @@ class MainActivity : ComponentActivity() {
                         userActivityEvents = userActivityEvents,
                         onScreensaverActiveChanged = { screensaverActive = it },
                         onVideoMediaKeyHandlerChanged = { videoMediaKeyHandler = it },
+                        appVersionName = BuildConfig.VERSION_NAME,
+                        onOpenAbout = { showAboutDialog = true },
                         onExitApp = ::closeAppToSystem,
                     )
                 }
+
+                if (showAboutDialog) {
+                    AppAboutDialog(
+                        buildInfo = buildInfo,
+                        updateCheckState = updateCheckState,
+                        updatesEnabled = BuildConfig.APP_UPDATE_ENABLED,
+                        onCheckForUpdates = appUpdateCoordinator::checkNow,
+                        onDismiss = { showAboutDialog = false },
+                    )
+                }
+
+                LaunchedEffect(updateState) {
+                    if (updateState is AppUpdateUiState.Available) {
+                        showAboutDialog = false
+                    }
+                    val ready = updateState as? AppUpdateUiState.ReadyToInstall ?: return@LaunchedEffect
+                    val errorMessage = launchPackageInstaller(ready.apkFile)
+                    if (errorMessage == null) {
+                        appUpdateCoordinator.installerLaunched()
+                    } else {
+                        appUpdateCoordinator.installPreparationFailed(errorMessage)
+                    }
+                }
+
+                AppUpdateDialog(
+                    state = updateState,
+                    onUpdateNow = {
+                        if (canInstallPackages()) {
+                            appUpdateCoordinator.startDownload()
+                        } else {
+                            appUpdateCoordinator.requireInstallPermission()
+                        }
+                    },
+                    onOpenInstallSettings = {
+                        val settingsIntent = installPermissionSettingsIntent()
+                        if (settingsIntent == null) {
+                            appUpdateCoordinator.permissionSettingsUnavailable()
+                        } else {
+                            try {
+                                isExternalUpdateFlowInProgress = true
+                                installPermissionLauncher.launch(settingsIntent)
+                            } catch (_: ActivityNotFoundException) {
+                                isExternalUpdateFlowInProgress = false
+                                appUpdateCoordinator.permissionSettingsUnavailable()
+                            } catch (_: SecurityException) {
+                                isExternalUpdateFlowInProgress = false
+                                appUpdateCoordinator.permissionSettingsUnavailable()
+                            }
+                        }
+                    },
+                    onRetry = appUpdateCoordinator::retryDownload,
+                    onLater = appUpdateCoordinator::snooze,
+                )
             }
         }
         addContentView(
@@ -167,7 +265,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        closeAppToSystem()
+        if (!isExternalUpdateFlowInProgress) closeAppToSystem()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isExternalUpdateFlowInProgress = false
     }
 
     @SuppressLint("RestrictedApi")
@@ -208,6 +311,15 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private fun monitorAppUpdates(appUpdateCoordinator: AppUpdateCoordinator) {
+        if (!BuildConfig.APP_UPDATE_ENABLED) return
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                appUpdateCoordinator.monitor()
             }
         }
     }
@@ -280,7 +392,90 @@ class MainActivity : ComponentActivity() {
         finishAffinity()
         finishAndRemoveTask()
     }
+
+    private fun canInstallPackages(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
+
+    private fun installPermissionSettingsIntent(): Intent? =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            null
+        } else {
+            val appSettingsIntent =
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName"),
+                )
+            val securitySettingsIntent = Intent(Settings.ACTION_SECURITY_SETTINGS)
+            appSettingsIntent.takeIf { it.resolveActivity(packageManager) != null }
+                ?: securitySettingsIntent.takeIf { it.resolveActivity(packageManager) != null }
+        }
+
+    private fun launchPackageInstaller(apkFile: File): String? {
+        val validationError = validateDownloadedPackage(apkFile)
+        return if (validationError != null) {
+            validationError
+        } else {
+            try {
+                val apkUri = FileProvider.getUriForFile(this, "$packageName.fileprovider", apkFile)
+                val installerIntent =
+                    Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(apkUri, APK_CONTENT_TYPE)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                if (installerIntent.resolveActivity(packageManager) == null) {
+                    "Android package installer is unavailable on this device."
+                } else {
+                    isExternalUpdateFlowInProgress = true
+                    startActivity(installerIntent)
+                    null
+                }
+            } catch (_: ActivityNotFoundException) {
+                isExternalUpdateFlowInProgress = false
+                "Android package installer could not be opened."
+            } catch (_: IllegalArgumentException) {
+                isExternalUpdateFlowInProgress = false
+                "Android package installer could not be opened."
+            } catch (_: SecurityException) {
+                isExternalUpdateFlowInProgress = false
+                "Android package installer could not be opened."
+            }
+        }
+    }
+
+    private fun validateDownloadedPackage(apkFile: File): String? {
+        val archiveInfo = packageArchiveInfo(apkFile)
+        val installedInfo = installedPackageInfo()
+        return when {
+            archiveInfo == null -> "Downloaded file is not a valid Android package."
+            archiveInfo.packageName != packageName -> "Downloaded APK belongs to a different app."
+            installedInfo == null -> "Installed TuneFlow version could not be verified."
+            PackageInfoCompat.getLongVersionCode(archiveInfo) <= PackageInfoCompat.getLongVersionCode(installedInfo) ->
+                "Downloaded APK does not have a newer Android version code."
+            else -> null
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun packageArchiveInfo(apkFile: File): PackageInfo? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageArchiveInfo(apkFile.path, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            packageManager.getPackageArchiveInfo(apkFile.path, 0)
+        }
+
+    @Suppress("DEPRECATION")
+    private fun installedPackageInfo(): PackageInfo? =
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                packageManager.getPackageInfo(packageName, 0)
+            }
+        } catch (_: PackageManager.NameNotFoundException) {
+            null
+        }
 }
+
+private const val APK_CONTENT_TYPE = "application/vnd.android.package-archive"
 
 internal fun com.tuneflow.core.network.TrackSummary.toQueueItem(
     streamOptions: TrackStreamOptions,
@@ -474,6 +669,8 @@ private fun TuneFlowShell(
     userActivityEvents: Flow<UserInputCategory>,
     onScreensaverActiveChanged: (Boolean) -> Unit,
     onVideoMediaKeyHandlerChanged: (((Int) -> Boolean)?) -> Unit,
+    appVersionName: String,
+    onOpenAbout: () -> Unit,
     onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -719,6 +916,8 @@ private fun TuneFlowShell(
         },
         showExitPrompt = shellState.showExitPrompt,
         favoriteErrorMessage = favoriteError?.message,
+        appVersionName = appVersionName,
+        onOpenAbout = onOpenAbout,
     )
 }
 

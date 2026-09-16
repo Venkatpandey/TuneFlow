@@ -47,6 +47,9 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -82,6 +85,7 @@ internal fun TuneFlowShellLayout(
     showNowPlaying: Boolean,
     username: String,
     currentTimeText: String,
+    appVersionName: String,
     playbackQueue: PlaybackQueue,
     playbackPositionMs: Long,
     screensaverActive: Boolean,
@@ -126,6 +130,7 @@ internal fun TuneFlowShellLayout(
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
     showExitPrompt: Boolean,
     favoriteErrorMessage: String?,
+    onOpenAbout: () -> Unit,
 ) {
     val videoSurfacePlayer by videoViewModel.surfacePlayer.collectAsState()
     var videoViewportBounds by remember { mutableStateOf<IntRect?>(null) }
@@ -201,6 +206,8 @@ internal fun TuneFlowShellLayout(
                             isNowPlayingActive = showNowPlaying,
                             username = username,
                             currentTimeText = currentTimeText,
+                            appVersionName = appVersionName,
+                            onOpenAbout = onOpenAbout,
                         )
 
                         Spacer(Modifier.width(22.dp))
@@ -409,6 +416,8 @@ private fun NavRail(
     isNowPlayingActive: Boolean,
     username: String,
     currentTimeText: String,
+    appVersionName: String,
+    onOpenAbout: () -> Unit,
 ) {
     Column(
         modifier =
@@ -426,37 +435,12 @@ private fun NavRail(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .size(52.dp)
-                        .clip(TuneFlowShapes.avatar)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                            TuneFlowShapes.avatar,
-                        ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = username.ifBlank { "TuneFlow" }.take(1).uppercase(),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Text(
-                text = currentTimeText,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-        }
+        ProfileHeader(
+            username = username,
+            currentTimeText = currentTimeText,
+            appVersionName = appVersionName,
+            onOpenAbout = onOpenAbout,
+        )
 
         NavRailItem(
             label = "Home",
@@ -490,6 +474,136 @@ private fun NavRail(
             onClick = onNowPlaying,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+@Composable
+private fun ProfileHeader(
+    username: String,
+    currentTimeText: String,
+    appVersionName: String,
+    onOpenAbout: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    var longPressHandled by remember { mutableStateOf(false) }
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(TuneFlowShapes.row)
+                .background(
+                    if (focused) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                    } else {
+                        Color.Transparent
+                    },
+                )
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+                        },
+                    shape = TuneFlowShapes.row,
+                )
+                .onPreviewKeyEvent { event ->
+                    when (
+                        profileAboutKeyAction(
+                            keyCode = event.nativeKeyEvent.keyCode,
+                            action = event.nativeKeyEvent.action,
+                            repeatCount = event.nativeKeyEvent.repeatCount,
+                            longPressHandled = longPressHandled,
+                        )
+                    ) {
+                        ProfileAboutKeyAction.Ignore -> false
+                        ProfileAboutKeyAction.Consume -> true
+                        ProfileAboutKeyAction.Reset -> {
+                            longPressHandled = false
+                            true
+                        }
+                        ProfileAboutKeyAction.OpenAbout -> {
+                            longPressHandled = true
+                            onOpenAbout()
+                            true
+                        }
+                    }
+                }
+                .onFocusChanged { focusState -> focused = focusState.isFocused }
+                .semantics {
+                    contentDescription = "User profile. Hold select for app information."
+                    onLongClick {
+                        onOpenAbout()
+                        true
+                    }
+                }
+                .focusable()
+                .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(44.dp)
+                    .clip(TuneFlowShapes.avatar)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                        TuneFlowShapes.avatar,
+                    ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = username.ifBlank { "TuneFlow" }.take(1).uppercase(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = currentTimeText,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            Text(
+                text = "v$appVersionName",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+internal enum class ProfileAboutKeyAction {
+    Ignore,
+    Consume,
+    Reset,
+    OpenAbout,
+}
+
+internal fun profileAboutKeyAction(
+    keyCode: Int,
+    action: Int,
+    repeatCount: Int,
+    longPressHandled: Boolean,
+): ProfileAboutKeyAction {
+    val isSelectKey =
+        keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER ||
+            keyCode == AndroidKeyEvent.KEYCODE_ENTER ||
+            keyCode == AndroidKeyEvent.KEYCODE_NUMPAD_ENTER
+    return when {
+        !isSelectKey -> ProfileAboutKeyAction.Ignore
+        action == AndroidKeyEvent.ACTION_UP -> ProfileAboutKeyAction.Reset
+        action != AndroidKeyEvent.ACTION_DOWN -> ProfileAboutKeyAction.Consume
+        repeatCount == 0 -> ProfileAboutKeyAction.Reset
+        longPressHandled -> ProfileAboutKeyAction.Consume
+        else -> ProfileAboutKeyAction.OpenAbout
     }
 }
 

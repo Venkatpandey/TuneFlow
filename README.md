@@ -67,6 +67,12 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 3. Allow installs from unknown sources if your device asks.
 4. Install and launch TuneFlow.
 
+TuneFlow checks the latest stable GitHub release on every fresh app launch and once every 24 hours while it remains active. The update prompt shows the new version and release notes. Selecting **Update Now** downloads the signed release APK and opens the system package installer. The first in-app update may ask you to allow TuneFlow to install apps from this source. Selecting **Later** hides the prompt for 48 hours.
+
+The installed version is shown below the clock in the navigation rail. Focus the profile badge and hold Select to open **About TuneFlow**, where the app shows its build channel, package, latest release changelog, and a **Check for Updates** button.
+
+Local release testing uses a separate `TuneFlow Beta` package, launcher name, and badged icon/banner. Build it with `scripts/build-local-release.sh`; it can be installed beside stable TuneFlow without replacing stable app data. Automatic stable-release installation is disabled in this local beta package, but its About panel can check and display the latest stable release.
+
 ## Login
 
 1. Open TuneFlow.
@@ -80,6 +86,7 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 ## What You Can Do
 
 - Continue listening from the saved queue
+- Install newer stable TuneFlow releases from an in-app TV prompt
 - Browse newest albums
 - Open playlists with collage artwork
 - Open artists and drill into their albums

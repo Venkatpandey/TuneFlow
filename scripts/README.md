@@ -19,12 +19,24 @@ Typical local checks:
 ./gradlew :app:ktlintCheck
 ```
 
-## Local Signed Release APK
+## Local Beta Release APK
 
-Use the bundled script:
+Build a release-mode beta APK with Android debug signing:
 
 ```bash
-./scripts/build-local-release.sh \
+./scripts/build-local-release.sh
+```
+
+Output:
+
+- `dist/tuneflow-tv-beta.apk`
+
+This package installs as `TuneFlow Beta` with package ID `com.tuneflow.tv.beta`, beside stable TuneFlow. It includes SmartTube-native YouTube search and playback; stable-release update checks are disabled.
+
+For an intentional local production-package build, pass `--stable` and production signing credentials:
+
+```bash
+./scripts/build-local-release.sh --stable \
   --keystore /full/path/to/release.keystore \
   --store-password 'your-store-password' \
   --key-alias tuneflow \
@@ -38,12 +50,10 @@ export SIGNING_STORE_FILE=/full/path/to/release.keystore
 export SIGNING_STORE_PASSWORD='your-store-password'
 export SIGNING_KEY_ALIAS='tuneflow'
 export SIGNING_KEY_PASSWORD='your-key-password'
-./scripts/build-local-release.sh
+./scripts/build-local-release.sh --stable
 ```
 
-This release build includes SmartTube-native YouTube search and playback.
-
-Output:
+Stable output:
 
 - `dist/tuneflow-tv.apk`
 
@@ -87,6 +97,7 @@ Workflow:
 Behavior:
 
 - builds signed release APK
+- derives `versionName` and monotonic Android `versionCode` from the stable `vMAJOR.MINOR.PATCH` tag
 - verifies APK signature with `apksigner`
 - publishes fixed asset name `tuneflow-tv.apk`
 
