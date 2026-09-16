@@ -5,20 +5,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,84 +40,102 @@ internal fun VideoHistoryScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val history = state.videoHistory.take(VIDEO_HISTORY_LIMIT)
+    val firstVideoFocusRequester = remember { FocusRequester() }
 
-    LazyColumn(
+    LaunchedEffect(history.firstOrNull()?.videoId) {
+        if (history.isNotEmpty()) {
+            runCatching { firstVideoFocusRequester.requestFocus() }
+        }
+    }
+
+    Column(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "Recently played videos",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = "Your last ${VIDEO_HISTORY_LIMIT.coerceAtMost(history.size)} played videos",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Recently played videos",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "Your last ${VIDEO_HISTORY_LIMIT.coerceAtMost(history.size)} played videos",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 260.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 32.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            itemsIndexed(history, key = { _, entry -> entry.videoHistoryItemKey() }) { index, entry ->
+                VideoHistoryTile(
+                    entry = entry,
+                    onClick = { onPlayVideo(entry) },
+                    modifier =
+                        Modifier.then(
+                            if (index == 0) {
+                                Modifier.focusRequester(firstVideoFocusRequester)
+                            } else {
+                                Modifier
+                            },
+                        ),
                 )
             }
-        }
-        items(history, key = VideoHistoryEntry::videoId) { entry ->
-            VideoHistoryListCard(entry = entry, onClick = { onPlayVideo(entry) })
         }
     }
 }
 
+internal fun VideoHistoryEntry.videoHistoryItemKey(): String = "track:$trackId"
+
 @Composable
-private fun VideoHistoryListCard(
+private fun VideoHistoryTile(
     entry: VideoHistoryEntry,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     TuneFlowFocusableCard(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(12.dp),
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(
                 modifier =
                     Modifier
-                        .width(256.dp)
-                        .height(144.dp)
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
                         .clip(TuneFlowShapes.artwork)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
                 TuneFlowArtwork(
                     model = entry.thumbnailUrl,
                     contentDescription = entry.title,
-                    width = 256.dp,
-                    height = 144.dp,
+                    width = 320.dp,
+                    height = 180.dp,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                     placeholderText = entry.title,
                 )
             }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = entry.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = entry.publisher,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            Text(
+                text = entry.title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = entry.publisher,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

@@ -1,7 +1,10 @@
 package com.tuneflow.feature.playback
 
 import android.view.KeyEvent
+import com.tuneflow.feature.video.VideoUiState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NowPlayingNavigationTest {
@@ -72,5 +75,12 @@ class NowPlayingNavigationTest {
         assertEquals("Playlist • Evening Mix", playlistContextLabel(" Evening Mix "))
         assertEquals(null, playlistContextLabel("  "))
         assertEquals(null, playlistContextLabel(null))
+    }
+
+    @Test
+    fun videoCandidatePanel_staysVisibleWhileSearchIsRunning() {
+        assertTrue(VideoUiState.Searching("track-1", 1L).showsVideoCandidatePanel())
+        assertTrue(VideoUiState.Candidates("track-1", 1L, emptyList()).showsVideoCandidatePanel())
+        assertFalse(VideoUiState.Idle.showsVideoCandidatePanel())
     }
 }

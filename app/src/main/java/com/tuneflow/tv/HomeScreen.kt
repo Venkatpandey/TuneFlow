@@ -3,7 +3,7 @@
 package com.tuneflow.tv
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,6 +95,7 @@ fun HomeScreen(
     val artistsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val albumsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val playlistsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val initialFocusRequester = remember { FocusRequester() }
     val restoredItemFocusRequester = remember { FocusRequester() }
     var showPreferredVideoServiceDialog by rememberSaveable { mutableStateOf(false) }
     val visibleFavorites =
@@ -105,6 +106,12 @@ fun HomeScreen(
                     favoriteState.isFavorite || favoriteState.isPending
                 },
         )
+
+    LaunchedEffect(Unit) {
+        if (focusRestoreTarget == null) {
+            initialFocusRequester.requestFocus()
+        }
+    }
 
     LaunchedEffect(focusRestoreTarget, state) {
         val target = focusRestoreTarget ?: return@LaunchedEffect
@@ -129,19 +136,17 @@ fun HomeScreen(
         contentPadding = PaddingValues(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        item {
-            ScreenInitialFocusAnchor()
-        }
-        item {
+        item(key = "hero") {
             HomeHero(
                 playbackQueue = playbackQueue,
                 onPrimaryAction = if (playbackQueue.items.isNotEmpty()) onOpenNowPlaying else onOpenSearch,
                 onSecondaryAction = onOpenAlbums,
+                primaryActionModifier = Modifier.focusRequester(initialFocusRequester),
             )
         }
 
         if (state.isLoading) {
-            item { HomeLoadingSection() }
+            item(key = "loading") { HomeLoadingSection() }
         }
 
         if (
@@ -153,18 +158,18 @@ fun HomeScreen(
             state.artists.isEmpty() &&
             state.videoHistory.isEmpty()
         ) {
-            item {
+            item(key = "error") {
                 ErrorBanner(message = state.error.orEmpty())
             }
         }
 
         if (state.videoHistory.isNotEmpty()) {
-            item { SectionHeading("Recently played videos") }
-            item {
+            item(key = "video-history-heading") { SectionHeading("Recently played videos") }
+            item(key = "video-history-row") {
                 HomeContentRow(
                     items = state.videoHistory,
                     listState = videoHistoryRowState,
-                    key = { _, video -> video.videoId },
+                    key = { _, video -> video.videoHistoryItemKey() },
                     onShowAll = onOpenVideoHistory,
                 ) { video ->
                     HomeVideoCard(video = video, onClick = { onPlayVideo(video) })
@@ -173,8 +178,8 @@ fun HomeScreen(
         }
 
         if (visibleFavorites.albums.isNotEmpty() || visibleFavorites.tracks.isNotEmpty()) {
-            item { SectionHeading("Favorites") }
-            item {
+            item(key = "favorites-heading") { SectionHeading("Favorites") }
+            item(key = "favorites-row") {
                 FavoriteRail(
                     favorites = visibleFavorites,
                     listState = favoritesRowState,
@@ -194,8 +199,8 @@ fun HomeScreen(
         }
 
         if (state.artists.isNotEmpty()) {
-            item { SectionHeading("Artists") }
-            item {
+            item(key = "artists-heading") { SectionHeading("Artists") }
+            item(key = "artists-row") {
                 HomeContentRow(
                     items = state.artists,
                     listState = artistsRowState,
@@ -224,8 +229,8 @@ fun HomeScreen(
         }
 
         if (state.recentAlbums.isNotEmpty()) {
-            item { SectionHeading("Albums") }
-            item {
+            item(key = "albums-heading") { SectionHeading("Albums") }
+            item(key = "albums-row") {
                 HomeContentRow(
                     items = state.recentAlbums,
                     listState = albumsRowState,
@@ -254,8 +259,8 @@ fun HomeScreen(
         }
 
         if (state.playlists.isNotEmpty()) {
-            item { SectionHeading("Playlists") }
-            item {
+            item(key = "playlists-heading") { SectionHeading("Playlists") }
+            item(key = "playlists-row") {
                 HomeContentRow(
                     items = state.playlists,
                     listState = playlistsRowState,
@@ -283,9 +288,12 @@ fun HomeScreen(
             }
         }
 
-        item { SectionHeading("Quick Actions") }
-        item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        item(key = "quick-actions-heading") { SectionHeading("Quick Actions") }
+        item(key = "quick-actions-row") {
+            LazyRow(
+                modifier = Modifier.focusGroup(),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
                 item {
                     ActionCard(
                         title = "Search",
@@ -332,7 +340,7 @@ private fun HomeUiState.focusLocation(target: BrowseFocusTarget): HomeFocusLocat
     val sectionIndex = sections.indexOfFirst { it.matches(target) }
     if (sectionIndex < 0) return null
     val contentStartIndex =
-        2 +
+        1 +
             isLoading.toItemCount() +
             showsFatalError().toItemCount() +
             (videoHistory.isNotEmpty()).toItemCount() * 2
@@ -465,6 +473,7 @@ private fun <T> HomeContentRow(
 ) {
     LazyRow(
         state = listState,
+        modifier = Modifier.focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         itemsIndexed(items.take(HOME_ROW_VISIBLE_ITEM_LIMIT), key = key) { _, item ->
@@ -481,6 +490,7 @@ private fun HomeHero(
     playbackQueue: PlaybackQueue,
     onPrimaryAction: () -> Unit,
     onSecondaryAction: () -> Unit,
+    primaryActionModifier: Modifier = Modifier,
 ) {
     val currentItem = playbackQueue.currentItem
 
@@ -552,6 +562,7 @@ private fun HomeHero(
                         label = if (currentItem != null) "Resume" else "Start Searching",
                         accent = true,
                         onClick = onPrimaryAction,
+                        modifier = primaryActionModifier,
                     )
                     HeroActionButton(
                         label = "Browse Albums",
@@ -596,9 +607,10 @@ private fun HeroActionButton(
     label: String,
     accent: Boolean = false,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     TuneFlowActionSurface(
-        modifier = Modifier.width(184.dp),
+        modifier = modifier.width(184.dp),
         accent = accent,
         onClick = onClick,
     ) {
@@ -619,23 +631,6 @@ private fun HeroActionButton(
 }
 
 @Composable
-private fun ScreenInitialFocusAnchor() {
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    Box(
-        modifier =
-            Modifier
-                .size(1.dp)
-                .focusRequester(focusRequester)
-                .focusable(),
-    )
-}
-
-@Composable
 private fun FavoriteRail(
     favorites: FavoritesBundle,
     listState: LazyListState,
@@ -652,6 +647,7 @@ private fun FavoriteRail(
 
     LazyRow(
         state = listState,
+        modifier = Modifier.focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         items(favoriteAlbums, key = { "album-${it.id}" }) { album ->

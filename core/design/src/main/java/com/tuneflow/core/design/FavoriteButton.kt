@@ -22,12 +22,9 @@ fun TrackFavoriteButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val enabled = !isPending
-
     TuneFlowActionSurface(
-        onClick = onClick,
+        onClick = { if (!isPending) onClick() },
         selected = isFavorite,
-        enabled = enabled,
         contentPadding = PaddingValues(0.dp),
         contentAlignment = Alignment.Center,
         modifier =

@@ -19,7 +19,7 @@ data class TuneFlowMotion(
     val nowPlayingOpenDurationMs: Int = 300,
     val nowPlayingCloseDurationMs: Int = 250,
     val dialogDurationMs: Int = 160,
-    val cardFocusScale: Float = 1.04f,
+    val cardFocusScale: Float = 1f,
     val buttonFocusScale: Float = 1.05f,
     val fieldFocusScale: Float = 1.01f,
 )

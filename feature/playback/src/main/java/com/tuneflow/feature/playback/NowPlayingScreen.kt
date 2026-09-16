@@ -9,7 +9,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +61,7 @@ import com.tuneflow.core.design.TuneFlowTrackRow
 import com.tuneflow.core.design.trackRowFocusDestination
 import com.tuneflow.core.network.TrackFavoriteState
 import com.tuneflow.core.network.TrackFavoriteStore
+import com.tuneflow.feature.video.VideoCandidateLoadingPanel
 import com.tuneflow.feature.video.VideoCandidatePicker
 import com.tuneflow.feature.video.VideoDisclosureOverlay
 import com.tuneflow.feature.video.VideoUiState
@@ -106,6 +106,7 @@ fun NowPlayingScreen(
     var requestQueueFocus by rememberSaveable { mutableStateOf(false) }
     var requestLyricsFocus by rememberSaveable { mutableStateOf(false) }
     var requestVideoFocus by rememberSaveable { mutableStateOf(false) }
+    var requestInitialTransportFocus by remember { mutableStateOf(true) }
     var focusedQueueIndex by rememberSaveable { mutableIntStateOf(0) }
     val panelVisible = activePanel != NowPlayingPanel.None
     val artSize by animateDpAsState(targetValue = if (panelVisible) 152.dp else 180.dp, label = "now-playing-art-size")
@@ -126,7 +127,7 @@ fun NowPlayingScreen(
     }
 
     LaunchedEffect(videoState) {
-        if (videoState is VideoUiState.Candidates) {
+        if (videoState.showsVideoCandidatePanel()) {
             activePanel = NowPlayingPanel.VideoCandidates
         } else if (activePanel == NowPlayingPanel.VideoCandidates) {
             activePanel = NowPlayingPanel.None
@@ -179,10 +180,6 @@ fun NowPlayingScreen(
             cinematic = cinematicModeEnabled,
         )
 
-        if (!autoFocusTransport) {
-            ScreenInitialFocusAnchor()
-        }
-
         Row(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(22.dp),
@@ -214,13 +211,14 @@ fun NowPlayingScreen(
                     clearRequestedFocus()
                 },
                 onVideoAction = {
-                    if (videoState is VideoUiState.Candidates) {
-                        activePanel = NowPlayingPanel.VideoCandidates
-                    } else if (videoState.hasVisiblePlayer) {
-                        activePanel = NowPlayingPanel.VideoCandidates
-                        videoViewModel.chooseAnother()
-                    } else {
-                        videoViewModel.onVideoAction()
+                    when {
+                        videoState is VideoUiState.Searching -> Unit
+                        videoState is VideoUiState.Candidates -> activePanel = NowPlayingPanel.VideoCandidates
+                        videoState.hasVisiblePlayer -> {
+                            activePanel = NowPlayingPanel.VideoCandidates
+                            videoViewModel.chooseAnother()
+                        }
+                        else -> videoViewModel.onVideoAction()
                     }
                     clearRequestedFocus()
                 },
@@ -251,12 +249,16 @@ fun NowPlayingScreen(
                     }
                 },
                 compactTransport = panelVisible,
-                autoFocusTransport = autoFocusTransport || requestTransportFocus,
+                autoFocusTransport = autoFocusTransport || requestTransportFocus || requestInitialTransportFocus,
                 autoFocusStreamMode = requestStreamFocus,
                 autoFocusQueue = requestQueueFocus,
                 autoFocusLyrics = requestLyricsFocus,
                 autoFocusVideo = requestVideoFocus,
-                onAutoFocusConsumed = onAutoFocusConsumed,
+                onAutoFocusConsumed = {
+                    requestInitialTransportFocus = false
+                    requestTransportFocus = false
+                    onAutoFocusConsumed()
+                },
                 onStreamModeFocusConsumed = { requestStreamFocus = false },
                 onQueueFocusConsumed = { requestQueueFocus = false },
                 onLyricsFocusConsumed = { requestLyricsFocus = false },
@@ -294,10 +296,15 @@ fun NowPlayingScreen(
                             )
                         }
                     NowPlayingPanel.VideoCandidates ->
-                        VideoCandidatePicker(
-                            candidates = (videoState as? VideoUiState.Candidates)?.candidates.orEmpty(),
-                            onSelect = videoViewModel::selectCandidate,
-                        )
+                        when (val currentVideoState = videoState) {
+                            is VideoUiState.Searching -> VideoCandidateLoadingPanel()
+                            is VideoUiState.Candidates ->
+                                VideoCandidatePicker(
+                                    candidates = currentVideoState.candidates,
+                                    onSelect = videoViewModel::selectCandidate,
+                                )
+                            else -> Unit
+                        }
                     NowPlayingPanel.None -> Unit
                 }
             }
@@ -415,6 +422,8 @@ internal fun toggleNowPlayingPanel(
     current: NowPlayingPanel,
     requested: NowPlayingPanel,
 ): NowPlayingPanel = if (current == requested) NowPlayingPanel.None else requested
+
+internal fun VideoUiState.showsVideoCandidatePanel(): Boolean = this is VideoUiState.Searching || this is VideoUiState.Candidates
 
 internal enum class PanelFocusTarget {
     None,
@@ -767,21 +776,4 @@ internal fun PlaybackTextButton(
             )
         }
     }
-}
-
-@Composable
-private fun ScreenInitialFocusAnchor() {
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    Box(
-        modifier =
-            Modifier
-                .size(1.dp)
-                .focusRequester(focusRequester)
-                .focusable(),
-    )
 }

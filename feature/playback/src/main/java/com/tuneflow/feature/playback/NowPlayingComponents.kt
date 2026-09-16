@@ -457,7 +457,6 @@ internal fun StreamControlRow(
             enabled =
                 videoEnabled &&
                     videoState !is VideoUiState.Unavailable &&
-                    videoState !is VideoUiState.Searching &&
                     videoState !is VideoUiState.Loading &&
                     videoState !is VideoUiState.ConsentRequired,
             requestFocus = autoFocusVideo,

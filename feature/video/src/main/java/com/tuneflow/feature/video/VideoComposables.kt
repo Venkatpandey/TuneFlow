@@ -5,6 +5,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -576,6 +581,101 @@ fun VideoActionButton(
 }
 
 @Composable
+fun VideoCandidateLoadingPanel(modifier: Modifier = Modifier) {
+    val motion = LocalTuneFlowMotion.current
+    val placeholderAlpha =
+        if (motion.enabled) {
+            val transition = rememberInfiniteTransition(label = "video-search-skeleton")
+            val alpha by
+                transition.animateFloat(
+                    initialValue = 0.32f,
+                    targetValue = 0.72f,
+                    animationSpec =
+                        infiniteRepeatable(
+                            animation = tween(durationMillis = 800),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                    label = "video-search-skeleton-alpha",
+                )
+            alpha
+        } else {
+            0.52f
+        }
+    val placeholderColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = placeholderAlpha)
+
+    Column(
+        modifier =
+            modifier
+                .width(360.dp)
+                .fillMaxHeight()
+                .progressSemantics()
+                .clip(MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f), MaterialTheme.shapes.large)
+                .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = "Finding YouTube videos",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "Searching for the best matches…",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        repeat(VIDEO_CANDIDATE_SKELETON_COUNT) {
+            VideoCandidateSkeletonRow(color = placeholderColor)
+        }
+    }
+}
+
+@Composable
+private fun VideoCandidateSkeletonRow(color: Color) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(82.dp)
+                .clip(MaterialTheme.shapes.medium)
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f), MaterialTheme.shapes.medium)
+                .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(width = 112.dp, height = 63.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(color),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth(0.92f)
+                        .height(14.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .background(color),
+            )
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth(0.58f)
+                        .height(10.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .background(color),
+            )
+        }
+    }
+}
+
+@Composable
 fun VideoCandidatePicker(
     candidates: List<VideoCandidate>,
     onSelect: (VideoCandidate) -> Unit,
@@ -625,6 +725,8 @@ fun VideoCandidatePicker(
         }
     }
 }
+
+private const val VIDEO_CANDIDATE_SKELETON_COUNT = 5
 
 @Composable
 fun VideoDisclosureOverlay(
