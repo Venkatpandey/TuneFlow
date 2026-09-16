@@ -1,5 +1,7 @@
 package com.tuneflow.tv
 
+import android.animation.ValueAnimator
+import android.os.Build
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -17,6 +19,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -27,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tuneflow.core.design.TuneFlowMotionProvider
 import com.tuneflow.core.design.TuneFlowShapes
 
 private val TuneFlowDarkScheme =
@@ -123,10 +127,16 @@ fun Modifier.shimmerEffect(): Modifier {
 
 @Composable
 fun TuneFlowTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = TuneFlowDarkScheme,
-        typography = TuneFlowTypography,
-        shapes = TuneFlowShapes.material,
-        content = content,
-    )
+    val motionEnabled =
+        remember {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled()
+        }
+    TuneFlowMotionProvider(enabled = motionEnabled) {
+        MaterialTheme(
+            colorScheme = TuneFlowDarkScheme,
+            typography = TuneFlowTypography,
+            shapes = TuneFlowShapes.material,
+            content = content,
+        )
+    }
 }

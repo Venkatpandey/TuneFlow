@@ -613,6 +613,13 @@ Screens are divided into focus regions. D-pad navigation stays within a region u
 - Do **not** animate more than 3 elements simultaneously.
 - Do **not** animate during active D-pad navigation (only animate on focus settle).
 
+### 7.5 Runtime Motion Policy
+
+- Shared TV cards, actions, fields, and track rows use the motion tokens from `core/design`.
+- Forward navigation moves left, Back moves right, and Now Playing opens/closes vertically to preserve hierarchy.
+- When Android's animator duration scale is disabled, focus, artwork, metadata, and screen transitions snap to their final state.
+- Track rows remain fixed at 72dp and never scale.
+
 ---
 
 ## 8. Screen Patterns
@@ -850,6 +857,17 @@ Blur is **only** used on the Now Playing screen background.
 | Brightness | 30% of original |
 | Overlay | `color.background` at 60% opacity |
 | Implementation | Pre-render blurred bitmap; do not use real-time blur |
+
+The TV implementation requests a 96px artwork source and expands it behind dark gradients. This provides a stable,
+blur-like treatment without a real-time GPU blur. Artwork and metadata crossfade when the current track changes.
+
+### 10.5 Premium Ambient Playback
+
+- Debug and beta builds include the premium ambient presentation for local testing; stable release builds keep it gated.
+- Ambient playback reuses the low-resolution Now Playing background and enters through the existing 60-second playback-idle controller.
+- The foreground group shifts among four low-amplitude positions once per minute to reduce burn-in risk.
+- Reduced-motion mode snaps between burn-in positions and removes continuous transition motion.
+- Entering or leaving ambient mode does not restart playback, change the queue, or add wake locks.
 
 ---
 

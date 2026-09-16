@@ -859,6 +859,8 @@ private fun TuneFlowShell(
     TuneFlowShellLayout(
         currentSection = shellState.currentSection,
         currentDestination = shellState.currentDestination,
+        navigationDepth = shellState.backStack.size,
+        premiumFeaturesEnabled = BuildConfig.PREMIUM_FEATURES_ENABLED,
         showNowPlaying = shellState.showNowPlaying,
         username = session?.username.orEmpty(),
         currentTimeText = navClockText,

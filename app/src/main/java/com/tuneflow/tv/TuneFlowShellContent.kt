@@ -1,8 +1,21 @@
 package com.tuneflow.tv
 
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.IntRect
+import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.network.PlaylistFavoriteStore
 import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.player.PlaybackQueue
@@ -17,6 +30,8 @@ import com.tuneflow.feature.playback.NowPlayingScreen
 @Composable
 internal fun ShellContent(
     currentDestination: ShellDestination,
+    navigationDepth: Int,
+    premiumFeaturesEnabled: Boolean,
     preselectedPlaylistId: String?,
     focusRestoreTarget: com.tuneflow.feature.browse.BrowseFocusTarget?,
     playbackQueue: PlaybackQueue,
@@ -55,8 +70,24 @@ internal fun ShellContent(
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
 ) {
-    Crossfade(targetState = currentDestination, label = "shell-content") { targetScreen ->
-        when (targetScreen) {
+    val motion = LocalTuneFlowMotion.current
+    val transitionState = ShellContentTransitionState(currentDestination, navigationDepth)
+    AnimatedContent(
+        targetState = transitionState,
+        transitionSpec = {
+            shellContentTransform(
+                direction = resolveShellMotionDirection(initialState, targetState),
+                motionEnabled = motion.enabled,
+                forwardDurationMs = motion.screenForwardDurationMs,
+                backDurationMs = motion.screenBackDurationMs,
+                nowPlayingOpenDurationMs = motion.nowPlayingOpenDurationMs,
+                nowPlayingCloseDurationMs = motion.nowPlayingCloseDurationMs,
+            )
+        },
+        contentKey = { it.destination },
+        label = "shell-content",
+    ) { targetState ->
+        when (val targetScreen = targetState.destination) {
             ShellDestination.NowPlaying -> {
                 NowPlayingScreen(
                     viewModel = playbackViewModel,
@@ -68,6 +99,7 @@ internal fun ShellContent(
                     autoFocusTransport = autoFocusNowPlayingTransport,
                     onAutoFocusConsumed = onNowPlayingAutoFocusConsumed,
                     onVideoViewportBoundsChanged = onVideoViewportBoundsChanged,
+                    cinematicModeEnabled = premiumFeaturesEnabled,
                 )
             }
             is ShellDestination.Album -> {
@@ -164,4 +196,73 @@ internal fun ShellContent(
             }
         }
     }
+}
+
+internal data class ShellContentTransitionState(
+    val destination: ShellDestination,
+    val depth: Int,
+)
+
+internal enum class ShellMotionDirection {
+    Forward,
+    Back,
+    OpenNowPlaying,
+    CloseNowPlaying,
+    Fade,
+}
+
+internal fun resolveShellMotionDirection(
+    initial: ShellContentTransitionState,
+    target: ShellContentTransitionState,
+): ShellMotionDirection =
+    when {
+        target.destination == ShellDestination.NowPlaying && initial.destination != ShellDestination.NowPlaying ->
+            ShellMotionDirection.OpenNowPlaying
+        initial.destination == ShellDestination.NowPlaying && target.destination != ShellDestination.NowPlaying ->
+            ShellMotionDirection.CloseNowPlaying
+        target.depth > initial.depth -> ShellMotionDirection.Forward
+        target.depth < initial.depth -> ShellMotionDirection.Back
+        else -> ShellMotionDirection.Fade
+    }
+
+private fun shellContentTransform(
+    direction: ShellMotionDirection,
+    motionEnabled: Boolean,
+    forwardDurationMs: Int,
+    backDurationMs: Int,
+    nowPlayingOpenDurationMs: Int,
+    nowPlayingCloseDurationMs: Int,
+): ContentTransform {
+    if (!motionEnabled) return fadeIn(snap()) togetherWith fadeOut(snap())
+
+    val transform =
+        when (direction) {
+            ShellMotionDirection.Forward ->
+                slideInHorizontally(tween(forwardDurationMs, easing = FastOutSlowInEasing)) { it / 6 } +
+                    fadeIn(tween(forwardDurationMs)) togetherWith
+                    (
+                        slideOutHorizontally(tween(forwardDurationMs, easing = FastOutSlowInEasing)) { -it / 10 } +
+                            fadeOut(tween(forwardDurationMs / 2))
+                    )
+            ShellMotionDirection.Back ->
+                slideInHorizontally(tween(backDurationMs, easing = LinearOutSlowInEasing)) { -it / 6 } +
+                    fadeIn(tween(backDurationMs)) togetherWith
+                    (
+                        slideOutHorizontally(tween(backDurationMs, easing = LinearOutSlowInEasing)) { it / 10 } +
+                            fadeOut(tween(backDurationMs / 2))
+                    )
+            ShellMotionDirection.OpenNowPlaying ->
+                slideInVertically(tween(nowPlayingOpenDurationMs, easing = FastOutSlowInEasing)) { it / 5 } +
+                    fadeIn(tween(nowPlayingOpenDurationMs)) togetherWith
+                    fadeOut(tween(nowPlayingOpenDurationMs / 2))
+            ShellMotionDirection.CloseNowPlaying ->
+                fadeIn(tween(nowPlayingCloseDurationMs)) togetherWith
+                    (
+                        slideOutVertically(tween(nowPlayingCloseDurationMs, easing = LinearOutSlowInEasing)) { it / 5 } +
+                            fadeOut(tween(nowPlayingCloseDurationMs))
+                    )
+            ShellMotionDirection.Fade ->
+                fadeIn(tween(backDurationMs)) togetherWith fadeOut(tween(backDurationMs))
+        }
+    return transform
 }

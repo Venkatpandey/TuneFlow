@@ -3,8 +3,6 @@
 package com.tuneflow.tv
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,10 +35,8 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -51,7 +47,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuneflow.core.design.ArtworkPlaceholder
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowArtwork
+import com.tuneflow.core.design.TuneFlowFocusableCard
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.ArtistSummary
@@ -599,38 +597,10 @@ private fun HeroActionButton(
     accent: Boolean = false,
     onClick: () -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val shape = TuneFlowShapes.button
-
-    Box(
-        modifier =
-            Modifier
-                .scale(if (focused) 1.01f else 1f)
-                .clip(shape)
-                .background(
-                    if (accent) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.86f)
-                    },
-                )
-                .border(
-                    width = if (focused) 3.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else if (accent) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.88f)
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = shape,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
-                .width(184.dp)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+    TuneFlowActionSurface(
+        modifier = Modifier.width(184.dp),
+        accent = accent,
+        onClick = onClick,
     ) {
         Text(
             text = label,
@@ -1103,34 +1073,9 @@ private fun FocusCard(
     onClick: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
-
-    Box(
-        modifier =
-            modifier
-                .scale(if (focused) 1.01f else 1f)
-                .clip(TuneFlowShapes.card)
-                .background(
-                    if (focused) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-                    } else {
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
-                    },
-                )
-                .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = TuneFlowShapes.card,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
-                .padding(12.dp),
+    TuneFlowFocusableCard(
+        modifier = modifier,
+        onClick = onClick,
     ) {
         Column(content = content)
     }

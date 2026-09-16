@@ -1,15 +1,22 @@
 package com.tuneflow.feature.playback
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,10 +40,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -49,9 +56,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
+import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.design.TrackFavoriteButton
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.design.animateTuneFlowFocusScale
 import com.tuneflow.core.network.TrackFavoriteState
 import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.QueueItem
@@ -234,6 +244,7 @@ internal fun ArtworkCard(
     artSize: Dp,
     artFrameHeight: Dp,
 ) {
+    val motion = LocalTuneFlowMotion.current
     Box(
         modifier =
             Modifier
@@ -245,24 +256,37 @@ internal fun ArtworkCard(
                 .padding(10.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(artSize)
-                    .clip(TuneFlowShapes.artwork)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            TuneFlowArtwork(
-                model = item?.artUrl,
-                contentDescription = item?.title,
-                width = artSize,
-                height = artSize,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                placeholderText = item?.title,
-                fallbackPainterResId = R.drawable.ic_tuneflow_brand,
-            )
+        AnimatedContent(
+            targetState = item,
+            transitionSpec = {
+                if (motion.enabled) {
+                    fadeIn(tween(320, easing = FastOutSlowInEasing)) togetherWith fadeOut(tween(180))
+                } else {
+                    fadeIn(snap()) togetherWith fadeOut(snap())
+                }
+            },
+            contentKey = { it?.id },
+            label = "now-playing-foreground-art",
+        ) { targetItem ->
+            Box(
+                modifier =
+                    Modifier
+                        .size(artSize)
+                        .clip(TuneFlowShapes.artwork)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                TuneFlowArtwork(
+                    model = targetItem?.artUrl,
+                    contentDescription = targetItem?.title,
+                    width = artSize,
+                    height = artSize,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = targetItem?.title,
+                    fallbackPainterResId = R.drawable.ic_tuneflow_brand,
+                )
+            }
         }
     }
 }
@@ -273,36 +297,52 @@ internal fun TrackMetadata(
     item: QueueItem?,
     playlistName: String?,
 ) {
-    Text(
-        text = item?.title ?: "Nothing playing",
-        style = MaterialTheme.typography.headlineLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-    Text(
-        text = item?.artist ?: "",
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Clip,
-        modifier = Modifier.fillMaxWidth().basicMarquee(),
-    )
-    Text(
-        text = item?.album ?: "",
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-    playlistContextLabel(playlistName)?.let { label ->
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+    val motion = LocalTuneFlowMotion.current
+    AnimatedContent(
+        targetState = item,
+        transitionSpec = {
+            if (motion.enabled) {
+                fadeIn(tween(260, delayMillis = 80, easing = FastOutSlowInEasing)) togetherWith fadeOut(tween(140))
+            } else {
+                fadeIn(snap()) togetherWith fadeOut(snap())
+            }
+        },
+        contentKey = { it?.id },
+        label = "now-playing-metadata",
+    ) { targetItem ->
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = targetItem?.title ?: "Nothing playing",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = targetItem?.artist ?: "",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier.fillMaxWidth().basicMarquee(),
+            )
+            Text(
+                text = targetItem?.album ?: "",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            playlistContextLabel(playlistName)?.let { label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
@@ -324,7 +364,6 @@ internal fun StreamModeButton(
     requestFocus: Boolean = false,
     onRequestedFocusApplied: () -> Unit = {},
 ) {
-    var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(requestFocus) {
@@ -334,33 +373,10 @@ internal fun StreamModeButton(
         }
     }
 
-    Box(
-        modifier =
-            Modifier
-                .size(44.dp)
-                .focusRequester(focusRequester)
-                .scale(if (focused) 1.01f else 1f)
-                .clip(TuneFlowShapes.button)
-                .background(
-                    if (focused) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f)
-                    },
-                )
-                .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = TuneFlowShapes.button,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick),
+    TuneFlowActionSurface(
+        onClick = onClick,
+        modifier = Modifier.size(44.dp).focusRequester(focusRequester),
+        contentPadding = PaddingValues(0.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -458,12 +474,21 @@ private fun VideoPreferenceToggleButton(
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val scale =
+        animateTuneFlowFocusScale(
+            focused = focused,
+            focusedScale = LocalTuneFlowMotion.current.buttonFocusScale,
+            label = "video-preference-focus",
+        )
     Row(
         modifier =
             Modifier
                 .width(82.dp)
                 .height(44.dp)
-                .scale(if (focused) 1.04f else 1f)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
                 .alpha(if (enabled) 1f else 0.45f)
                 .onFocusChanged { focused = it.hasFocus }
                 .focusable(enabled)

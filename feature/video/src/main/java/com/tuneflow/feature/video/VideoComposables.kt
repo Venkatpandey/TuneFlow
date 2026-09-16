@@ -29,6 +29,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -59,6 +59,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.tuneflow.core.design.LocalTuneFlowMotion
+import com.tuneflow.core.design.TuneFlowActionSurface
 import kotlinx.coroutines.delay
 import java.text.NumberFormat
 
@@ -78,24 +80,27 @@ fun NativeVideoPlayerSurface(
     val colorScheme = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
     val shapes = MaterialTheme.shapes
+    val motion = LocalTuneFlowMotion.current
     val controlsView =
-        remember(player, trackDetails, host, requestFocus, colorScheme, typography, shapes) {
+        remember(player, trackDetails, host, requestFocus, colorScheme, typography, shapes, motion) {
             if (requestFocus) {
                 ComposeView(host.context).apply {
                     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                     setContent {
-                        MaterialTheme(
-                            colorScheme = colorScheme,
-                            typography = typography,
-                            shapes = shapes,
-                        ) {
-                            NativeVideoControlsOverlay(
-                                player = player,
-                                trackDetails = trackDetails,
-                                onExitFullscreen = onExitFullscreen,
-                                onChooseAnother = onChooseAnother,
-                                onStop = onStop,
-                            )
+                        CompositionLocalProvider(LocalTuneFlowMotion provides motion) {
+                            MaterialTheme(
+                                colorScheme = colorScheme,
+                                typography = typography,
+                                shapes = shapes,
+                            ) {
+                                NativeVideoControlsOverlay(
+                                    player = player,
+                                    trackDetails = trackDetails,
+                                    onExitFullscreen = onExitFullscreen,
+                                    onChooseAnother = onChooseAnother,
+                                    onStop = onStop,
+                                )
+                            }
                         }
                     }
                 }
@@ -773,7 +778,6 @@ private fun VideoTextButton(
     requestFocus: Boolean = false,
     onRequestedFocusApplied: () -> Unit = {},
 ) {
-    var focused by remember { mutableStateOf(false) }
     val requester = remember { FocusRequester() }
     LaunchedEffect(requestFocusId, requestFocus) {
         if (requestFocusId > 0L || requestFocus) {
@@ -781,29 +785,13 @@ private fun VideoTextButton(
             if (requestFocus) onRequestedFocusApplied()
         }
     }
-    Box(
+    TuneFlowActionSurface(
+        onClick = onClick,
+        accent = accent,
+        enabled = enabled,
         modifier =
             modifier
-                .focusRequester(requester)
-                .scale(if (focused) 1.03f else 1f)
-                .alpha(if (enabled) 1f else 0.45f)
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable(enabled)
-                .clip(MaterialTheme.shapes.medium)
-                .background(
-                    if (focused || accent) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
-                    },
-                )
-                .border(
-                    if (focused) 2.dp else 1.dp,
-                    if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                    MaterialTheme.shapes.medium,
-                )
-                .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
+                .focusRequester(requester),
     ) {
         Text(
             text = label,
@@ -827,7 +815,6 @@ fun VideoControlIconButton(
     requestFocus: Boolean = false,
     onRequestedFocusApplied: () -> Unit = {},
 ) {
-    var focused by remember { mutableStateOf(false) }
     val requester = remember { FocusRequester() }
     val requestsOwnFocus = requestFocusId > 0L || requestFocus
     LaunchedEffect(requestFocusId, requestFocus) {
@@ -836,30 +823,15 @@ fun VideoControlIconButton(
             if (requestFocus) onRequestedFocusApplied()
         }
     }
-    Box(
+    TuneFlowActionSurface(
+        onClick = onClick,
+        accent = accent,
+        enabled = enabled,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
         modifier =
             modifier
                 .size(width = 56.dp, height = 46.dp)
-                .scale(if (focused) 1.06f else 1f)
-                .alpha(if (enabled) 1f else 0.45f)
-                .then(if (requestsOwnFocus) Modifier.focusRequester(requester) else Modifier)
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable(enabled)
-                .clip(MaterialTheme.shapes.medium)
-                .background(
-                    if (focused || accent) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
-                    },
-                )
-                .border(
-                    if (focused) 2.dp else 1.dp,
-                    if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                    MaterialTheme.shapes.medium,
-                )
-                .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
+                .then(if (requestsOwnFocus) Modifier.focusRequester(requester) else Modifier),
     ) {
         Icon(
             painter = painterResource(iconResId),

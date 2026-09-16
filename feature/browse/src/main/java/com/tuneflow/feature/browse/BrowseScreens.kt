@@ -60,7 +60,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -68,6 +67,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -88,10 +88,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuneflow.core.design.HorizontalFocusDirection
+import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.design.TrackFavoriteButton
 import com.tuneflow.core.design.TrackRowFocusTarget
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.design.TuneFlowTrackRow
+import com.tuneflow.core.design.animateTuneFlowFocusScale
 import com.tuneflow.core.design.trackRowFocusDestination
 import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.ArtistSummary
@@ -309,6 +313,7 @@ fun AlbumDetailScreen(
                                 favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
                                 onToggleFavorite = { scope.launch { favoriteStore.toggle(track.id) } },
                                 onClick = { onPlayAlbum(album.tracks, index) },
+                                showDivider = index != album.tracks.lastIndex,
                                 modifier =
                                     Modifier.boundaryLockedVerticalItem(
                                         index = index,
@@ -708,6 +713,7 @@ fun PlaylistsScreen(
                                     index,
                                 )
                             },
+                            showDivider = index != selected.tracks.lastIndex,
                             modifier =
                                 Modifier.boundaryLockedVerticalItem(
                                     index = index,
@@ -920,6 +926,7 @@ fun SearchScreen(
                         favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
                         onToggleFavorite = { scope.launch { favoriteStore.toggle(track.id) } },
                         onClick = { onPlayTracks(state.result.tracks, index) },
+                        showDivider = index != state.result.tracks.lastIndex,
                         modifier =
                             Modifier.boundaryLockedVerticalItem(
                                 index = index,
@@ -1176,6 +1183,7 @@ private fun FavoritesCategoryResults(
                         }
                     },
                     onClick = { onPlayTracks(tracks, index) },
+                    showDivider = index != tracks.lastIndex,
                     rowFocusRequester =
                         removalFocusRequester.takeIf { track.id == focusAfterRemovalId },
                     modifier =
@@ -1753,12 +1761,21 @@ private fun SearchDisplayField(
     emptyDisplayText: String,
     modifier: Modifier = Modifier,
 ) {
+    val scale =
+        animateTuneFlowFocusScale(
+            focused = focused,
+            focusedScale = LocalTuneFlowMotion.current.fieldFocusScale,
+            label = "search-display-focus",
+        )
     Box(
         modifier =
             modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
-                .scale(if (focused) 1.005f else 1f)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
                 .clip(TuneFlowShapes.field)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
                 .border(
@@ -1905,6 +1922,7 @@ private fun PremiumListRow(
     favoriteState: TrackFavoriteState,
     onToggleFavorite: () -> Unit,
     onClick: () -> Unit,
+    showDivider: Boolean,
     rowFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -1916,7 +1934,7 @@ private fun PremiumListRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FocusScaleCard(
+        TuneFlowTrackRow(
             modifier =
                 Modifier
                     .weight(1f)
@@ -1937,7 +1955,7 @@ private fun PremiumListRow(
                             false
                         }
                     },
-            shape = TuneFlowShapes.row,
+            showDivider = showDivider,
             onClick = onClick,
         ) {
             Row(
@@ -2065,39 +2083,16 @@ private fun PlaylistFavoriteButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier.size(48.dp),
 ) {
-    var focused by remember { mutableStateOf(false) }
-
-    Box(
+    TuneFlowActionSurface(
+        onClick = onClick,
         modifier =
-            modifier
-                .scale(if (focused) 1.06f else 1f)
-                .alpha(if (focused) 1f else 0.92f)
-                .clip(TuneFlowShapes.button)
-                .background(
-                    when {
-                        focused -> MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
-                        isFavorite -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f)
-                    },
-                )
-                .border(
-                    width = if (focused) 3.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)
-                        },
-                    shape = TuneFlowShapes.button,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .semantics {
-                    role = Role.Button
-                    this.contentDescription = contentDescription
-                    stateDescription = if (isFavorite) "Selected" else "Not selected"
-                }
-                .clickable(onClick = onClick),
+            modifier.semantics {
+                role = Role.Button
+                this.contentDescription = contentDescription
+                stateDescription = if (isFavorite) "Selected" else "Not selected"
+            },
+        selected = isFavorite,
+        contentPadding = PaddingValues(0.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -2198,29 +2193,11 @@ private fun BrowseActionButton(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
-
-    Box(
-        modifier =
-            modifier
-                .scale(if (focused) 1.01f else 1f)
-                .clip(TuneFlowShapes.button)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = if (focused) 0.94f else 0.84f))
-                .border(
-                    width = if (focused) 3.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = TuneFlowShapes.button,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 18.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center,
+    TuneFlowActionSurface(
+        modifier = modifier,
+        accent = true,
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+        onClick = onClick,
     ) {
         androidx.compose.runtime.CompositionLocalProvider(
             androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onPrimary,

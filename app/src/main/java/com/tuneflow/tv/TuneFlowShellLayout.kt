@@ -34,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -56,6 +55,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.network.PlaylistFavoriteStore
@@ -82,6 +82,8 @@ internal const val NOW_PLAYING_WIDGET_HEIGHT_DP = 224
 internal fun TuneFlowShellLayout(
     currentSection: NavSection,
     currentDestination: ShellDestination,
+    navigationDepth: Int,
+    premiumFeaturesEnabled: Boolean,
     showNowPlaying: Boolean,
     username: String,
     currentTimeText: String,
@@ -220,6 +222,8 @@ internal fun TuneFlowShellLayout(
                         ) {
                             ShellContent(
                                 currentDestination = currentDestination,
+                                navigationDepth = navigationDepth,
+                                premiumFeaturesEnabled = premiumFeaturesEnabled,
                                 preselectedPlaylistId = preselectedPlaylistId,
                                 focusRestoreTarget = focusRestoreTarget,
                                 playbackQueue = playbackQueue,
@@ -285,6 +289,8 @@ internal fun TuneFlowShellLayout(
                 playbackQueue = playbackQueue,
                 playbackPositionMs = playbackPositionMs,
                 lyricsState = lyricsState,
+                premiumFeaturesEnabled = premiumFeaturesEnabled,
+                currentTimeText = currentTimeText,
             )
         }
 
@@ -616,39 +622,18 @@ private fun NavRailItem(
     var focused by remember { mutableStateOf(false) }
     val active = selected || focused
 
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .onFocusChanged { focusState -> focused = focusState.isFocused }
-                .focusable()
-                .clip(TuneFlowShapes.row)
-                .background(
-                    if (active) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
-                    },
-                )
-                .border(
-                    width = if (active) 3.dp else 1.dp,
-                    color =
-                        if (active) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
-                        },
-                    shape = TuneFlowShapes.row,
-                )
-                .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-        contentAlignment = Alignment.Center,
+    TuneFlowActionSurface(
+        modifier = Modifier.fillMaxWidth(),
+        selected = selected,
+        shape = TuneFlowShapes.row,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+        onFocusedChange = { focused = it },
+        onClick = onClick,
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
             color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.scale(if (focused) 1.05f else 1f),
         )
     }
 }
@@ -771,7 +756,18 @@ private fun PlaybackScreensaverOverlay(
     playbackQueue: PlaybackQueue,
     playbackPositionMs: Long,
     lyricsState: LyricsUiState,
+    premiumFeaturesEnabled: Boolean,
+    currentTimeText: String,
 ) {
+    if (premiumFeaturesEnabled) {
+        CinematicPlaybackScreensaverOverlay(
+            playbackQueue = playbackQueue,
+            playbackPositionMs = playbackPositionMs,
+            lyricsState = lyricsState,
+            currentTimeText = currentTimeText,
+        )
+        return
+    }
     val currentItem = playbackQueue.currentItem ?: return
     val lyrics = resolveScreensaverLyrics(lyricsState, currentItem.id)
 
