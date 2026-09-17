@@ -143,4 +143,6 @@ Developer setup, local release signing, and CI/release workflow live in [scripts
 
 Remote navigation and Back behavior are documented in [docs/navigation.md](docs/navigation.md).
 
+The open-source Premium tiers, entitlement boundaries, distribution policy, and launch guardrails are documented in [ADR 0001](docs/adr/0001-open-source-premium-model.md).
+
 LAN preferred-video service deployment, backup, API, and TuneFlow build configuration are documented in [services/preferred-video/README.md](services/preferred-video/README.md).
