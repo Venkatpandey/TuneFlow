@@ -3,9 +3,7 @@
 package com.tuneflow.tv
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,10 +35,8 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -51,7 +47,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuneflow.core.design.ArtworkPlaceholder
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowArtwork
+import com.tuneflow.core.design.TuneFlowFocusableCard
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.ArtistSummary
@@ -97,6 +95,7 @@ fun HomeScreen(
     val artistsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val albumsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val playlistsRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val initialFocusRequester = remember { FocusRequester() }
     val restoredItemFocusRequester = remember { FocusRequester() }
     var showPreferredVideoServiceDialog by rememberSaveable { mutableStateOf(false) }
     val visibleFavorites =
@@ -107,6 +106,12 @@ fun HomeScreen(
                     favoriteState.isFavorite || favoriteState.isPending
                 },
         )
+
+    LaunchedEffect(Unit) {
+        if (focusRestoreTarget == null) {
+            initialFocusRequester.requestFocus()
+        }
+    }
 
     LaunchedEffect(focusRestoreTarget, state) {
         val target = focusRestoreTarget ?: return@LaunchedEffect
@@ -131,19 +136,17 @@ fun HomeScreen(
         contentPadding = PaddingValues(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        item {
-            ScreenInitialFocusAnchor()
-        }
-        item {
+        item(key = "hero") {
             HomeHero(
                 playbackQueue = playbackQueue,
                 onPrimaryAction = if (playbackQueue.items.isNotEmpty()) onOpenNowPlaying else onOpenSearch,
                 onSecondaryAction = onOpenAlbums,
+                primaryActionModifier = Modifier.focusRequester(initialFocusRequester),
             )
         }
 
         if (state.isLoading) {
-            item { HomeLoadingSection() }
+            item(key = "loading") { HomeLoadingSection() }
         }
 
         if (
@@ -155,18 +158,18 @@ fun HomeScreen(
             state.artists.isEmpty() &&
             state.videoHistory.isEmpty()
         ) {
-            item {
+            item(key = "error") {
                 ErrorBanner(message = state.error.orEmpty())
             }
         }
 
         if (state.videoHistory.isNotEmpty()) {
-            item { SectionHeading("Recently played videos") }
-            item {
+            item(key = "video-history-heading") { SectionHeading("Recently played videos") }
+            item(key = "video-history-row") {
                 HomeContentRow(
                     items = state.videoHistory,
                     listState = videoHistoryRowState,
-                    key = { _, video -> video.videoId },
+                    key = { _, video -> video.videoHistoryItemKey() },
                     onShowAll = onOpenVideoHistory,
                 ) { video ->
                     HomeVideoCard(video = video, onClick = { onPlayVideo(video) })
@@ -175,8 +178,8 @@ fun HomeScreen(
         }
 
         if (visibleFavorites.albums.isNotEmpty() || visibleFavorites.tracks.isNotEmpty()) {
-            item { SectionHeading("Favorites") }
-            item {
+            item(key = "favorites-heading") { SectionHeading("Favorites") }
+            item(key = "favorites-row") {
                 FavoriteRail(
                     favorites = visibleFavorites,
                     listState = favoritesRowState,
@@ -196,8 +199,8 @@ fun HomeScreen(
         }
 
         if (state.artists.isNotEmpty()) {
-            item { SectionHeading("Artists") }
-            item {
+            item(key = "artists-heading") { SectionHeading("Artists") }
+            item(key = "artists-row") {
                 HomeContentRow(
                     items = state.artists,
                     listState = artistsRowState,
@@ -226,8 +229,8 @@ fun HomeScreen(
         }
 
         if (state.recentAlbums.isNotEmpty()) {
-            item { SectionHeading("Albums") }
-            item {
+            item(key = "albums-heading") { SectionHeading("Albums") }
+            item(key = "albums-row") {
                 HomeContentRow(
                     items = state.recentAlbums,
                     listState = albumsRowState,
@@ -256,8 +259,8 @@ fun HomeScreen(
         }
 
         if (state.playlists.isNotEmpty()) {
-            item { SectionHeading("Playlists") }
-            item {
+            item(key = "playlists-heading") { SectionHeading("Playlists") }
+            item(key = "playlists-row") {
                 HomeContentRow(
                     items = state.playlists,
                     listState = playlistsRowState,
@@ -285,9 +288,12 @@ fun HomeScreen(
             }
         }
 
-        item { SectionHeading("Quick Actions") }
-        item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        item(key = "quick-actions-heading") { SectionHeading("Quick Actions") }
+        item(key = "quick-actions-row") {
+            LazyRow(
+                modifier = Modifier.focusGroup(),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
                 item {
                     ActionCard(
                         title = "Search",
@@ -334,7 +340,7 @@ private fun HomeUiState.focusLocation(target: BrowseFocusTarget): HomeFocusLocat
     val sectionIndex = sections.indexOfFirst { it.matches(target) }
     if (sectionIndex < 0) return null
     val contentStartIndex =
-        2 +
+        1 +
             isLoading.toItemCount() +
             showsFatalError().toItemCount() +
             (videoHistory.isNotEmpty()).toItemCount() * 2
@@ -467,6 +473,7 @@ private fun <T> HomeContentRow(
 ) {
     LazyRow(
         state = listState,
+        modifier = Modifier.focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         itemsIndexed(items.take(HOME_ROW_VISIBLE_ITEM_LIMIT), key = key) { _, item ->
@@ -483,6 +490,7 @@ private fun HomeHero(
     playbackQueue: PlaybackQueue,
     onPrimaryAction: () -> Unit,
     onSecondaryAction: () -> Unit,
+    primaryActionModifier: Modifier = Modifier,
 ) {
     val currentItem = playbackQueue.currentItem
 
@@ -554,6 +562,7 @@ private fun HomeHero(
                         label = if (currentItem != null) "Resume" else "Start Searching",
                         accent = true,
                         onClick = onPrimaryAction,
+                        modifier = primaryActionModifier,
                     )
                     HeroActionButton(
                         label = "Browse Albums",
@@ -598,39 +607,12 @@ private fun HeroActionButton(
     label: String,
     accent: Boolean = false,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val shape = TuneFlowShapes.button
-
-    Box(
-        modifier =
-            Modifier
-                .scale(if (focused) 1.01f else 1f)
-                .clip(shape)
-                .background(
-                    if (accent) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.86f)
-                    },
-                )
-                .border(
-                    width = if (focused) 3.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else if (accent) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.88f)
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = shape,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
-                .width(184.dp)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+    TuneFlowActionSurface(
+        modifier = modifier.width(184.dp),
+        accent = accent,
+        onClick = onClick,
     ) {
         Text(
             text = label,
@@ -646,23 +628,6 @@ private fun HeroActionButton(
             overflow = TextOverflow.Ellipsis,
         )
     }
-}
-
-@Composable
-private fun ScreenInitialFocusAnchor() {
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    Box(
-        modifier =
-            Modifier
-                .size(1.dp)
-                .focusRequester(focusRequester)
-                .focusable(),
-    )
 }
 
 @Composable
@@ -682,6 +647,7 @@ private fun FavoriteRail(
 
     LazyRow(
         state = listState,
+        modifier = Modifier.focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         items(favoriteAlbums, key = { "album-${it.id}" }) { album ->
@@ -1103,34 +1069,9 @@ private fun FocusCard(
     onClick: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
-
-    Box(
-        modifier =
-            modifier
-                .scale(if (focused) 1.01f else 1f)
-                .clip(TuneFlowShapes.card)
-                .background(
-                    if (focused) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-                    } else {
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
-                    },
-                )
-                .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = TuneFlowShapes.card,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
-                .padding(12.dp),
+    TuneFlowFocusableCard(
+        modifier = modifier,
+        onClick = onClick,
     ) {
         Column(content = content)
     }

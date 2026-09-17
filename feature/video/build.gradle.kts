@@ -34,6 +34,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:design"))
     implementation(project(":core:player"))
 
     implementation("androidx.compose.ui:ui:1.6.8")

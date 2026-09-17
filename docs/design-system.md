@@ -362,9 +362,9 @@ All colors are defined for **dark theme only**. TuneFlow does not support a ligh
 - Corner radius: 8dp (image only; text area has no background)
 
 **Focus state:**
-- Scale: 1.08× on the entire card
+- Scale: none; cards keep fixed bounds so horizontal rails do not clip or re-scroll
 - Border: 2dp `color.focusBorder` around image
-- Glow: `box-shadow` equivalent — 0dp offset, 12dp blur, `color.focusGlow`
+- Tonal lift: `color.selected` background
 - Duration: 150ms, `FastOutSlowIn`
 
 **Behavior rules:**
@@ -497,7 +497,7 @@ Persistent bar at the bottom of the screen (visible on all screens except Now Pl
 
 Every focused element **must** have at least two of the following three indicators:
 
-1. **Scale change:** 1.05×–1.10× (cards: 1.08×, buttons: 1.05×, rows: no scale)
+1. **Scale change:** 1.05× for compact buttons only (cards and rows: no scale)
 2. **Border:** 2dp solid `color.focusBorder` (#6C63FF)
 3. **Glow:** Drop shadow, 0dp offset, 12dp blur, `color.focusGlow` (#6C63FF40)
 
@@ -509,7 +509,8 @@ Every focused element **must** have at least two of the following three indicato
 
 | Property | Value |
 |---|---|
-| Scale (cards, buttons) | 1.0× → 1.08× |
+| Scale (cards) | No scale |
+| Scale (buttons) | 1.0× → 1.05× |
 | Scale (list rows) | No scale |
 | Border width | 0dp → 2dp |
 | Glow radius | 0dp → 12dp |
@@ -567,8 +568,8 @@ Screens are divided into focus regions. D-pad navigation stays within a region u
 
 | Animation | Duration | Easing | Properties |
 |---|---|---|---|
-| Focus gain (card) | 150ms | `FastOutSlowIn` | scale 1.0→1.08, border 0→2dp, glow 0→12dp |
-| Focus loss (card) | 100ms | `LinearOutSlowIn` | scale 1.08→1.0, border 2→0dp, glow 12→0dp |
+| Focus gain (card) | 150ms | `FastOutSlowIn` | background fade, border 1→2dp |
+| Focus loss (card) | 100ms | `LinearOutSlowIn` | background fade, border 2→1dp |
 | Focus gain (button) | 150ms | `FastOutSlowIn` | scale 1.0→1.05, border 0→2dp |
 | Focus gain (row) | 100ms | `FastOutSlowIn` | background fade, left border 0→3dp |
 
@@ -612,6 +613,13 @@ Screens are divided into focus regions. D-pad navigation stays within a region u
 - Do **not** use spring/bounce animations — they feel wrong on TV.
 - Do **not** animate more than 3 elements simultaneously.
 - Do **not** animate during active D-pad navigation (only animate on focus settle).
+
+### 7.5 Runtime Motion Policy
+
+- Shared TV cards, actions, fields, and track rows use the motion tokens from `core/design`.
+- Forward navigation moves left, Back moves right, and Now Playing opens/closes vertically to preserve hierarchy.
+- When Android's animator duration scale is disabled, focus, artwork, metadata, and screen transitions snap to their final state.
+- Track rows remain fixed at 72dp and never scale.
 
 ---
 
@@ -850,6 +858,17 @@ Blur is **only** used on the Now Playing screen background.
 | Brightness | 30% of original |
 | Overlay | `color.background` at 60% opacity |
 | Implementation | Pre-render blurred bitmap; do not use real-time blur |
+
+The TV implementation requests a 96px artwork source and expands it behind dark gradients. This provides a stable,
+blur-like treatment without a real-time GPU blur. Artwork and metadata crossfade when the current track changes.
+
+### 10.5 Premium Ambient Playback
+
+- Debug and beta builds include the premium ambient presentation for local testing; stable release builds keep it gated.
+- Ambient playback reuses the low-resolution Now Playing background and enters through the existing 60-second playback-idle controller.
+- The foreground group shifts among four low-amplitude positions once per minute to reduce burn-in risk.
+- Reduced-motion mode snaps between burn-in positions and removes continuous transition motion.
+- Entering or leaving ambient mode does not restart playback, change the queue, or add wake locks.
 
 ---
 
@@ -1717,7 +1736,7 @@ Every approved asset package must include:
 | Album card size | 200×240dp |
 | Track row height | 72dp |
 | Sidebar width (expanded) | 240dp |
-| Focus scale (card) | 1.08× |
+| Focus scale (card) | None |
 | Focus scale (button) | 1.05× |
 | Focus border | 2dp #6C63FF |
 | Focus glow | 12dp blur #6C63FF40 |
