@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,7 +68,6 @@ import com.tuneflow.feature.video.VideoDisclosureOverlay
 import com.tuneflow.feature.video.VideoUiState
 import com.tuneflow.feature.video.VideoViewModel
 import com.tuneflow.feature.video.hasVisiblePlayer
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.view.KeyEvent as AndroidKeyEvent
 
@@ -107,7 +107,7 @@ fun NowPlayingScreen(
     var requestLyricsFocus by rememberSaveable { mutableStateOf(false) }
     var requestVideoFocus by rememberSaveable { mutableStateOf(false) }
     var requestInitialTransportFocus by remember { mutableStateOf(true) }
-    var focusedQueueIndex by rememberSaveable { mutableIntStateOf(0) }
+    var focusedQueueIndex by rememberSaveable { mutableIntStateOf(-1) }
     val panelVisible = activePanel != NowPlayingPanel.None
     val artSize by animateDpAsState(targetValue = if (panelVisible) 152.dp else 180.dp, label = "now-playing-art-size")
     val artFrameHeight by animateDpAsState(targetValue = if (panelVisible) 176.dp else 200.dp, label = "now-playing-art-frame-height")
@@ -281,6 +281,7 @@ fun NowPlayingScreen(
                             onToggleFavorite = { trackId -> scope.launch { favoriteStore.toggle(trackId) } },
                             onQueueExit = ::closeQueue,
                             onFocusedIndexChanged = { focusedQueueIndex = it },
+                            initialFocusIndex = focusedQueueIndex,
                             preferredExitTarget =
                                 resolveQueueExitTarget(
                                     focusedIndex = focusedQueueIndex,
@@ -468,20 +469,25 @@ private fun QueuePanel(
     onToggleFavorite: (String) -> Unit,
     onQueueExit: (QueueExitTarget) -> Unit,
     onFocusedIndexChanged: (Int) -> Unit,
+    initialFocusIndex: Int,
     preferredExitTarget: QueueExitTarget,
 ) {
-    val currentFocusRequester = remember { FocusRequester() }
+    val initialItemFocusRequester = remember { FocusRequester() }
     val queueListState = rememberLazyListState()
     val currentIndex = state.queue.currentIndex
-    val hasCurrentQueueItem = currentIndex in state.queue.items.indices
+    val initialItemIndex =
+        resolveQueuePanelFocusIndex(
+            previousFocusedIndex = initialFocusIndex,
+            currentIndex = currentIndex,
+            itemCount = state.queue.items.size,
+        )
 
-    LaunchedEffect(hasCurrentQueueItem, currentIndex) {
-        if (hasCurrentQueueItem) {
-            // Show the user where we are by animating the list to current track first.
-            queueListState.animateScrollToItem(currentIndex)
-            delay(500)
-            runCatching { currentFocusRequester.requestFocus() }
-            onFocusedIndexChanged(currentIndex)
+    LaunchedEffect(initialItemIndex, state.queue.items.map { it.id }) {
+        if (initialItemIndex >= 0) {
+            queueListState.scrollToItem(initialItemIndex)
+            withFrameNanos { }
+            runCatching { initialItemFocusRequester.requestFocus() }
+            onFocusedIndexChanged(initialItemIndex)
         }
     }
 
@@ -530,7 +536,7 @@ private fun QueuePanel(
                     onToggleFavorite = { onToggleFavorite(track.id) },
                     onExitLeft = { onQueueExit(preferredExitTarget) },
                     onFocused = { onFocusedIndexChanged(index) },
-                    externalRowFocusRequester = currentFocusRequester.takeIf { index == currentIndex },
+                    externalRowFocusRequester = initialItemFocusRequester.takeIf { index == initialItemIndex },
                     modifier =
                         Modifier
                             .boundaryLockedVerticalItem(
@@ -660,6 +666,18 @@ internal enum class QueueExitTarget {
     StreamControls,
     TransportControls,
 }
+
+internal fun resolveQueuePanelFocusIndex(
+    previousFocusedIndex: Int,
+    currentIndex: Int,
+    itemCount: Int,
+): Int =
+    when {
+        previousFocusedIndex in 0 until itemCount -> previousFocusedIndex
+        currentIndex in 0 until itemCount -> currentIndex
+        itemCount > 0 -> 0
+        else -> -1
+    }
 
 internal fun resolveQueueExitTarget(
     focusedIndex: Int,

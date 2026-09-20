@@ -8,6 +8,7 @@ import com.tuneflow.core.network.PlaylistDto
 import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.core.network.SessionData
 import com.tuneflow.core.network.SessionProvider
+import com.tuneflow.core.network.SongDto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -19,7 +20,9 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -55,6 +58,93 @@ class PlaylistsViewModelTest {
 
             assertNull(viewModel.uiState.value.selectedPlaylistId)
             assertNull(viewModel.uiState.value.selected)
+        }
+
+    @Test
+    fun tracksAppendInBoundedPagesWhilePlaybackRetainsWholePlaylist() =
+        runTest(dispatcher) {
+            val response = CompletableDeferred<NetworkResult<PlaylistDetailDto>>()
+            val viewModel = PlaylistsViewModel(playlistRepository(response))
+            response.complete(
+                NetworkResult.Success(
+                    PlaylistDetailDto(
+                        "playlist-1",
+                        "Large",
+                        (0 until 123).map {
+                            SongDto("track-${it % 10}", "Track $it", duration = 60)
+                        },
+                    ),
+                ),
+            )
+            viewModel.loadPlaylistDetail("playlist-1")
+            runCurrent()
+            val firstPage = viewModel.uiState.value.visibleTracks
+            assertEquals(50, firstPage.size)
+            assertEquals(123, viewModel.uiState.value.selected?.tracks?.size)
+            assertEquals(123 * 60, viewModel.uiState.value.selectedDurationSec)
+            assertTrue(viewModel.uiState.value.hasMoreTracks)
+
+            viewModel.loadMoreTracks()
+            assertEquals(100, viewModel.uiState.value.visibleTracks.size)
+            assertEquals(firstPage, viewModel.uiState.value.visibleTracks.take(50))
+            viewModel.loadMoreTracks()
+            assertEquals(123, viewModel.uiState.value.visibleTracks.size)
+            assertFalse(viewModel.uiState.value.hasMoreTracks)
+            viewModel.loadMoreTracks()
+            assertEquals(123, viewModel.uiState.value.visibleTrackCount)
+            viewModel.clearSelection()
+            assertEquals(0, viewModel.uiState.value.visibleTrackCount)
+            assertEquals(0, viewModel.uiState.value.selectedDurationSec)
+            assertTrue(viewModel.uiState.value.visibleTracks.isEmpty())
+        }
+
+    @Test
+    fun selectingPlaylistAgainStartsWithFirstPage() =
+        runTest(dispatcher) {
+            val response = CompletableDeferred<NetworkResult<PlaylistDetailDto>>()
+            val viewModel = PlaylistsViewModel(playlistRepository(response))
+            response.complete(
+                NetworkResult.Success(PlaylistDetailDto("playlist-1", "Large", (0 until 100).map { SongDto("track-$it", "Track $it") })),
+            )
+            viewModel.loadPlaylistDetail("playlist-1")
+            runCurrent()
+            viewModel.loadMoreTracks()
+            viewModel.loadPlaylistDetail("playlist-1")
+            assertEquals(0, viewModel.uiState.value.visibleTrackCount)
+            runCurrent()
+            assertEquals(50, viewModel.uiState.value.visibleTrackCount)
+        }
+
+    @Test
+    fun artworkLoadsOnlyVisiblePlaylistsAndDoesNotRefetchCompletedOnes() =
+        runTest(dispatcher) {
+            val detailIds = mutableListOf<String>()
+            val session = SessionData("https://demo", "user", "token", "salt")
+            val repository =
+                BrowseRepository(
+                    sessionProvider = SessionProvider { session },
+                    clientProvider =
+                        NavidromeClientProvider {
+                            object : NavidromeClient(it) {
+                                override suspend fun getPlaylists(): NetworkResult<List<PlaylistDto>> =
+                                    NetworkResult.Success((0 until 100).map { PlaylistDto("playlist-$it", "Playlist $it") })
+
+                                override suspend fun getPlaylist(playlistId: String): NetworkResult<PlaylistDetailDto> {
+                                    detailIds.add(playlistId)
+                                    return NetworkResult.Success(PlaylistDetailDto(playlistId, playlistId))
+                                }
+                            }
+                        },
+                )
+            val viewModel = PlaylistsViewModel(repository)
+            runCurrent()
+            assertTrue(detailIds.isEmpty())
+            viewModel.loadVisiblePlaylistArtwork(listOf("playlist-0", "playlist-1"))
+            runCurrent()
+            assertEquals(listOf("playlist-0", "playlist-1"), detailIds)
+            viewModel.loadVisiblePlaylistArtwork(listOf("playlist-1", "playlist-2"))
+            runCurrent()
+            assertEquals(listOf("playlist-0", "playlist-1", "playlist-2"), detailIds)
         }
 
     @Test
