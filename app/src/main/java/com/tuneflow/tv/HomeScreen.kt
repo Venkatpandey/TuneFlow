@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuneflow.core.design.ArtworkPlaceholder
+import com.tuneflow.core.design.InitialFocusEffect
 import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowFocusableCard
@@ -63,6 +65,7 @@ import com.tuneflow.feature.browse.BrowseFocusTarget
 import com.tuneflow.feature.browse.BrowseFocusTargetKind
 import com.tuneflow.feature.browse.HomeCategoryKind
 import com.tuneflow.feature.video.VideoHistoryEntry
+import kotlinx.coroutines.flow.distinctUntilChanged
 import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
@@ -107,15 +110,40 @@ fun HomeScreen(
                 },
         )
 
-    LaunchedEffect(Unit) {
-        if (focusRestoreTarget == null) {
-            initialFocusRequester.requestFocus()
-        }
+    InitialFocusEffect(
+        focusRequester = initialFocusRequester,
+        targetAvailable = true,
+        restorationPending = focusRestoreTarget != null,
+    )
+
+    LaunchedEffect(homeListState, viewModel, state.rails) {
+        snapshotFlow { homeListState.layoutInfo.visibleItemsInfo.map { it.key } }
+            .distinctUntilChanged()
+            .collect { keys ->
+                HomeCategoryKind.entries.forEach { category ->
+                    if ("${category.name.lowercase()}-row" in keys) viewModel.loadRail(category)
+                }
+            }
     }
 
     LaunchedEffect(focusRestoreTarget, state) {
         val target = focusRestoreTarget ?: return@LaunchedEffect
-        val location = state.focusLocation(target) ?: return@LaunchedEffect
+        val location = state.copy(favorites = visibleFavorites).focusLocation(target)
+        if (location == null) {
+            val categories =
+                when (target.kind) {
+                    BrowseFocusTargetKind.Album -> listOf(HomeCategoryKind.Favorites, HomeCategoryKind.Albums)
+                    BrowseFocusTargetKind.Artist -> listOf(HomeCategoryKind.Artists)
+                    BrowseFocusTargetKind.Playlist -> listOf(HomeCategoryKind.Playlists)
+                    BrowseFocusTargetKind.HomeCategory -> emptyList()
+                }
+            val pending = categories.filter { !state.rail(it).isLoaded && state.rail(it).error == null }
+            pending.forEach(viewModel::loadRail)
+            if (pending.isNotEmpty()) return@LaunchedEffect
+            runCatching { initialFocusRequester.requestFocus() }
+            onFocusRestoreConsumed()
+            return@LaunchedEffect
+        }
         homeListState.scrollToItem(location.sectionRowIndex)
         val rowState =
             when (location.category) {
@@ -145,24 +173,6 @@ fun HomeScreen(
             )
         }
 
-        if (state.isLoading) {
-            item(key = "loading") { HomeLoadingSection() }
-        }
-
-        if (
-            state.error != null &&
-            state.recentAlbums.isEmpty() &&
-            state.playlists.isEmpty() &&
-            state.favorites.albums.isEmpty() &&
-            state.favorites.tracks.isEmpty() &&
-            state.artists.isEmpty() &&
-            state.videoHistory.isEmpty()
-        ) {
-            item(key = "error") {
-                ErrorBanner(message = state.error.orEmpty())
-            }
-        }
-
         if (state.videoHistory.isNotEmpty()) {
             item(key = "video-history-heading") { SectionHeading("Recently played videos") }
             item(key = "video-history-row") {
@@ -177,117 +187,147 @@ fun HomeScreen(
             }
         }
 
-        if (visibleFavorites.albums.isNotEmpty() || visibleFavorites.tracks.isNotEmpty()) {
-            item(key = "favorites-heading") { SectionHeading("Favorites") }
-            item(key = "favorites-row") {
-                FavoriteRail(
-                    favorites = visibleFavorites,
-                    listState = favoritesRowState,
-                    focusRestoreTarget = focusRestoreTarget,
-                    restoredItemFocusRequester = restoredItemFocusRequester,
-                    onOpenAlbum = onOpenAlbum,
-                    onPlayTrack = { track -> onPlayTracks(listOf(track), 0) },
-                    onShowAll = { onOpenHomeCategory(HomeCategoryKind.Favorites) },
-                    showAllModifier =
-                        showAllFocusModifier(
+        item(key = "favorites-heading") { SectionHeading("Favorites") }
+        item(key = "favorites-row") {
+            FavoriteRail(
+                favorites = visibleFavorites,
+                listState = favoritesRowState,
+                focusRestoreTarget = focusRestoreTarget,
+                restoredItemFocusRequester = restoredItemFocusRequester,
+                onOpenAlbum = onOpenAlbum,
+                onPlayTrack = { track -> onPlayTracks(listOf(track), 0) },
+                onShowAll = { onOpenHomeCategory(HomeCategoryKind.Favorites) },
+                hasMore = state.rail(HomeCategoryKind.Favorites).hasMore,
+                isLoading = state.rail(HomeCategoryKind.Favorites).isLoading,
+                onLoadMore = { viewModel.loadMoreRail(HomeCategoryKind.Favorites) },
+                showAllModifier =
+                    showAllFocusModifier(
+                        target = focusRestoreTarget,
+                        category = HomeCategoryKind.Favorites,
+                        focusRequester = restoredItemFocusRequester,
+                    ),
+            )
+        }
+
+        item(key = "favorites-status") {
+            HomeRailFeedback(
+                state.rail(HomeCategoryKind.Favorites),
+                visibleFavorites.albums.isEmpty() && visibleFavorites.tracks.isEmpty(),
+            ) {
+                viewModel.loadMoreRail(HomeCategoryKind.Favorites)
+            }
+        }
+        item(key = "artists-heading") { SectionHeading("Artists") }
+        item(key = "artists-row") {
+            HomeContentRow(
+                items = state.artists,
+                listState = artistsRowState,
+                key = { _, artist -> artist.id },
+                onShowAll = { onOpenHomeCategory(HomeCategoryKind.Artists) },
+                hasMore = state.rail(HomeCategoryKind.Artists).hasMore,
+                isLoading = state.rail(HomeCategoryKind.Artists).isLoading,
+                onLoadMore = { viewModel.loadMoreRail(HomeCategoryKind.Artists) },
+                showAllModifier =
+                    showAllFocusModifier(
+                        target = focusRestoreTarget,
+                        category = HomeCategoryKind.Artists,
+                        focusRequester = restoredItemFocusRequester,
+                    ),
+            ) { artist ->
+                HomeArtistCard(
+                    artist = artist,
+                    onClick = { onOpenArtist(artist.id) },
+                    modifier =
+                        itemFocusModifier(
                             target = focusRestoreTarget,
-                            category = HomeCategoryKind.Favorites,
+                            kind = BrowseFocusTargetKind.Artist,
+                            id = artist.id,
                             focusRequester = restoredItemFocusRequester,
                         ),
                 )
             }
         }
 
-        if (state.artists.isNotEmpty()) {
-            item(key = "artists-heading") { SectionHeading("Artists") }
-            item(key = "artists-row") {
-                HomeContentRow(
-                    items = state.artists,
-                    listState = artistsRowState,
-                    key = { _, artist -> artist.id },
-                    onShowAll = { onOpenHomeCategory(HomeCategoryKind.Artists) },
-                    showAllModifier =
-                        showAllFocusModifier(
+        item(key = "artists-status") {
+            HomeRailFeedback(
+                state.rail(HomeCategoryKind.Artists),
+                state.artists.isEmpty(),
+            ) { viewModel.loadMoreRail(HomeCategoryKind.Artists) }
+        }
+        item(key = "albums-heading") { SectionHeading("Albums") }
+        item(key = "albums-row") {
+            HomeContentRow(
+                items = state.recentAlbums,
+                listState = albumsRowState,
+                key = { _, album -> album.id },
+                onShowAll = { onOpenHomeCategory(HomeCategoryKind.Albums) },
+                hasMore = state.rail(HomeCategoryKind.Albums).hasMore,
+                isLoading = state.rail(HomeCategoryKind.Albums).isLoading,
+                onLoadMore = { viewModel.loadMoreRail(HomeCategoryKind.Albums) },
+                showAllModifier =
+                    showAllFocusModifier(
+                        target = focusRestoreTarget,
+                        category = HomeCategoryKind.Albums,
+                        focusRequester = restoredItemFocusRequester,
+                    ),
+            ) { album ->
+                HomeAlbumCard(
+                    album = album,
+                    onClick = { onOpenAlbum(album.id) },
+                    modifier =
+                        itemFocusModifier(
                             target = focusRestoreTarget,
-                            category = HomeCategoryKind.Artists,
+                            kind = BrowseFocusTargetKind.Album,
+                            id = album.id,
                             focusRequester = restoredItemFocusRequester,
                         ),
-                ) { artist ->
-                    HomeArtistCard(
-                        artist = artist,
-                        onClick = { onOpenArtist(artist.id) },
-                        modifier =
-                            itemFocusModifier(
-                                target = focusRestoreTarget,
-                                kind = BrowseFocusTargetKind.Artist,
-                                id = artist.id,
-                                focusRequester = restoredItemFocusRequester,
-                            ),
-                    )
-                }
+                )
             }
         }
 
-        if (state.recentAlbums.isNotEmpty()) {
-            item(key = "albums-heading") { SectionHeading("Albums") }
-            item(key = "albums-row") {
-                HomeContentRow(
-                    items = state.recentAlbums,
-                    listState = albumsRowState,
-                    key = { _, album -> album.id },
-                    onShowAll = { onOpenHomeCategory(HomeCategoryKind.Albums) },
-                    showAllModifier =
-                        showAllFocusModifier(
+        item(key = "albums-status") {
+            HomeRailFeedback(
+                state.rail(HomeCategoryKind.Albums),
+                state.recentAlbums.isEmpty(),
+            ) { viewModel.loadMoreRail(HomeCategoryKind.Albums) }
+        }
+        item(key = "playlists-heading") { SectionHeading("Playlists") }
+        item(key = "playlists-row") {
+            HomeContentRow(
+                items = state.playlists,
+                listState = playlistsRowState,
+                key = { _, playlist -> playlist.id },
+                onShowAll = { onOpenHomeCategory(HomeCategoryKind.Playlists) },
+                hasMore = state.rail(HomeCategoryKind.Playlists).hasMore,
+                isLoading = state.rail(HomeCategoryKind.Playlists).isLoading,
+                onLoadMore = { viewModel.loadMoreRail(HomeCategoryKind.Playlists) },
+                showAllModifier =
+                    showAllFocusModifier(
+                        target = focusRestoreTarget,
+                        category = HomeCategoryKind.Playlists,
+                        focusRequester = restoredItemFocusRequester,
+                    ),
+            ) { playlist ->
+                HomePlaylistCard(
+                    playlist = playlist,
+                    onClick = { onOpenPlaylists(playlist.id) },
+                    modifier =
+                        itemFocusModifier(
                             target = focusRestoreTarget,
-                            category = HomeCategoryKind.Albums,
+                            kind = BrowseFocusTargetKind.Playlist,
+                            id = playlist.id,
                             focusRequester = restoredItemFocusRequester,
                         ),
-                ) { album ->
-                    HomeAlbumCard(
-                        album = album,
-                        onClick = { onOpenAlbum(album.id) },
-                        modifier =
-                            itemFocusModifier(
-                                target = focusRestoreTarget,
-                                kind = BrowseFocusTargetKind.Album,
-                                id = album.id,
-                                focusRequester = restoredItemFocusRequester,
-                            ),
-                    )
-                }
+                )
             }
         }
 
-        if (state.playlists.isNotEmpty()) {
-            item(key = "playlists-heading") { SectionHeading("Playlists") }
-            item(key = "playlists-row") {
-                HomeContentRow(
-                    items = state.playlists,
-                    listState = playlistsRowState,
-                    key = { _, playlist -> playlist.id },
-                    onShowAll = { onOpenHomeCategory(HomeCategoryKind.Playlists) },
-                    showAllModifier =
-                        showAllFocusModifier(
-                            target = focusRestoreTarget,
-                            category = HomeCategoryKind.Playlists,
-                            focusRequester = restoredItemFocusRequester,
-                        ),
-                ) { playlist ->
-                    HomePlaylistCard(
-                        playlist = playlist,
-                        onClick = { onOpenPlaylists(playlist.id) },
-                        modifier =
-                            itemFocusModifier(
-                                target = focusRestoreTarget,
-                                kind = BrowseFocusTargetKind.Playlist,
-                                id = playlist.id,
-                                focusRequester = restoredItemFocusRequester,
-                            ),
-                    )
-                }
-            }
+        item(key = "playlists-status") {
+            HomeRailFeedback(
+                state.rail(HomeCategoryKind.Playlists),
+                state.playlists.isEmpty(),
+            ) { viewModel.loadMoreRail(HomeCategoryKind.Playlists) }
         }
-
         item(key = "quick-actions-heading") { SectionHeading("Quick Actions") }
         item(key = "quick-actions-row") {
             LazyRow(
@@ -335,24 +375,20 @@ fun HomeScreen(
     }
 }
 
-private fun HomeUiState.focusLocation(target: BrowseFocusTarget): HomeFocusLocation? {
+internal fun HomeUiState.focusLocation(target: BrowseFocusTarget): HomeFocusLocation? {
     val sections = focusSections()
     val sectionIndex = sections.indexOfFirst { it.matches(target) }
     if (sectionIndex < 0) return null
-    val contentStartIndex =
-        1 +
-            isLoading.toItemCount() +
-            showsFatalError().toItemCount() +
-            (videoHistory.isNotEmpty()).toItemCount() * 2
+    val contentStartIndex = 1 + if (videoHistory.isNotEmpty()) 2 else 0
     val section = sections[sectionIndex]
     return HomeFocusLocation(
         category = section.category,
-        sectionRowIndex = contentStartIndex + sectionIndex * 2 + 1,
+        sectionRowIndex = contentStartIndex + sectionIndex * 3 + 1,
         rowItemIndex = section.focusItemIndex(target),
     )
 }
 
-private data class HomeFocusLocation(
+internal data class HomeFocusLocation(
     val category: HomeCategoryKind,
     val sectionRowIndex: Int,
     val rowItemIndex: Int,
@@ -370,69 +406,37 @@ private data class HomeFocusSection(
 }
 
 private fun HomeUiState.focusSections(): List<HomeFocusSection> =
-    buildList {
-        if (favorites.albums.isNotEmpty() || favorites.tracks.isNotEmpty()) {
-            add(
-                HomeFocusSection(
-                    category = HomeCategoryKind.Favorites,
-                    itemTargets =
-                        favorites.albums
-                            .take(HOME_ROW_VISIBLE_ITEM_LIMIT)
-                            .map { BrowseFocusTarget(BrowseFocusTargetKind.Album, it.id) },
-                    contentItemCount =
-                        (favorites.albums.size + favorites.tracks.size)
-                            .coerceAtMost(HOME_ROW_VISIBLE_ITEM_LIMIT),
-                ),
-            )
-        }
-        if (artists.isNotEmpty()) {
-            add(
-                HomeFocusSection(
-                    category = HomeCategoryKind.Artists,
-                    itemTargets =
-                        artists
-                            .take(HOME_ROW_VISIBLE_ITEM_LIMIT)
-                            .map { BrowseFocusTarget(BrowseFocusTargetKind.Artist, it.id) },
-                    contentItemCount = artists.size.coerceAtMost(HOME_ROW_VISIBLE_ITEM_LIMIT),
-                ),
-            )
-        }
-        if (recentAlbums.isNotEmpty()) {
-            add(
-                HomeFocusSection(
-                    category = HomeCategoryKind.Albums,
-                    itemTargets =
-                        recentAlbums
-                            .take(HOME_ROW_VISIBLE_ITEM_LIMIT)
-                            .map { BrowseFocusTarget(BrowseFocusTargetKind.Album, it.id) },
-                    contentItemCount = recentAlbums.size.coerceAtMost(HOME_ROW_VISIBLE_ITEM_LIMIT),
-                ),
-            )
-        }
-        if (playlists.isNotEmpty()) {
-            add(
-                HomeFocusSection(
-                    category = HomeCategoryKind.Playlists,
-                    itemTargets =
-                        playlists
-                            .take(HOME_ROW_VISIBLE_ITEM_LIMIT)
-                            .map { BrowseFocusTarget(BrowseFocusTargetKind.Playlist, it.id) },
-                    contentItemCount = playlists.size.coerceAtMost(HOME_ROW_VISIBLE_ITEM_LIMIT),
-                ),
-            )
-        }
-    }
-
-private fun HomeUiState.showsFatalError(): Boolean =
-    error != null &&
-        recentAlbums.isEmpty() &&
-        playlists.isEmpty() &&
-        favorites.albums.isEmpty() &&
-        favorites.tracks.isEmpty() &&
-        artists.isEmpty() &&
-        videoHistory.isEmpty()
-
-private fun Boolean.toItemCount(): Int = if (this) 1 else 0
+    listOf(
+        HomeFocusSection(
+            category = HomeCategoryKind.Favorites,
+            itemTargets =
+                favorites.albums
+                    .map { BrowseFocusTarget(BrowseFocusTargetKind.Album, it.id) },
+            contentItemCount =
+                favorites.albums.size + favorites.tracks.size + if (rail(HomeCategoryKind.Favorites).hasMore) 1 else 0,
+        ),
+        HomeFocusSection(
+            category = HomeCategoryKind.Artists,
+            itemTargets =
+                artists
+                    .map { BrowseFocusTarget(BrowseFocusTargetKind.Artist, it.id) },
+            contentItemCount = artists.size + if (rail(HomeCategoryKind.Artists).hasMore) 1 else 0,
+        ),
+        HomeFocusSection(
+            category = HomeCategoryKind.Albums,
+            itemTargets =
+                recentAlbums
+                    .map { BrowseFocusTarget(BrowseFocusTargetKind.Album, it.id) },
+            contentItemCount = recentAlbums.size + if (rail(HomeCategoryKind.Albums).hasMore) 1 else 0,
+        ),
+        HomeFocusSection(
+            category = HomeCategoryKind.Playlists,
+            itemTargets =
+                playlists
+                    .map { BrowseFocusTarget(BrowseFocusTargetKind.Playlist, it.id) },
+            contentItemCount = playlists.size + if (rail(HomeCategoryKind.Playlists).hasMore) 1 else 0,
+        ),
+    )
 
 private fun BrowseFocusTarget.matchesHomeCategory(category: HomeCategoryKind): Boolean =
     kind == BrowseFocusTargetKind.HomeCategory && id == category.name
@@ -460,27 +464,69 @@ private fun itemFocusModifier(
         Modifier
     }
 
-private const val HOME_ROW_VISIBLE_ITEM_LIMIT = 5
-
 @Composable
 private fun <T> HomeContentRow(
     items: List<T>,
     listState: LazyListState,
     key: (Int, T) -> Any,
     onShowAll: () -> Unit,
+    hasMore: Boolean = false,
+    isLoading: Boolean = false,
+    onLoadMore: () -> Unit = {},
     showAllModifier: Modifier = Modifier,
     itemContent: @Composable (T) -> Unit,
 ) {
+    val showAllRequester = remember { FocusRequester() }
+    var pagingInitiated by remember { mutableStateOf(false) }
+    LaunchedEffect(items.size, hasMore, isLoading) {
+        if (pagingInitiated && !isLoading) {
+            if (!hasMore) {
+                withFrameNanos { }
+                runCatching { showAllRequester.requestFocus() }
+            }
+            pagingInitiated = false
+        }
+    }
     LazyRow(
         state = listState,
-        modifier = Modifier.focusGroup(),
+        modifier = Modifier.heightIn(min = 300.dp).focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        itemsIndexed(items.take(HOME_ROW_VISIBLE_ITEM_LIMIT), key = key) { _, item ->
+        itemsIndexed(items, key = key) { _, item ->
             itemContent(item)
         }
-        item {
-            ShowAllCard(onClick = onShowAll, modifier = showAllModifier)
+        if (hasMore) {
+            item(key = "load-more") {
+                ShowAllCard(onClick = {
+                    pagingInitiated = true
+                    onLoadMore()
+                }, label = "Load more")
+            }
+        }
+        item(key = "show-all") {
+            ShowAllCard(onClick = onShowAll, modifier = showAllModifier.focusRequester(showAllRequester))
+        }
+    }
+}
+
+@Composable
+private fun HomeRailFeedback(
+    rail: HomeRailUiState,
+    isEmpty: Boolean,
+    onRetry: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.heightIn(min = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (rail.error != null) {
+            Text(rail.error, color = MaterialTheme.colorScheme.error)
+            HeroActionButton(label = "Retry", onClick = onRetry)
+        } else if (rail.isLoading) {
+            Text(if (rail.isLoaded) "Loading more…" else "Loading…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else if (rail.isLoaded && isEmpty) {
+            Text("No items in this rail.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -639,15 +685,28 @@ private fun FavoriteRail(
     onOpenAlbum: (String) -> Unit,
     onPlayTrack: (TrackSummary) -> Unit,
     onShowAll: () -> Unit,
+    hasMore: Boolean,
+    isLoading: Boolean,
+    onLoadMore: () -> Unit,
     showAllModifier: Modifier = Modifier,
 ) {
-    val favoriteAlbums = favorites.albums.take(HOME_ROW_VISIBLE_ITEM_LIMIT)
-    val favoriteTracks =
-        favorites.tracks.take((HOME_ROW_VISIBLE_ITEM_LIMIT - favoriteAlbums.size).coerceAtLeast(0))
+    val favoriteAlbums = favorites.albums
+    val favoriteTracks = favorites.tracks
+    val showAllRequester = remember { FocusRequester() }
+    var pagingInitiated by remember { mutableStateOf(false) }
+    LaunchedEffect(favoriteAlbums.size + favoriteTracks.size, hasMore, isLoading) {
+        if (pagingInitiated && !isLoading) {
+            if (!hasMore) {
+                withFrameNanos { }
+                runCatching { showAllRequester.requestFocus() }
+            }
+            pagingInitiated = false
+        }
+    }
 
     LazyRow(
         state = listState,
-        modifier = Modifier.focusGroup(),
+        modifier = Modifier.heightIn(min = 300.dp).focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         items(favoriteAlbums, key = { "album-${it.id}" }) { album ->
@@ -666,8 +725,16 @@ private fun FavoriteRail(
         items(favoriteTracks, key = { "track-${it.id}" }) { track ->
             FavoriteTrackCard(track = track, onClick = { onPlayTrack(track) })
         }
-        item {
-            ShowAllCard(onClick = onShowAll, modifier = showAllModifier)
+        if (hasMore) {
+            item(key = "load-more") {
+                ShowAllCard(onClick = {
+                    pagingInitiated = true
+                    onLoadMore()
+                }, label = "Load more")
+            }
+        }
+        item(key = "show-all") {
+            ShowAllCard(onClick = onShowAll, modifier = showAllModifier.focusRequester(showAllRequester))
         }
     }
 }
@@ -806,66 +873,6 @@ private fun HomeArtistCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-}
-
-@Composable
-private fun AlbumCardSkeleton() {
-    Column(
-        modifier = Modifier.width(196.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(196.dp)
-                    .clip(TuneFlowShapes.artwork)
-                    .shimmerEffect(),
-        )
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth(0.8f)
-                    .height(16.dp)
-                    .clip(TuneFlowShapes.field)
-                    .shimmerEffect(),
-        )
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth(0.5f)
-                    .height(14.dp)
-                    .clip(TuneFlowShapes.field)
-                    .shimmerEffect(),
-        )
-    }
-}
-
-@Composable
-private fun HomeLoadingSection() {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        items(5) {
-            AlbumCardSkeleton()
-        }
-    }
-}
-
-@Composable
-private fun ErrorBanner(message: String) {
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(TuneFlowShapes.panel)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
-                .padding(28.dp),
-    ) {
-        Text(
-            text = message,
-            color = MaterialTheme.colorScheme.error,
-            style = MaterialTheme.typography.titleMedium,
-        )
     }
 }
 
@@ -1042,6 +1049,7 @@ private fun ActionCard(
 private fun ShowAllCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    label: String = "Show all",
 ) {
     FocusCard(
         modifier = modifier.width(208.dp),
@@ -1055,7 +1063,7 @@ private fun ShowAllCard(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = "Show all",
+                text = label,
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )

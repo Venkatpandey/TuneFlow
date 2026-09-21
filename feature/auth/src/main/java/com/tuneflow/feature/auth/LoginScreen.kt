@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tuneflow.core.design.InitialFocusEffect
 import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowShapes
@@ -72,6 +73,12 @@ fun LoginScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var editingField by remember { mutableStateOf<LoginFieldKey?>(null) }
+    val initialFocusRequester = remember { FocusRequester() }
+
+    InitialFocusEffect(
+        focusRequester = initialFocusRequester,
+        targetAvailable = true,
+    )
 
     Box(
         modifier =
@@ -140,7 +147,6 @@ fun LoginScreen(
                             style = MaterialTheme.typography.headlineMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        ScreenInitialFocusAnchor()
 
                         LoginField(
                             value = state.serverUrl,
@@ -151,6 +157,7 @@ fun LoginScreen(
                             onEditingChange = { isEditing ->
                                 editingField = if (isEditing) LoginFieldKey.ServerUrl else null
                             },
+                            displayFocusRequesterOverride = initialFocusRequester,
                         )
 
                         LoginField(
@@ -236,11 +243,13 @@ private fun LoginField(
     obscure: Boolean = false,
     editing: Boolean,
     onEditingChange: (Boolean) -> Unit,
+    displayFocusRequesterOverride: FocusRequester? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val editFocusRequester = remember { FocusRequester() }
-    val displayFocusRequester = remember { FocusRequester() }
+    val defaultDisplayFocusRequester = remember { FocusRequester() }
+    val displayFocusRequester = displayFocusRequesterOverride ?: defaultDisplayFocusRequester
     var focused by remember { mutableStateOf(false) }
     var restoreDisplayFocus by remember { mutableStateOf(false) }
     var pendingExitDirection by remember { mutableStateOf<FocusDirection?>(null) }
@@ -415,23 +424,6 @@ private fun DisplayLoginField(
             )
         }
     }
-}
-
-@Composable
-private fun ScreenInitialFocusAnchor() {
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    Box(
-        modifier =
-            Modifier
-                .size(1.dp)
-                .focusRequester(focusRequester)
-                .focusable(),
-    )
 }
 
 @Composable

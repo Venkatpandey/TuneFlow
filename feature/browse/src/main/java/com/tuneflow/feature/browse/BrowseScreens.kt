@@ -55,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +89,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuneflow.core.design.HorizontalFocusDirection
+import com.tuneflow.core.design.InitialFocusEffect
 import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.design.TrackFavoriteButton
 import com.tuneflow.core.design.TrackRowFocusTarget
@@ -120,29 +122,37 @@ fun AlbumsScreen(
 
     val firstAlbumFocusRequester = remember { FocusRequester() }
     val restoredAlbumFocusRequester = remember { FocusRequester() }
-    var initialAlbumFocusRequested by rememberSaveable { mutableStateOf(false) }
     val albumGridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
     val restoredAlbumId = focusRestoreTarget?.takeIf { it.kind == BrowseFocusTargetKind.Album }?.id
 
-    LaunchedEffect(state.items.size) {
-        if (
-            restoredAlbumId == null &&
-            !initialAlbumFocusRequested &&
-            state.items.isNotEmpty() &&
-            albumGridState.firstVisibleItemIndex == 0
-        ) {
-            firstAlbumFocusRequester.requestFocus()
-            initialAlbumFocusRequested = true
-        }
-    }
+    InitialFocusEffect(
+        focusRequester = firstAlbumFocusRequester,
+        targetAvailable = state.items.isNotEmpty(),
+        restorationPending = restoredAlbumId != null,
+    )
 
-    LaunchedEffect(restoredAlbumId, state.items) {
+    LaunchedEffect(
+        restoredAlbumId,
+        state.items,
+        state.isLoading,
+        state.isLoadingMore,
+        state.hasMore,
+        state.error,
+    ) {
+        if (restoredAlbumId == null) return@LaunchedEffect
         val targetIndex = state.items.indexOfFirst { it.id == restoredAlbumId }
         if (targetIndex >= 0) {
             albumGridState.scrollToItem(targetIndex)
             withFrameNanos { }
             runCatching { restoredAlbumFocusRequester.requestFocus() }
-            initialAlbumFocusRequested = true
+            onFocusRestoreConsumed()
+        } else if (!state.isLoading && !state.isLoadingMore && state.hasMore && state.error == null) {
+            viewModel.loadMore()
+        } else if (!state.isLoading && !state.isLoadingMore) {
+            if (state.items.isNotEmpty()) {
+                withFrameNanos { }
+                runCatching { firstAlbumFocusRequester.requestFocus() }
+            }
             onFocusRestoreConsumed()
         }
     }
@@ -224,18 +234,16 @@ fun AlbumDetailScreen(
     val favoriteStates by favoriteStore.states.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val playAlbumFocusRequester = remember { FocusRequester() }
-    var initialAlbumFocusRequested by rememberSaveable(albumId) { mutableStateOf(false) }
 
     LaunchedEffect(albumId) {
         viewModel.load(albumId)
     }
 
-    LaunchedEffect(state.album?.id) {
-        if (!initialAlbumFocusRequested && state.album != null) {
-            playAlbumFocusRequester.requestFocus()
-            initialAlbumFocusRequested = true
-        }
-    }
+    InitialFocusEffect(
+        focusRequester = playAlbumFocusRequester,
+        targetAvailable = !state.isLoading && state.album != null,
+        resetKey = albumId,
+    )
 
     when {
         state.isLoading -> AlbumDetailSkeleton(modifier = modifier)
@@ -341,27 +349,32 @@ fun ArtistDetailScreen(
     val firstArtistAlbumFocusRequester = remember { FocusRequester() }
     val restoredArtistAlbumFocusRequester = remember { FocusRequester() }
     val artistAlbumListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
-    var initialArtistFocusRequested by rememberSaveable(artistId) { mutableStateOf(false) }
     val restoredAlbumId = focusRestoreTarget?.takeIf { it.kind == BrowseFocusTargetKind.Album }?.id
 
     LaunchedEffect(artistId) {
         viewModel.load(artistId)
     }
 
-    LaunchedEffect(state.artist?.albums?.size) {
-        if (restoredAlbumId == null && !initialArtistFocusRequested && state.artist?.albums?.isNotEmpty() == true) {
-            firstArtistAlbumFocusRequester.requestFocus()
-            initialArtistFocusRequested = true
-        }
-    }
+    InitialFocusEffect(
+        focusRequester = firstArtistAlbumFocusRequester,
+        targetAvailable = state.artist?.albums?.isNotEmpty() == true,
+        restorationPending = restoredAlbumId != null,
+        resetKey = artistId,
+    )
 
     LaunchedEffect(restoredAlbumId, state.artist?.albums) {
+        if (restoredAlbumId == null) return@LaunchedEffect
         val targetIndex = state.artist?.albums?.indexOfFirst { it.id == restoredAlbumId } ?: -1
         if (targetIndex >= 0) {
             artistAlbumListState.scrollToItem(targetIndex)
             withFrameNanos { }
             runCatching { restoredArtistAlbumFocusRequester.requestFocus() }
-            initialArtistFocusRequested = true
+            onFocusRestoreConsumed()
+        } else if (!state.isLoading && state.artist != null) {
+            if (state.artist?.albums?.isNotEmpty() == true) {
+                withFrameNanos { }
+                runCatching { firstArtistAlbumFocusRequester.requestFocus() }
+            }
             onFocusRestoreConsumed()
         }
     }
@@ -376,7 +389,6 @@ fun ArtistDetailScreen(
                 modifier = modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                if (restoredAlbumId == null) ScreenInitialFocusAnchor()
                 Box(
                     modifier =
                         Modifier
@@ -487,6 +499,12 @@ fun PlaylistsScreen(
             recentPlaylistIds = recentPlaylistIds,
         )
 
+    LaunchedEffect(playlistListState, state.playlists.map { it.id }, state.isLoading, viewModel) {
+        if (state.isLoading) return@LaunchedEffect
+        snapshotFlow { playlistListState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? String } }
+            .collect { viewModel.loadVisiblePlaylistArtwork(it) }
+    }
+
     LaunchedEffect(preselectedPlaylistId) {
         if (preselectedPlaylistId != null) {
             returnFocusPlaylistId = preselectedPlaylistId
@@ -495,7 +513,7 @@ fun PlaylistsScreen(
         }
     }
 
-    LaunchedEffect(displayedPlaylists, state.selected?.id, preselectedPlaylistId) {
+    LaunchedEffect(displayedPlaylists.map { it.id }, state.selected?.id, preselectedPlaylistId) {
         val targetPlaylistId = state.selected?.id ?: preselectedPlaylistId ?: return@LaunchedEffect
         val targetIndex = displayedPlaylists.indexOfFirst { it.id == targetPlaylistId }
         if (targetIndex >= 0) {
@@ -667,13 +685,22 @@ fun PlaylistsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 val selected = state.selected ?: return@AnimatedVisibility
+                val trackListState = rememberSaveable(selected.id, saver = LazyListState.Saver) { LazyListState() }
+                val visibleTracks = remember(selected, state.visibleTrackCount) { state.visibleTracks }
+                LaunchedEffect(trackListState, state.visibleTrackCount, state.hasMoreTracks) {
+                    if (!state.hasMoreTracks) return@LaunchedEffect
+                    snapshotFlow { trackListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
+                        .collect { index ->
+                            if (index >= state.visibleTrackCount - 10) viewModel.loadMoreTracks()
+                        }
+                }
                 Text(
                     text = selected.name,
                     style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "${selected.tracks.size} tracks • ${formatTotalDuration(selected.tracks.sumOf { it.durationSec })}",
+                    text = "${selected.tracks.size} tracks • ${formatTotalDuration(state.selectedDurationSec)}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -689,10 +716,11 @@ fun PlaylistsScreen(
                     }
                 }
                 LazyColumn(
+                    state = trackListState,
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 32.dp),
                 ) {
-                    itemsIndexed(selected.tracks, key = { _, track -> track.id }) { index, track ->
+                    itemsIndexed(visibleTracks, key = { index, track -> "$index:${track.id}" }) { index, track ->
                         PremiumListRow(
                             trackId = track.id,
                             title = track.title,
@@ -767,7 +795,7 @@ fun SearchScreen(
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf(state.query) }
     var editingQuery by remember { mutableStateOf(false) }
-    var requestSearchFocus by rememberSaveable { mutableStateOf(focusRestoreTarget == null) }
+    val searchFocusRequester = remember { FocusRequester() }
     val restoredResultFocusRequester = remember { FocusRequester() }
     val searchResultsListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val searchArtistRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
@@ -777,9 +805,22 @@ fun SearchScreen(
         query = state.query
     }
 
+    InitialFocusEffect(
+        focusRequester = searchFocusRequester,
+        targetAvailable = true,
+        restorationPending = focusRestoreTarget != null,
+    )
+
     LaunchedEffect(focusRestoreTarget, state.result, state.suggestions, state.recentQueries, query) {
         val target = focusRestoreTarget ?: return@LaunchedEffect
-        val sectionIndex = searchFocusSectionIndex(state, query, target) ?: return@LaunchedEffect
+        val sectionIndex = searchFocusSectionIndex(state, query, target)
+        if (sectionIndex == null) {
+            if (state.isLoading) return@LaunchedEffect
+            withFrameNanos { }
+            runCatching { searchFocusRequester.requestFocus() }
+            onFocusRestoreConsumed()
+            return@LaunchedEffect
+        }
         searchResultsListState.scrollToItem(sectionIndex)
         when (target.kind) {
             BrowseFocusTargetKind.Artist -> {
@@ -802,7 +843,6 @@ fun SearchScreen(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (focusRestoreTarget == null) ScreenInitialFocusAnchor()
         SectionTitle(title = "Search")
 
         SearchField(
@@ -815,8 +855,7 @@ fun SearchScreen(
             placeholder = { Text("Artist, album, or track") },
             editing = editingQuery,
             onEditingChange = { editingQuery = it },
-            requestFocusOnDisplay = requestSearchFocus,
-            onRequestFocusConsumed = { requestSearchFocus = false },
+            displayFocusRequesterOverride = searchFocusRequester,
         )
 
         if (state.isLoading) {
@@ -993,7 +1032,7 @@ fun HomeCategoryScreen(
     var query by remember { mutableStateOf("") }
     var editingQuery by remember { mutableStateOf(false) }
     val categoryFocusTarget = focusRestoreTarget?.takeIf { it.matches(category) }
-    var requestSearchFocus by rememberSaveable(category) { mutableStateOf(categoryFocusTarget == null) }
+    val searchFocusRequester = remember(category) { FocusRequester() }
 
     LaunchedEffect(category) {
         viewModel.load(category)
@@ -1003,11 +1042,26 @@ fun HomeCategoryScreen(
         query = state.query
     }
 
+    InitialFocusEffect(
+        focusRequester = searchFocusRequester,
+        targetAvailable = true,
+        restorationPending = focusRestoreTarget != null,
+        resetKey = category,
+    )
+
+    LaunchedEffect(focusRestoreTarget, categoryFocusTarget, state) {
+        if (focusRestoreTarget == null) return@LaunchedEffect
+        if (categoryFocusTarget != null && state.isLoading) return@LaunchedEffect
+        if (categoryFocusTarget != null && state.containsFocusTarget(categoryFocusTarget)) return@LaunchedEffect
+        withFrameNanos { }
+        runCatching { searchFocusRequester.requestFocus() }
+        onFocusRestoreConsumed()
+    }
+
     Column(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (categoryFocusTarget == null) ScreenInitialFocusAnchor()
         SectionTitle(title = state.title)
 
         SearchField(
@@ -1020,8 +1074,7 @@ fun HomeCategoryScreen(
             placeholder = { Text(searchPlaceholderFor(category)) },
             editing = editingQuery,
             onEditingChange = { editingQuery = it },
-            requestFocusOnDisplay = requestSearchFocus,
-            onRequestFocusConsumed = { requestSearchFocus = false },
+            displayFocusRequesterOverride = searchFocusRequester,
         )
 
         when {
@@ -1383,6 +1436,14 @@ private fun BrowseFocusTarget.matches(category: HomeCategoryKind): Boolean =
         HomeCategoryKind.Playlists -> kind == BrowseFocusTargetKind.Playlist
     }
 
+private fun HomeCategoryUiState.containsFocusTarget(target: BrowseFocusTarget): Boolean =
+    when (category) {
+        HomeCategoryKind.Favorites -> filteredFavorites.albums.any { it.id == target.id }
+        HomeCategoryKind.Artists -> filteredArtists.any { it.id == target.id }
+        HomeCategoryKind.Albums -> filteredAlbums.any { it.id == target.id }
+        HomeCategoryKind.Playlists -> filteredPlaylists.any { it.id == target.id }
+    }
+
 @Composable
 private fun PremiumArtistRow(
     artist: ArtistSummary,
@@ -1623,7 +1684,8 @@ private fun SearchField(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val editFocusRequester = remember { FocusRequester() }
-    val displayFocusRequester = displayFocusRequesterOverride ?: remember { FocusRequester() }
+    val defaultDisplayFocusRequester = remember { FocusRequester() }
+    val displayFocusRequester = displayFocusRequesterOverride ?: defaultDisplayFocusRequester
     var focused by remember { mutableStateOf(false) }
     var restoreDisplayFocus by remember { mutableStateOf(false) }
     var pendingExitDirection by remember { mutableStateOf<FocusDirection?>(null) }
@@ -1847,23 +1909,6 @@ private fun searchFieldColors() =
         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f),
     )
-
-@Composable
-private fun ScreenInitialFocusAnchor() {
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    Box(
-        modifier =
-            Modifier
-                .size(1.dp)
-                .focusRequester(focusRequester)
-                .focusable(),
-    )
-}
 
 @Composable
 private fun PremiumAlbumCard(
@@ -2390,7 +2435,6 @@ private fun AlbumDetailSkeleton(modifier: Modifier = Modifier) {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            ScreenInitialFocusAnchor()
             TextLineSkeleton(widthFraction = 0.52f, height = 34.dp)
             TextLineSkeleton(widthFraction = 0.34f, height = 28.dp)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2416,7 +2460,6 @@ private fun ArtistDetailSkeleton(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        ScreenInitialFocusAnchor()
         Box(
             modifier =
                 Modifier

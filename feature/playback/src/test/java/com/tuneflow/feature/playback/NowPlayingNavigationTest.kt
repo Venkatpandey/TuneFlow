@@ -71,6 +71,14 @@ class NowPlayingNavigationTest {
     }
 
     @Test
+    fun reopeningQueue_restoresLastFocusedTrack() {
+        assertEquals(4, resolveQueuePanelFocusIndex(previousFocusedIndex = 4, currentIndex = 1, itemCount = 6))
+        assertEquals(1, resolveQueuePanelFocusIndex(previousFocusedIndex = 8, currentIndex = 1, itemCount = 6))
+        assertEquals(0, resolveQueuePanelFocusIndex(previousFocusedIndex = 8, currentIndex = -1, itemCount = 6))
+        assertEquals(-1, resolveQueuePanelFocusIndex(previousFocusedIndex = 0, currentIndex = 0, itemCount = 0))
+    }
+
+    @Test
     fun playlistContextLabel_onlyShowsNamedPlaylist() {
         assertEquals("Playlist • Evening Mix", playlistContextLabel(" Evening Mix "))
         assertEquals(null, playlistContextLabel("  "))
