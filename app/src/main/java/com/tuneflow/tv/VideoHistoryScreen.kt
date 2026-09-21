@@ -29,7 +29,6 @@ import com.tuneflow.core.design.InitialFocusEffect
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowFocusableCard
 import com.tuneflow.core.design.TuneFlowShapes
-import com.tuneflow.feature.video.VIDEO_HISTORY_LIMIT
 import com.tuneflow.feature.video.VideoHistoryEntry
 
 @Composable
@@ -39,7 +38,7 @@ internal fun VideoHistoryScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val history = state.videoHistory.take(VIDEO_HISTORY_LIMIT)
+    val history = state.videoHistory
     val firstVideoFocusRequester = remember { FocusRequester() }
 
     InitialFocusEffect(
@@ -58,7 +57,7 @@ internal fun VideoHistoryScreen(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = "Your last ${VIDEO_HISTORY_LIMIT.coerceAtMost(history.size)} played videos",
+                text = if (history.size == 1) "1 played video" else "${history.size} played videos",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -88,7 +87,7 @@ internal fun VideoHistoryScreen(
     }
 }
 
-internal fun VideoHistoryEntry.videoHistoryItemKey(): String = "track:$trackId"
+internal fun VideoHistoryEntry.videoHistoryItemKey(): String = "video:$videoId:track:$trackId"
 
 @Composable
 private fun VideoHistoryTile(

@@ -437,13 +437,14 @@ class VideoViewModelTest {
             runCurrent()
             val candidate = (viewModel.uiState.value as VideoUiState.Candidates).candidates.first()
             viewModel.selectCandidate(candidate)
-            assertTrue(preferredVideoStore.savedMappings.isEmpty())
+            runCurrent()
+            assertEquals(listOf("track" to candidate.videoId), preferredVideoStore.savedMappings)
             nativePlayer.emitPlaying(0L, 180_000L)
             runCurrent()
             nativePlayer.emitPlaying(1_000L, 180_000L)
             runCurrent()
 
-            assertEquals(listOf("track" to candidate.videoId), preferredVideoStore.savedMappings)
+            assertEquals(listOf("track"), preferredVideoStore.playedTrackIds)
         }
 
     @Test

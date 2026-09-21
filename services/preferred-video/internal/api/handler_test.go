@@ -127,15 +127,35 @@ func TestDatabaseFailureReturnsGenericServerError(t *testing.T) {
 	}
 }
 
-func TestRecentLimitIsCappedAtOneHundred(t *testing.T) {
+func TestRecentLimitIsCappedAtMaximumLimit(t *testing.T) {
 	store := &fakeStore{recentVideos: []model.PreferredVideo{}}
-	response := serve(t, store, http.MethodGet, "/v1/videos/recent?limit=200", "")
+	response := serve(t, store, http.MethodGet, "/v1/videos/recent?limit=20000", "")
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	if store.recentLimit != 100 {
-		t.Fatalf("recent limit = %d, want 100", store.recentLimit)
+	if store.recentLimit != 10000 {
+		t.Fatalf("recent limit = %d, want 10000", store.recentLimit)
+	}
+}
+
+func TestRecentUnlimitedWhenOmittedOrZero(t *testing.T) {
+	store := &fakeStore{recentVideos: []model.PreferredVideo{}}
+	response := serve(t, store, http.MethodGet, "/v1/videos/recent", "")
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	if store.recentLimit != 0 {
+		t.Fatalf("recent limit = %d, want 0 (unlimited)", store.recentLimit)
+	}
+
+	responseZero := serve(t, store, http.MethodGet, "/v1/videos/recent?limit=0", "")
+	if responseZero.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", responseZero.Code, responseZero.Body.String())
+	}
+	if store.recentLimit != 0 {
+		t.Fatalf("recent limit = %d, want 0 (unlimited)", store.recentLimit)
 	}
 }
 

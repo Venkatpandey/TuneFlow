@@ -74,6 +74,61 @@ func TestRecentOrdersByPlaybackAndHonorsLimit(t *testing.T) {
 	}
 }
 
+func TestRecentDeduplicatesByVideoIDAndSupportsUnlimited(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	base := time.Date(2026, time.August, 30, 10, 0, 0, 0, time.UTC)
+	// track-1 and track-2 share the same videoID "aaaaaaaaaaa"
+	store.now = func() time.Time { return base }
+	if _, err := store.Put(context.Background(), "track-1", videoInput("aaaaaaaaaaa"), nil); err != nil {
+		t.Fatalf("put track-1: %v", err)
+	}
+	store.now = func() time.Time { return base.Add(time.Minute) }
+	if _, err := store.Put(context.Background(), "track-2", videoInput("aaaaaaaaaaa"), nil); err != nil {
+		t.Fatalf("put track-2: %v", err)
+	}
+	store.now = func() time.Time { return base.Add(2 * time.Minute) }
+	if _, err := store.Put(context.Background(), "track-3", videoInput("bbbbbbbbbbb"), nil); err != nil {
+		t.Fatalf("put track-3: %v", err)
+	}
+
+	// Limit 0 should return all unique videos deduplicated by video_id
+	videos, err := store.Recent(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("recent: %v", err)
+	}
+	if len(videos) != 2 {
+		t.Fatalf("recent count = %d, want 2 unique videos", len(videos))
+	}
+	if videos[0].VideoID != "bbbbbbbbbbb" || videos[1].VideoID != "aaaaaaaaaaa" {
+		t.Fatalf("unexpected unique recent videos: %+v", videos)
+	}
+}
+
+func TestResolveKeepsDirectMappingEvenIfIdentityMismatch(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	if _, err := store.Put(
+		context.Background(),
+		"track-1",
+		videoInput("aaaaaaaaaaa"),
+		trackIdentity("Song", "Artist", 180_000),
+	); err != nil {
+		t.Fatalf("put track-1: %v", err)
+	}
+
+	// When track-1 is resolved with a different duration (e.g. 260_000), it should still return the existing mapping!
+	resolved, err := store.Resolve(
+		context.Background(),
+		"track-1",
+		trackIdentity("Song", "Artist", 260_000),
+	)
+	if err != nil {
+		t.Fatalf("resolve track-1 error = %v, want success", err)
+	}
+	if resolved.VideoID != "aaaaaaaaaaa" {
+		t.Fatalf("resolved videoID = %s, want aaaaaaaaaaa", resolved.VideoID)
+	}
+}
+
 func TestReopenKeepsDataAndDoesNotReapplyMigration(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "videos.db")
 	first := openTestStore(t, databasePath)

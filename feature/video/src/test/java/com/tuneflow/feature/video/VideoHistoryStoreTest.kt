@@ -31,7 +31,7 @@ class VideoHistoryStoreTest {
         }
 
     @Test
-    fun historyRequestsUpToOneHundredVideos() =
+    fun historyRequestsAllUniqueVideosWhenLimitIsZero() =
         runTest {
             MockWebServer().use { server ->
                 server.enqueue(
@@ -42,23 +42,25 @@ class VideoHistoryStoreTest {
                 val store = RemotePreferredVideoStore(server.url("/").toString())
 
                 assertTrue(store.refreshHistory())
-                assertEquals("/v1/videos/recent?limit=100", server.takeRequest().path)
+                assertEquals("/v1/videos/recent", server.takeRequest().path)
             }
         }
 
     @Test
-    fun repeatedTrackMovesToFrontWithoutDuplication() {
+    fun repeatedVideoMovesToFrontWithoutDuplicationEvenForDifferentTracks() {
         val first = historyEntry("track-1", "aaaaaaaaaaa", "2026-09-01T10:00:00Z")
         val second = historyEntry("track-2", "bbbbbbbbbbb", "2026-09-01T11:00:00Z")
 
-        val updated = updatedRemoteHistory(listOf(first, second), first.copy(lastPlayedAt = "2026-09-01T12:00:00Z"))
+        // Another track with same videoId "aaaaaaaaaaa"
+        val updated = updatedRemoteHistory(listOf(first, second), historyEntry("track-3", "aaaaaaaaaaa", "2026-09-01T12:00:00Z"))
 
-        assertEquals(listOf("track-1", "track-2"), updated.map(VideoHistoryEntry::trackId))
+        assertEquals(listOf("aaaaaaaaaaa", "bbbbbbbbbbb"), updated.map(VideoHistoryEntry::videoId))
+        assertEquals("track-3", updated.first().trackId)
         assertEquals("2026-09-01T12:00:00Z", updated.first().lastPlayedAt)
     }
 
     @Test
-    fun inMemoryHistoryKeepsOnlyOneHundredNewestMappings() {
+    fun inMemoryHistoryKeepsAllUniqueVideosWithoutOneHundredCap() {
         val existing =
             (0 until VIDEO_HISTORY_LIMIT).map {
                 historyEntry("track-$it", "video${it.toString().padStart(6, '0')}", "2026-09-01T10:00:00Z")
@@ -70,9 +72,9 @@ class VideoHistoryStoreTest {
                 historyEntry("new", "newvideo001", "2026-09-01T12:00:00Z"),
             )
 
-        assertEquals(100, updated.size)
+        assertEquals(101, updated.size)
         assertEquals("new", updated.first().trackId)
-        assertEquals("track-98", updated.last().trackId)
+        assertEquals("track-99", updated.last().trackId)
     }
 
     @Test

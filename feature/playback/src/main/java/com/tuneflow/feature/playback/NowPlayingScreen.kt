@@ -199,7 +199,7 @@ fun NowPlayingScreen(
                 activePanel = activePanel,
                 hasLyrics = availableLyrics != null,
                 videoPreferred = videoPreferred,
-                videoPreferenceEnabled = !state.queue.sourcePlaylistName.isNullOrBlank(),
+                videoPreferenceEnabled = !state.queue.sourcePlaylistName.isNullOrBlank() || state.queue.items.size > 1,
                 favoriteState = currentFavoriteState,
                 onCycleStreamMode = onCycleStreamMode,
                 onToggleQueue = {

@@ -162,11 +162,16 @@ class VideoViewModel(
     @Suppress("ReturnCount")
     fun selectCandidate(candidate: VideoCandidate) {
         val track = audio.queue.value.currentItem ?: return
+        val preferredTrack = track.toPreferredVideoTrack()
+        scope.launch {
+            preferredVideoStore.savePreferredVideo(preferredTrack, candidate)
+        }
+        preferredLookup.publishMapped(track.id, candidate)
         startCandidate(
             candidate = candidate,
             trackId = track.id,
             boundAudioTrackId = track.id,
-            persistenceAction = PlaybackPersistenceAction.SaveMapping(track.toPreferredVideoTrack()),
+            persistenceAction = PlaybackPersistenceAction.MarkPlayed(track.id),
             enableVideoPreferred = true,
         )
     }
@@ -790,7 +795,7 @@ private data class VideoQueuePosition(
     val queueTrackIds: List<String>,
 ) {
     val trackId: String = track.trackId
-    val isPlaylist: Boolean = !sourcePlaylistName.isNullOrBlank()
+    val isPlaylist: Boolean = !sourcePlaylistName.isNullOrBlank() || queueTrackIds.size > 1
 
     fun representsSameTrack(other: VideoQueuePosition?): Boolean =
         trackId == other?.trackId && sourcePlaylistName == other.sourcePlaylistName

@@ -63,7 +63,7 @@ interface PreferredVideoStore {
 
     suspend fun deletePreferredVideo(trackId: String): Boolean
 
-    suspend fun refreshHistory(limit: Int = VIDEO_HISTORY_LIMIT): Boolean
+    suspend fun refreshHistory(limit: Int = 0): Boolean
 }
 
 class RemotePreferredVideoStore(
@@ -141,18 +141,18 @@ class RemotePreferredVideoStore(
             _history.value = emptyList()
             return false
         }
-        val url =
-            builder.build().url.newBuilder()
-                .addQueryParameter("limit", limit.coerceIn(1, VIDEO_HISTORY_LIMIT).toString())
-                .build()
-        val request = builder.url(url).get().build()
+        val urlBuilder = builder.build().url.newBuilder()
+        if (limit > 0) {
+            urlBuilder.addQueryParameter("limit", limit.toString())
+        }
+        val request = builder.url(urlBuilder.build()).get().build()
         val result =
             executeSafely(request) { response ->
                 if (response.code != 200) return@executeSafely null
                 val envelope = json.decodeFromString<RecentVideosResponse>(response.requireBody())
                 require(envelope.apiVersion == API_VERSION) { "Unsupported API version." }
                 require(envelope.videos.all(::isValidVideoResponse)) { "Invalid video response." }
-                envelope.videos.take(VIDEO_HISTORY_LIMIT)
+                envelope.videos
             }
         _history.value = result.orEmpty()
         return result != null
@@ -263,8 +263,8 @@ internal fun updatedRemoteHistory(
 ): List<VideoHistoryEntry> =
     buildList {
         add(entry)
-        current.filterTo(this) { it.trackId != entry.trackId }
-    }.take(VIDEO_HISTORY_LIMIT)
+        current.filterTo(this) { it.videoId != entry.videoId }
+    }
 
 private fun Response.requireBody(): String {
     val content = body?.string() ?: error("Response body is missing.")
@@ -292,11 +292,11 @@ private fun preferredVideoServiceHttpUrl(baseUrl: String): HttpUrl? =
 
 private fun defaultPreferredVideoClient(): OkHttpClient =
     OkHttpClient.Builder()
-        .connectTimeout(1_500L, TimeUnit.MILLISECONDS)
-        .readTimeout(2_500L, TimeUnit.MILLISECONDS)
-        .writeTimeout(2_500L, TimeUnit.MILLISECONDS)
-        .callTimeout(3_000L, TimeUnit.MILLISECONDS)
-        .retryOnConnectionFailure(false)
+        .connectTimeout(5_000L, TimeUnit.MILLISECONDS)
+        .readTimeout(5_000L, TimeUnit.MILLISECONDS)
+        .writeTimeout(5_000L, TimeUnit.MILLISECONDS)
+        .callTimeout(10_000L, TimeUnit.MILLISECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
 @Serializable

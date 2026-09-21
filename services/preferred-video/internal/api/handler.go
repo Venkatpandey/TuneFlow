@@ -20,8 +20,8 @@ import (
 
 const (
 	apiVersion                   = "v1"
-	defaultLimit                 = 5
-	maximumLimit                 = 100
+	defaultLimit                 = 0
+	maximumLimit                 = 10000
 	maximumBodySize              = 64 * 1024
 	maximumTrackText             = 512
 	maximumTrackDurationMS int64 = 24 * 60 * 60 * 1000
@@ -193,11 +193,15 @@ func (h *Handler) recentVideos(w http.ResponseWriter, r *http.Request) {
 	limit := defaultLimit
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 1 {
-			writeError(w, http.StatusBadRequest, "invalid_input", "limit must be a positive integer")
+		if err != nil || parsed < 0 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "limit must be a non-negative integer")
 			return
 		}
-		limit = min(parsed, maximumLimit)
+		if parsed > 0 {
+			limit = min(parsed, maximumLimit)
+		} else {
+			limit = 0
+		}
 	}
 	videos, err := h.store.Recent(r.Context(), limit)
 	if err != nil {
