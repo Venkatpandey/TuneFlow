@@ -81,7 +81,12 @@ class RemotePreferredVideoStore(
         _history.value = emptyList()
     }
 
+    @Suppress("ReturnCount")
     override suspend fun lookup(track: PreferredVideoTrack): PreferredVideoLookupResult {
+        val cached = _history.value.firstOrNull { it.trackId == track.trackId }
+        if (cached != null) {
+            return PreferredVideoLookupResult.Found(cached)
+        }
         val request =
             preferredVideoRequestBuilder(track)?.get()?.build()
                 ?: return PreferredVideoLookupResult.BackendUnavailable

@@ -85,6 +85,20 @@ class YouTubeNativeLogicTest {
         assertEquals("Artist VEVO", mapped?.channel)
         assertEquals(1_200_000L, mapped?.viewCount)
         assertEquals(180_000L, mapped?.durationMs)
+
+        val fallbackMapped =
+            mapSmartTubeFields(
+                videoId = "def",
+                title = "Artist - Song",
+                author = "Official Artist Channel",
+                secondTitle = "10M views • 2 years ago",
+                thumbnailUrl = "https://example.test/thumb.jpg",
+                durationMs = 180_000L,
+                isLive = false,
+                isShort = false,
+            )
+        assertEquals("Official Artist Channel", fallbackMapped?.channel)
+        assertEquals(10_000_000L, fallbackMapped?.viewCount)
     }
 
     @Test

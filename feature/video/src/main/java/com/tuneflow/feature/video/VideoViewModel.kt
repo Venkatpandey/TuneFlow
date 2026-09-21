@@ -178,11 +178,13 @@ class VideoViewModel(
 
     fun playHistory(entry: VideoHistoryEntry) {
         val audioTrackId = audio.queue.value.currentItem?.id
+        preferredLookup.publishMapped(entry.trackId, entry.toVideoCandidate())
         startCandidate(
             candidate = entry.toVideoCandidate(),
             trackId = entry.trackId,
-            boundAudioTrackId = audioTrackId,
+            boundAudioTrackId = audioTrackId ?: entry.trackId,
             persistenceAction = PlaybackPersistenceAction.MarkPlayed(entry.trackId),
+            enableVideoPreferred = true,
         )
     }
 
@@ -223,8 +225,7 @@ class VideoViewModel(
         val queuePosition = audio.queue.value.toVideoQueuePosition()
         if (
             enableVideoPreferred &&
-            queuePosition?.isPlaylist == true &&
-            queuePosition.trackId == trackId
+            (queuePosition == null || queuePosition.isPlaylist)
         ) {
             _videoPreferred.value = true
         }
@@ -433,6 +434,7 @@ class VideoViewModel(
         resumeAudioForNextQueuePosition = false
         if (position?.isPlaylist != true) _videoPreferred.value = false
         if (_videoPreferred.value && position != null) {
+            audio.pause()
             preferredLookup.restart(position, resumeAudioIfMissing = resumeAudio)
         } else {
             if (resumeAudio) audio.play()

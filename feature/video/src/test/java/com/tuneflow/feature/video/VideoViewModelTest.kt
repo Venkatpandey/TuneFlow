@@ -28,6 +28,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("LargeClass")
 class VideoViewModelTest {
     @Test
     fun explicitRequestKeepsAudioPlayingWhileSearchRuns() =
@@ -566,6 +567,52 @@ class VideoViewModelTest {
             val loading = viewModel.uiState.value as VideoUiState.Loading
             assertEquals("nextvideo01", loading.candidate.videoId)
             assertEquals(0, audio.playCalls)
+            assertTrue(viewModel.videoPreferred.value)
+        }
+
+    @Test
+    fun playHistoryEnablesVideoPreferenceAndStartsVideo() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val viewModel = createViewModel(audio, backgroundScope)
+            runCurrent()
+
+            val entry = historyEntry("track", "historyvid01")
+            viewModel.playHistory(entry)
+            runCurrent()
+
+            assertTrue(viewModel.videoPreferred.value)
+            val loading = viewModel.uiState.value as VideoUiState.Loading
+            assertEquals("historyvid01", loading.candidate.videoId)
+        }
+
+    @Test
+    fun playHistoryInPlaylistAdvancesContinuouslyOnEnded() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val nativePlayer = FakeNativePlayer()
+            val store =
+                FakePreferredVideoStore(
+                    lookupResults =
+                        mapOf(
+                            "next" to
+                                PreferredVideoLookupResult.Found(
+                                    historyEntry("next", "nextvideo01"),
+                                ),
+                        ),
+                )
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(nativePlayer), store)
+            runCurrent()
+
+            viewModel.playHistory(historyEntry("track", "historyvid01"))
+            runCurrent()
+
+            nativePlayer.emitEnded()
+            runCurrent()
+
+            assertEquals("next", audio.queue.value.currentItem?.id)
+            val loading = viewModel.uiState.value as VideoUiState.Loading
+            assertEquals("nextvideo01", loading.candidate.videoId)
             assertTrue(viewModel.videoPreferred.value)
         }
 

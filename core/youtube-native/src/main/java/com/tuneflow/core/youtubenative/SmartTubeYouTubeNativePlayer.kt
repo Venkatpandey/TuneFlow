@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.google.android.exoplayer2.C
@@ -74,6 +75,8 @@ class SmartTubeYouTubeNativePlayer(
                 setPadding(24, 12, 24, 12)
                 subtitleView = this
             }
+        (texture.parent as? ViewGroup)?.removeView(texture)
+        (captions.parent as? ViewGroup)?.removeView(captions)
         return FrameLayout(context).apply {
             setBackgroundColor(Color.BLACK)
             addView(
@@ -88,6 +91,14 @@ class SmartTubeYouTubeNativePlayer(
                 },
             )
         }
+    }
+
+    override fun disposeView(view: View) {
+        textureView?.let { player?.clearVideoTextureView(it) }
+        (textureView?.parent as? ViewGroup)?.removeView(textureView)
+        (subtitleView?.parent as? ViewGroup)?.removeView(subtitleView)
+        textureView = null
+        subtitleView = null
     }
 
     @Suppress("TooGenericExceptionCaught")
@@ -170,8 +181,7 @@ class SmartTubeYouTubeNativePlayer(
         player?.release()
         player = null
         trackSelector = null
-        textureView = null
-        subtitleView = null
+        subtitleView?.text = null
         videoId = null
         initialReadyPublished = false
         scope.cancel()

@@ -162,6 +162,22 @@ class VideoHistoryStoreTest {
             }
         }
 
+    @Test
+    fun lookupReturnsCachedHistoryEntryWithoutNetworkRequest() =
+        runTest {
+            MockWebServer().use { server ->
+                server.enqueue(MockResponse().setResponseCode(200).setBody(videoEnvelope("track-1", "aaaaaaaaaaa")))
+                val store = RemotePreferredVideoStore(server.url("/").toString())
+                store.savePreferredVideo(preferredTrack("track-1"), candidate("aaaaaaaaaaa"))
+                server.takeRequest() // consume the PUT request
+
+                val result = store.lookup(preferredTrack("track-1"))
+                assertTrue(result is PreferredVideoLookupResult.Found)
+                assertEquals("aaaaaaaaaaa", (result as PreferredVideoLookupResult.Found).video.videoId)
+                assertEquals(1, server.requestCount) // only the initial PUT request
+            }
+        }
+
     private fun historyEntry(
         trackId: String,
         videoId: String,

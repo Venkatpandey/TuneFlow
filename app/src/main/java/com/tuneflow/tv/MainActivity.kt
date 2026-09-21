@@ -63,6 +63,7 @@ import com.tuneflow.feature.video.PreferredVideoServiceConfigStore
 import com.tuneflow.feature.video.PreferredVideoStore
 import com.tuneflow.feature.video.RemotePreferredVideoStore
 import com.tuneflow.feature.video.VIDEO_HISTORY_LIMIT
+import com.tuneflow.feature.video.VideoHistoryEntry
 import com.tuneflow.feature.video.VideoViewModel
 import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.delay
@@ -651,6 +652,7 @@ private fun ObserveVideoLifecycle(videoViewModel: VideoViewModel) {
 }
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 private fun TuneFlowShell(
     browseRepository: BrowseRepository,
     favoriteStore: TrackFavoriteStore,
@@ -800,6 +802,49 @@ private fun TuneFlowShell(
         sourcePlaylistName = sourcePlaylistName,
     )
 
+    fun playVideoHistory(entry: VideoHistoryEntry) {
+        scope.launch {
+            val history = preferredVideoStore.history.value.ifEmpty { listOf(entry) }
+            val exactIndex = history.indexOfFirst { it.videoId == entry.videoId && it.trackId == entry.trackId }
+            val fallbackIndex = history.indexOfFirst { it.videoId == entry.videoId }
+            val startIndex =
+                when {
+                    exactIndex >= 0 -> exactIndex
+                    fallbackIndex >= 0 -> fallbackIndex
+                    else -> 0
+                }
+            val queueItems =
+                history.map { historyEntry ->
+                    val streamOptions = browseRepository.streamOptions(historyEntry.trackId)
+                    val directMimeType = if (preferDirectWithFallback) FLAC_AUDIO_MIME_TYPE else MPEG_AUDIO_MIME_TYPE
+                    val directFormatLabel = if (preferDirectWithFallback) "FLAC" else "MP3"
+                    QueueItem(
+                        id = historyEntry.trackId,
+                        title = historyEntry.title,
+                        artist = historyEntry.publisher,
+                        album = "Recently Played Videos",
+                        artUrl = historyEntry.thumbnailUrl,
+                        streamUrl = if (preferDirectWithFallback) streamOptions.directUrl else streamOptions.fallbackMp3Url,
+                        fallbackStreamUrl = if (preferDirectWithFallback) streamOptions.fallbackMp3Url else null,
+                        streamFormatLabel = directFormatLabel,
+                        streamBitrateLabel = if (preferDirectWithFallback) "Original" else "Max",
+                        durationMs = historyEntry.durationMs,
+                        streamMimeType = directMimeType,
+                        directStreamMimeType = directMimeType,
+                        directStreamFormatLabel = directFormatLabel,
+                    )
+                }
+            playerManager.playQueue(
+                items = queueItems,
+                startIndex = startIndex,
+                sourcePlaylistId = "video-history",
+                sourcePlaylistName = "Recently Played Videos",
+            )
+            videoViewModel.playHistory(entry)
+            navigationActions.openNowPlaying()
+        }
+    }
+
     fun cycleStreamMode() {
         scope.launch {
             cyclePlaybackStreamMode(
@@ -899,10 +944,7 @@ private fun TuneFlowShell(
         onPreselectedPlaylistConsumed = { updateShellState { it.consumePreselectedPlaylist() } },
         onOpenNowPlaying = navigationActions::openNowPlaying,
         onOpenVideoHistory = navigationActions::openVideoHistory,
-        onPlayVideo = { entry ->
-            videoViewModel.playHistory(entry)
-            navigationActions.openNowPlaying()
-        },
+        onPlayVideo = ::playVideoHistory,
         onPlayTracks = { tracks, index -> playTracks(tracks, index) },
         onShuffleTracks = { tracks -> shuffleTracks(tracks) },
         onPlayPlaylistTracks = { playlistId, playlistName, tracks, index ->
