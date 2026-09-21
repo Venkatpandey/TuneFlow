@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,6 +70,7 @@ import com.tuneflow.feature.playback.LyricsUiState
 import com.tuneflow.feature.video.NativeVideoPlayerSurface
 import com.tuneflow.feature.video.VideoUiState
 import com.tuneflow.feature.video.VideoViewModel
+import com.tuneflow.feature.video.activeCandidate
 import com.tuneflow.feature.video.activeTrackDetails
 import com.tuneflow.feature.video.hasVisiblePlayer
 import com.tuneflow.feature.video.isFullscreen
@@ -316,19 +318,21 @@ internal fun TuneFlowShellLayout(
                     playerModifier
                         .background(Color.Black),
             )
-            NativeVideoPlayerSurface(
-                player = videoSurfacePlayer,
-                trackDetails = requireNotNull(videoState.activeTrackDetails),
-                host = videoOverlayHost,
-                bounds = playerBounds,
-                requestFocus = videoState.isFullscreen,
-                onKeyEvent = { event ->
-                    handleVideoOverlayMediaKey(event, videoViewModel)
-                },
-                onExitFullscreen = videoViewModel::exitFullscreen,
-                onChooseAnother = videoViewModel::chooseAnother,
-                onStop = videoViewModel::stopVideo,
-            )
+            key(videoState.trackId, videoState.activeCandidate?.videoId) {
+                NativeVideoPlayerSurface(
+                    player = videoSurfacePlayer,
+                    trackDetails = requireNotNull(videoState.activeTrackDetails),
+                    host = videoOverlayHost,
+                    bounds = playerBounds,
+                    requestFocus = videoState.isFullscreen,
+                    onKeyEvent = { event ->
+                        handleVideoOverlayMediaKey(event, videoViewModel)
+                    },
+                    onExitFullscreen = videoViewModel::exitFullscreen,
+                    onChooseAnother = videoViewModel::chooseAnother,
+                    onStop = videoViewModel::stopVideo,
+                )
+            }
         }
     }
 }

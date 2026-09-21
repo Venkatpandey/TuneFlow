@@ -64,10 +64,10 @@ class SmartTubeYouTubeNativePlayer(
     override val selectedCaptionId: StateFlow<String?> = _selectedCaptionId.asStateFlow()
 
     override fun createView(context: Context): View {
-        val texture = textureView ?: AspectFitTextureView(context).also { textureView = it }
+        val texture = AspectFitTextureView(context).also { textureView = it }
         ensurePlayer().setVideoTextureView(texture)
         val captions =
-            subtitleView ?: TextView(context).apply {
+            TextView(context).apply {
                 setTextColor(Color.WHITE)
                 textSize = 22f
                 gravity = Gravity.CENTER
@@ -94,11 +94,26 @@ class SmartTubeYouTubeNativePlayer(
     }
 
     override fun disposeView(view: View) {
-        textureView?.let { player?.clearVideoTextureView(it) }
-        (textureView?.parent as? ViewGroup)?.removeView(textureView)
-        (subtitleView?.parent as? ViewGroup)?.removeView(subtitleView)
-        textureView = null
-        subtitleView = null
+        val container = view as? ViewGroup
+        val texture =
+            (0 until (container?.childCount ?: 0))
+                .mapNotNull { container?.getChildAt(it) as? AspectFitTextureView }
+                .firstOrNull() ?: textureView
+        texture?.let {
+            player?.clearVideoTextureView(it)
+            (it.parent as? ViewGroup)?.removeView(it)
+        }
+        if (texture === textureView) {
+            textureView = null
+        }
+        val subtitles =
+            (0 until (container?.childCount ?: 0))
+                .mapNotNull { container?.getChildAt(it) as? TextView }
+                .firstOrNull() ?: subtitleView
+        (subtitles?.parent as? ViewGroup)?.removeView(subtitles)
+        if (subtitles === subtitleView) {
+            subtitleView = null
+        }
     }
 
     @Suppress("TooGenericExceptionCaught")
@@ -181,7 +196,8 @@ class SmartTubeYouTubeNativePlayer(
         player?.release()
         player = null
         trackSelector = null
-        subtitleView?.text = null
+        textureView = null
+        subtitleView = null
         videoId = null
         initialReadyPublished = false
         scope.cancel()

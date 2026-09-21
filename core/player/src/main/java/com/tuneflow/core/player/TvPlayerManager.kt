@@ -197,6 +197,7 @@ class TvPlayerManager(
         startIndex: Int = 0,
         sourcePlaylistId: String? = null,
         sourcePlaylistName: String? = null,
+        playWhenReady: Boolean = true,
     ) {
         if (items.isEmpty()) return
 
@@ -204,14 +205,18 @@ class TvPlayerManager(
         val queue = PlaybackQueue().replace(items, startIndex, sourcePlaylistId, sourcePlaylistName)
         _queue.value = queue
         lastError = null
-        expectedToPlay = true
+        expectedToPlay = playWhenReady
 
         val mediaItems = items.map { it.toMediaItem() }
         player.setMediaItems(mediaItems, queue.currentIndex, 0L)
         player.prepare()
         player.repeatMode = Player.REPEAT_MODE_OFF
-        player.play()
-        scheduleFallbackMonitor()
+        if (playWhenReady) {
+            player.play()
+            scheduleFallbackMonitor()
+        } else {
+            player.pause()
+        }
         updatePlaybackStatus()
         persist()
     }
@@ -240,22 +245,29 @@ class TvPlayerManager(
         updatePlaybackStatus()
     }
 
-    override fun playFromIndex(index: Int) {
+    override fun playFromIndex(
+        index: Int,
+        playWhenReady: Boolean,
+    ) {
         val queue = _queue.value
         if (queue.items.isEmpty()) return
 
         val clamped = index.coerceIn(0, queue.items.lastIndex)
         listenSessionTracker.reset()
         lastError = null
-        expectedToPlay = true
+        expectedToPlay = playWhenReady
         player.seekToDefaultPosition(clamped)
-        player.playWhenReady = true
+        player.playWhenReady = playWhenReady
         if (player.playbackState == Player.STATE_IDLE) {
             player.prepare()
         }
-        player.play()
+        if (playWhenReady) {
+            player.play()
+            scheduleFallbackMonitor()
+        } else {
+            player.pause()
+        }
         updateQueueIndex(clamped)
-        scheduleFallbackMonitor()
         updatePlaybackStatus()
         persist()
     }

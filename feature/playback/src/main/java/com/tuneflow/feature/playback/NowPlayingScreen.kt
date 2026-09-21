@@ -276,7 +276,12 @@ fun NowPlayingScreen(
                             title = "Track List",
                             playlistName = state.queue.sourcePlaylistName,
                             state = state,
-                            onSelectTrack = viewModel::playFromIndex,
+                            onSelectTrack = { index ->
+                                viewModel.playFromIndex(
+                                    index = index,
+                                    playWhenReady = !videoPreferred && !videoState.hasVisiblePlayer,
+                                )
+                            },
                             favoriteStates = favoriteStates,
                             onToggleFavorite = { trackId -> scope.launch { favoriteStore.toggle(trackId) } },
                             onQueueExit = ::closeQueue,

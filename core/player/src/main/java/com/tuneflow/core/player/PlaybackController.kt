@@ -18,7 +18,10 @@ interface PlaybackController {
 
     fun seekTo(positionMs: Long)
 
-    fun playFromIndex(index: Int)
+    fun playFromIndex(
+        index: Int,
+        playWhenReady: Boolean = true,
+    )
 
     fun retryCurrent()
 

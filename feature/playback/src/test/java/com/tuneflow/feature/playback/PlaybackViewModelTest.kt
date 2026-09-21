@@ -219,7 +219,10 @@ private class FakeController(
 
     override fun seekTo(positionMs: Long) = Unit
 
-    override fun playFromIndex(index: Int) = Unit
+    override fun playFromIndex(
+        index: Int,
+        playWhenReady: Boolean,
+    ) = Unit
 
     override fun retryCurrent() = Unit
 

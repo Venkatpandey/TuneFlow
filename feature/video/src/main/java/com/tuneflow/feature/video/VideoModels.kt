@@ -243,6 +243,14 @@ val VideoUiState.activeTrackDetails: VideoTrackDetails?
             else -> null
         }
 
+val VideoUiState.activeCandidate: VideoCandidate?
+    get() =
+        when (this) {
+            is VideoUiState.Loading -> candidate
+            is VideoUiState.Playing -> candidate
+            else -> null
+        }
+
 fun QueueItem.toVideoTrackQuery(
     regionCode: String?,
     languageCode: String?,

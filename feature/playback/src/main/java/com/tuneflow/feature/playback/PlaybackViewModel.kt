@@ -121,7 +121,10 @@ class PlaybackViewModel(
 
     fun seekTo(positionMs: Long) = playerManager.seekTo(positionMs)
 
-    fun playFromIndex(index: Int) = playerManager.playFromIndex(index)
+    fun playFromIndex(
+        index: Int,
+        playWhenReady: Boolean = true,
+    ) = playerManager.playFromIndex(index, playWhenReady)
 
     fun retry() = playerManager.retryCurrent()
 

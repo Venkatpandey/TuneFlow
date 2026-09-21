@@ -839,6 +839,7 @@ private fun TuneFlowShell(
                 startIndex = startIndex,
                 sourcePlaylistId = "video-history",
                 sourcePlaylistName = "Recently Played Videos",
+                playWhenReady = false,
             )
             videoViewModel.playHistory(entry)
             navigationActions.openNowPlaying()
