@@ -65,7 +65,7 @@ func TestRecentOrdersByPlaybackAndHonorsLimit(t *testing.T) {
 		t.Fatalf("mark played: %v", err)
 	}
 
-	videos, err := store.Recent(context.Background(), 2)
+	videos, err := store.Recent(context.Background(), 2, 0)
 	if err != nil {
 		t.Fatalf("recent: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestRecentDeduplicatesByVideoIDAndSupportsUnlimited(t *testing.T) {
 	}
 
 	// Limit 0 should return all unique videos deduplicated by video_id
-	videos, err := store.Recent(context.Background(), 0)
+	videos, err := store.Recent(context.Background(), 0, 0)
 	if err != nil {
 		t.Fatalf("recent: %v", err)
 	}
@@ -348,4 +348,34 @@ func videoInput(videoID string) model.UpsertPreferredVideo {
 
 func trackIdentity(title, artist string, durationMS int64) *model.TrackIdentity {
 	return &model.TrackIdentity{Title: title, Artist: artist, DurationMS: durationMS}
+}
+
+func TestRecentPagesAfterDeduplication(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	store.now = func() time.Time { return time.Date(2026, time.September, 21, 10, 0, 0, 0, time.UTC) }
+	for _, item := range []struct{ trackID, videoID string }{
+		{"track-1", "aaaaaaaaaaa"},
+		{"track-2", "aaaaaaaaaaa"},
+		{"track-3", "bbbbbbbbbbb"},
+		{"track-4", "ccccccccccc"},
+	} {
+		if _, err := store.Put(context.Background(), item.trackID, videoInput(item.videoID), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := store.Recent(context.Background(), 2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.Recent(context.Background(), 2, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 2 || len(second) != 1 || first[0].VideoID != "aaaaaaaaaaa" || first[1].VideoID != "bbbbbbbbbbb" || second[0].VideoID != "ccccccccccc" {
+		t.Fatalf("unexpected pages: %+v / %+v", first, second)
+	}
+	end, err := store.Recent(context.Background(), 2, 3)
+	if err != nil || len(end) != 0 {
+		t.Fatalf("end = %+v, error = %v", end, err)
+	}
 }

@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -134,8 +135,8 @@ func TestRecentLimitIsCappedAtMaximumLimit(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	if store.recentLimit != 10000 {
-		t.Fatalf("recent limit = %d, want 10000", store.recentLimit)
+	if store.recentLimit != 10001 {
+		t.Fatalf("recent limit = %d, want 10001 (page plus lookahead)", store.recentLimit)
 	}
 }
 
@@ -185,6 +186,7 @@ type fakeStore struct {
 	recentVideos    []model.PreferredVideo
 	recentErr       error
 	recentLimit     int
+	recentOffset    int
 }
 
 func (f *fakeStore) Health(context.Context) error { return nil }
@@ -213,8 +215,9 @@ func (f *fakeStore) MarkPlayed(context.Context, string) (model.PreferredVideo, e
 	return f.getVideo, f.getErr
 }
 
-func (f *fakeStore) Recent(_ context.Context, limit int) ([]model.PreferredVideo, error) {
+func (f *fakeStore) Recent(_ context.Context, limit, offset int) ([]model.PreferredVideo, error) {
 	f.recentLimit = limit
+	f.recentOffset = offset
 	return f.recentVideos, f.recentErr
 }
 
@@ -230,5 +233,41 @@ func storedVideo(trackID, videoID string) model.PreferredVideo {
 		ViewCount:        42,
 		MappingUpdatedAt: timestamp,
 		LastPlayedAt:     timestamp,
+	}
+}
+
+func TestRecentPaginationReturnsContinuation(t *testing.T) {
+	store := &fakeStore{recentVideos: []model.PreferredVideo{
+		storedVideo("track-3", "ccccccccccc"),
+		storedVideo("track-4", "ddddddddddd"),
+		storedVideo("track-5", "eeeeeeeeeee"),
+	}}
+	response := serve(t, store, http.MethodGet, "/v1/videos/recent?limit=2&offset=2", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var page recentResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Videos) != 2 || page.NextOffset == nil || *page.NextOffset != 4 {
+		t.Fatalf("unexpected page: %+v", page)
+	}
+	if store.recentLimit != 3 || store.recentOffset != 2 {
+		t.Fatalf("query limit=%d offset=%d", store.recentLimit, store.recentOffset)
+	}
+	store.recentVideos = store.recentVideos[:2]
+	response = serve(t, store, http.MethodGet, "/v1/videos/recent?limit=2&offset=2", "")
+	if strings.Contains(response.Body.String(), "nextOffset") {
+		t.Fatalf("last page has continuation: %s", response.Body.String())
+	}
+}
+
+func TestRecentRejectsInvalidOffset(t *testing.T) {
+	for _, offset := range []string{"-1", "abc", "99999999999999999999999999999"} {
+		response := serve(t, &fakeStore{}, http.MethodGet, "/v1/videos/recent?limit=2&offset="+offset, "")
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("offset %s: status = %d", offset, response.Code)
+		}
 	}
 }

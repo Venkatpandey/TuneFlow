@@ -356,7 +356,7 @@ func (s *Store) MarkPlayed(ctx context.Context, trackID string) (model.Preferred
 	return s.Get(ctx, trackID)
 }
 
-func (s *Store) Recent(ctx context.Context, limit int) ([]model.PreferredVideo, error) {
+func (s *Store) Recent(ctx context.Context, limit, offset int) ([]model.PreferredVideo, error) {
 	query := `
 		SELECT track_id, provider, video_id, title, publisher, thumbnail_url,
 		       duration_ms, view_count, mapping_updated_at, MAX(last_played_at) AS last_played_at
@@ -365,12 +365,11 @@ func (s *Store) Recent(ctx context.Context, limit int) ([]model.PreferredVideo, 
 		ORDER BY MAX(last_played_at) DESC, video_id ASC`
 	var rows *sql.Rows
 	var err error
-	if limit > 0 {
-		query += " LIMIT ?"
-		rows, err = s.db.QueryContext(ctx, query, limit)
-	} else {
-		rows, err = s.db.QueryContext(ctx, query)
+	if limit <= 0 {
+		limit = -1
 	}
+	query += " LIMIT ? OFFSET ?"
+	rows, err = s.db.QueryContext(ctx, query, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query recent videos: %w", err)
 	}

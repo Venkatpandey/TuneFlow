@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -734,6 +735,242 @@ class VideoViewModelTest {
             assertEquals(listOf("track"), store.lookupTrackIds)
         }
 
+    @Test
+    fun unmappedAudioAdvanceKeepsPlaying() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val viewModel = createViewModel(audio, backgroundScope)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+
+            audio.next()
+            runCurrent()
+
+            assertTrue(audio.isPlaying.value)
+            assertEquals(1, audio.playCalls)
+        }
+
+    @Test
+    fun bufferingAudioResumesWhenLookupIsUnavailable() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val store = FakePreferredVideoStore(lookupResult = PreferredVideoLookupResult.BackendUnavailable)
+            val viewModel = createViewModel(audio, backgroundScope, preferredVideoStore = store)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+            audio.buffer()
+
+            audio.next()
+            runCurrent()
+
+            assertTrue(audio.isPlaying.value)
+        }
+
+    @Test
+    fun pausedAudioStaysPausedWhenUnmappedQueuePositionChanges() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val viewModel = createViewModel(audio, backgroundScope)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+            audio.pause()
+
+            audio.next()
+            runCurrent()
+
+            assertFalse(audio.isPlaying.value)
+            assertEquals(0, audio.playCalls)
+        }
+
+    @Test
+    fun selectingUnmappedQueueTrackStartsAudioInVideoPreferredMode() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val viewModel = createViewModel(audio, backgroundScope)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+            audio.pause()
+
+            viewModel.playFromIndex(1)
+            runCurrent()
+            assertEquals("next", audio.queue.value.currentItem?.id)
+            assertTrue(audio.isPlaying.value)
+
+            audio.pause()
+            viewModel.playFromIndex(1)
+            runCurrent()
+            assertTrue(audio.isPlaying.value)
+        }
+
+    @Test
+    fun selectingMappedQueueTrackNeverStartsAudio() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val store =
+                FakePreferredVideoStore(
+                    lookupResults = mapOf("next" to PreferredVideoLookupResult.Found(historyEntry("next", "nextvideo01"))),
+                )
+            val viewModel = createViewModel(audio, backgroundScope, preferredVideoStore = store)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+
+            viewModel.playFromIndex(1)
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Loading)
+            assertFalse(audio.isPlaying.value)
+            assertEquals(0, audio.playCalls)
+        }
+
+    @Test
+    fun pendingQueueChangeDoesNotResumeAudioUnderHistoryVideo() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val viewModel = createViewModel(audio, backgroundScope)
+            runCurrent()
+
+            audio.replaceQueue(playlistQueue("history", "next"))
+            viewModel.playHistory(historyEntry("history", "historyvid1"))
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Loading)
+            assertFalse(audio.isPlaying.value)
+            assertEquals(0, audio.playCalls)
+        }
+
+    @Test
+    fun reselectingCurrentVideoStartsNewSessionWithoutAudio() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val nativePlayer = FakeNativePlayer()
+            val store =
+                FakePreferredVideoStore(
+                    lookupResult = PreferredVideoLookupResult.Found(historyEntry("track", "mappedvid01")),
+                )
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(nativePlayer), store)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+            val session = viewModel.uiState.value.activeSession
+            nativePlayer.emitPlaying(1000L, 180_000L)
+            runCurrent()
+            assertEquals(session, viewModel.uiState.value.activeSession)
+
+            viewModel.playFromIndex(0)
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Loading)
+            assertTrue(session != viewModel.uiState.value.activeSession)
+            assertFalse(audio.isPlaying.value)
+            assertEquals(0, audio.playCalls)
+        }
+
+    @Test
+    fun selectingPlaylistTrackInVideoModeWaitsForVideoWithoutStartingAudio() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("old", "other"))
+            val nativePlayer = FakeNativePlayer()
+            val store =
+                FakePreferredVideoStore(
+                    lookupDelayMs = 1000L,
+                    lookupResults = mapOf("new" to PreferredVideoLookupResult.Found(historyEntry("new", "mappedvid01"))),
+                )
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(nativePlayer), store)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+
+            viewModel.playQueue(playlistQueue("new", "next").items, sourcePlaylistName = "Other playlist")
+            runCurrent()
+            assertFalse(audio.isPlaying.value)
+            assertEquals(0, audio.playCalls)
+            advanceTimeBy(1000L)
+            runCurrent()
+            nativePlayer.emitPlaying(0L, 180_000L)
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Playing)
+            assertFalse(audio.isPlaying.value)
+            assertEquals(0, audio.playCalls)
+        }
+
+    @Test
+    fun selectingUnmappedPlaylistTrackInVideoModeResumesOnlyAfterLookup() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("old", "other"))
+            val store = FakePreferredVideoStore(lookupDelayMs = 1000L)
+            val viewModel = createViewModel(audio, backgroundScope, preferredVideoStore = store)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+
+            viewModel.playQueue(playlistQueue("new", "next").items, sourcePlaylistName = "Other playlist")
+            runCurrent()
+            assertFalse(audio.isPlaying.value)
+            advanceTimeBy(1000L)
+            runCurrent()
+
+            assertTrue(audio.isPlaying.value)
+            assertEquals(1, audio.playCalls)
+        }
+
+    @Test
+    fun selectingSamePlaylistTrackRestartsVideoWithoutAudio() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val store =
+                FakePreferredVideoStore(
+                    lookupResult = PreferredVideoLookupResult.Found(historyEntry("track", "mappedvid01")),
+                )
+            val viewModel = createViewModel(audio, backgroundScope, preferredVideoStore = store)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+            val oldSession = viewModel.uiState.value.activeSession
+
+            viewModel.playQueue(audio.queue.value.items, sourcePlaylistName = "Playlist")
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Loading)
+            assertTrue(oldSession != viewModel.uiState.value.activeSession)
+            assertFalse(audio.isPlaying.value)
+            assertEquals(0, audio.playCalls)
+        }
+
+    @Test
+    fun selectingPlaylistInAudioModeStartsAudio() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("old", "other"))
+            val viewModel = createViewModel(audio, backgroundScope)
+            runCurrent()
+
+            viewModel.playQueue(playlistQueue("new", "next").items, sourcePlaylistName = "Other playlist")
+            runCurrent()
+
+            assertTrue(audio.isPlaying.value)
+            assertEquals("new", audio.queue.value.currentItem?.id)
+            assertEquals(1, audio.playCalls)
+        }
+
+    @Test
+    fun immediateMissingLookupAfterPlaylistReplacementStillStartsAudio() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("old", "other"))
+            val viewModel =
+                createViewModel(audio, CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler)))
+            viewModel.toggleVideoPreferredMode()
+
+            viewModel.playQueue(playlistQueue("new", "next").items, sourcePlaylistName = "Other playlist")
+            runCurrent()
+
+            assertTrue(audio.isPlaying.value)
+        }
+
     private fun createViewModel(
         audio: VideoViewModelFakeAudio,
         scope: CoroutineScope,
@@ -968,11 +1205,13 @@ private class VideoViewModelFakeAudio(
     override fun play() {
         playCalls += 1
         playingState.value = true
+        statusState.value = statusState.value.copy(expectedToPlay = true)
     }
 
     override fun pause() {
         pauseCalls += 1
         playingState.value = false
+        statusState.value = statusState.value.copy(expectedToPlay = false)
     }
 
     override fun next() {
@@ -990,7 +1229,26 @@ private class VideoViewModelFakeAudio(
     override fun playFromIndex(
         index: Int,
         playWhenReady: Boolean,
-    ) = Unit
+    ) {
+        queueState.value = queueState.value.copy(currentIndex = index, currentPositionMs = 0L)
+        if (playWhenReady) play() else pause()
+    }
+
+    fun buffer() {
+        playingState.value = false
+        statusState.value = statusState.value.copy(expectedToPlay = true)
+    }
+
+    override fun playQueue(
+        items: List<QueueItem>,
+        startIndex: Int,
+        sourcePlaylistId: String?,
+        sourcePlaylistName: String?,
+        playWhenReady: Boolean,
+    ) {
+        queueState.value = PlaybackQueue().replace(items, startIndex, sourcePlaylistId, sourcePlaylistName)
+        if (playWhenReady) play() else pause()
+    }
 
     override fun retryCurrent() = Unit
 

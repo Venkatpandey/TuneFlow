@@ -224,6 +224,14 @@ sealed interface VideoUiState {
 val VideoUiState.hasVisiblePlayer: Boolean
     get() = this is VideoUiState.Loading || this is VideoUiState.Playing
 
+val VideoUiState.activeSession: VideoSessionKey?
+    get() =
+        when (this) {
+            is VideoUiState.Loading -> VideoSessionKey(trackId, generation)
+            is VideoUiState.Playing -> VideoSessionKey(trackId, generation)
+            else -> null
+        }
+
 val VideoUiState.isFullscreen: Boolean
     get() =
         when (this) {

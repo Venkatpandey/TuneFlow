@@ -140,28 +140,43 @@ class RemotePreferredVideoStore(
         return executeSafely(request) { response -> response.code == 204 || response.code == 404 } ?: false
     }
 
+    @Suppress("ReturnCount")
     override suspend fun refreshHistory(limit: Int): Boolean {
+        val sourceUrl = serviceUrl
         val builder = requestBuilder("v1", "videos", "recent")
         if (builder == null) {
             _history.value = emptyList()
             return false
         }
-        val urlBuilder = builder.build().url.newBuilder()
-        if (limit > 0) {
-            urlBuilder.addQueryParameter("limit", limit.toString())
-        }
-        val request = builder.url(urlBuilder.build()).get().build()
-        val result =
-            executeSafely(request) { response ->
-                if (response.code != 200) return@executeSafely null
-                val envelope = json.decodeFromString<RecentVideosResponse>(response.requireBody())
-                require(envelope.apiVersion == API_VERSION) { "Unsupported API version." }
-                require(envelope.videos.all(::isValidVideoResponse)) { "Invalid video response." }
-                envelope.videos
-            }
-        _history.value = result.orEmpty()
-        return result != null
+        val baseUrl = builder.build().url
+        val refreshed = mutableListOf<VideoHistoryEntry>()
+        var offset = 0
+        do {
+            val pageSize = if (limit > 0) minOf(HISTORY_PAGE_SIZE, limit - refreshed.size) else HISTORY_PAGE_SIZE
+            val url =
+                baseUrl.newBuilder()
+                    .addQueryParameter("limit", pageSize.toString())
+                    .addQueryParameter("offset", offset.toString())
+                    .build()
+            val page = fetchHistoryPage(builder.url(url).get().build()) ?: return false
+            if (page.videos.size > pageSize || serviceUrl != sourceUrl) return false
+            refreshed.addAll(page.videos)
+            val nextOffset = page.nextOffset ?: break
+            if (page.videos.isEmpty() || nextOffset != offset + page.videos.size) return false
+            offset = nextOffset
+        } while (limit <= 0 || refreshed.size < limit)
+        _history.value = refreshed.distinctBy(VideoHistoryEntry::videoId).distinctBy(VideoHistoryEntry::trackId)
+        return true
     }
+
+    private suspend fun fetchHistoryPage(request: Request): RecentVideosResponse? =
+        executeSafely(request) { response ->
+            if (response.code != 200) return@executeSafely null
+            val envelope = json.decodeFromString<RecentVideosResponse>(response.requireBody())
+            require(envelope.apiVersion == API_VERSION) { "Unsupported API version." }
+            require(envelope.videos.all(::isValidVideoResponse)) { "Invalid video response." }
+            envelope
+        }
 
     private suspend fun executeVideoWrite(request: Request): Boolean =
         executeSafely(request) { response ->
@@ -268,7 +283,7 @@ internal fun updatedRemoteHistory(
 ): List<VideoHistoryEntry> =
     buildList {
         add(entry)
-        current.filterTo(this) { it.videoId != entry.videoId }
+        current.filterTo(this) { it.videoId != entry.videoId && it.trackId != entry.trackId }
     }
 
 private fun Response.requireBody(): String {
@@ -314,6 +329,7 @@ private data class VideoResponse(
 private data class RecentVideosResponse(
     val apiVersion: String,
     val videos: List<VideoHistoryEntry>,
+    val nextOffset: Int? = null,
 )
 
 @Serializable
@@ -328,6 +344,7 @@ private data class PreferredVideoWrite(
 )
 
 const val VIDEO_HISTORY_LIMIT = 100
+private const val HISTORY_PAGE_SIZE = 100
 internal const val YOUTUBE_PROVIDER = "youtube"
 private const val API_VERSION = "v1"
 private const val MAX_RESPONSE_CHARACTERS = 256 * 1024

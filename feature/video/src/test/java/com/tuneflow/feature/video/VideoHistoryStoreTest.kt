@@ -31,7 +31,7 @@ class VideoHistoryStoreTest {
         }
 
     @Test
-    fun historyRequestsAllUniqueVideosWhenLimitIsZero() =
+    fun historyStartsWithBoundedPageWhenLimitIsZero() =
         runTest {
             MockWebServer().use { server ->
                 server.enqueue(
@@ -42,7 +42,7 @@ class VideoHistoryStoreTest {
                 val store = RemotePreferredVideoStore(server.url("/").toString())
 
                 assertTrue(store.refreshHistory())
-                assertEquals("/v1/videos/recent", server.takeRequest().path)
+                assertEquals("/v1/videos/recent?limit=100&offset=0", server.takeRequest().path)
             }
         }
 
@@ -177,6 +177,18 @@ class VideoHistoryStoreTest {
                 assertEquals(1, server.requestCount) // only the initial PUT request
             }
         }
+
+    @Test
+    fun replacingTrackMappingRemovesOldVideoAndKeepsQueueIdsUnique() {
+        val old = historyEntry("track-1", "aaaaaaaaaaa", "2026-09-01T10:00:00Z")
+        val other = historyEntry("track-2", "ccccccccccc", "2026-09-01T10:00:00Z")
+        val replacement = historyEntry("track-1", "bbbbbbbbbbb", "2026-09-01T11:00:00Z")
+
+        val updated = updatedRemoteHistory(listOf(old, other), replacement)
+
+        assertEquals(listOf(replacement, other), updated)
+        assertEquals(updated.size, updated.map(VideoHistoryEntry::trackId).distinct().size)
+    }
 
     private fun historyEntry(
         trackId: String,

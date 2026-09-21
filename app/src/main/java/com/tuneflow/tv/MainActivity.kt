@@ -570,6 +570,7 @@ private suspend fun cyclePlaybackStreamMode(
         startIndex = queue.currentIndex,
         sourcePlaylistId = queue.sourcePlaylistId,
         sourcePlaylistName = queue.sourcePlaylistName,
+        playWhenReady = wasPlaying,
     )
     playerManager.seekTo(positionMs)
     if (!wasPlaying) {
@@ -781,7 +782,7 @@ private fun TuneFlowShell(
     ) {
         scope.launch {
             val queue = buildQueueItems(tracks, browseRepository, preferDirectWithFallback)
-            playerManager.playQueue(
+            videoViewModel.playQueue(
                 items = queue,
                 startIndex = index,
                 sourcePlaylistId = sourcePlaylistId,
