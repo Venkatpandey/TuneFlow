@@ -1,6 +1,8 @@
 package com.tuneflow.core.youtubenative
 
+import com.google.android.exoplayer2.ExoPlaybackException
 import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.upstream.HttpDataSource
 import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItem
 import org.junit.Assert.assertEquals
@@ -8,6 +10,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 class YouTubeNativeLogicTest {
     @Test
@@ -119,6 +122,42 @@ class YouTubeNativeLogicTest {
         assertEquals(YouTubeSourceKind.Hls, selectSourceKind(false, false, true, true))
         assertEquals(YouTubeSourceKind.Direct, selectSourceKind(false, false, false, true))
         assertNull(selectSourceKind(false, false, false, false))
+    }
+
+    @Test
+    fun refreshesForbiddenVideoSourceAtMostTwice() {
+        val forbidden =
+            ExoPlaybackException.createForSource(
+                IOException("segment failed", HttpDataSource.InvalidResponseCodeException(403, emptyMap(), null)),
+            )
+        val missing =
+            ExoPlaybackException.createForSource(
+                HttpDataSource.InvalidResponseCodeException(404, emptyMap(), null),
+            )
+
+        assertTrue(shouldRefreshSource(forbidden, 0))
+        assertTrue(shouldRefreshSource(forbidden, 1))
+        assertFalse(shouldRefreshSource(forbidden, 2))
+        assertFalse(shouldRefreshSource(missing, 0))
+    }
+
+    @Test
+    fun rejectedDashSourcePrefersHlsAndSkipsStalledSabr() {
+        assertEquals(
+            YouTubeSourceKind.Hls,
+            selectRecoverySourceKind(
+                listOf(YouTubeSourceKind.Dash, YouTubeSourceKind.Sabr, YouTubeSourceKind.Hls, YouTubeSourceKind.Direct),
+                YouTubeSourceKind.Dash,
+            ),
+        )
+        assertEquals(
+            YouTubeSourceKind.Direct,
+            selectRecoverySourceKind(
+                listOf(YouTubeSourceKind.Dash, YouTubeSourceKind.Sabr, YouTubeSourceKind.Direct),
+                YouTubeSourceKind.Dash,
+            ),
+        )
+        assertNull(selectRecoverySourceKind(listOf(YouTubeSourceKind.Dash, YouTubeSourceKind.Sabr), YouTubeSourceKind.Dash))
     }
 
     @Test
