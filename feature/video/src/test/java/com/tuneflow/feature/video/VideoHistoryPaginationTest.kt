@@ -82,16 +82,34 @@ class VideoHistoryPaginationTest {
         }
 
     @Test
-    fun legacyResponseWithoutContinuationStopsAfterOnePage() =
+    fun legacyResponseWithoutContinuationLoadsCompleteHistory() =
         runTest {
             MockWebServer().use { server ->
-                server.enqueue(pageResponse((0 until 100).map(::entry)))
+                val entries = (0 until 1500).map(::entry)
+                assertTrue(Json.encodeToString(entries).length > 256 * 1024)
+                server.enqueue(pageResponse(entries.take(100)))
+                server.enqueue(pageResponse(entries))
                 val store = RemotePreferredVideoStore(server.url("/").toString())
 
                 assertTrue(store.refreshHistory())
 
+                assertEquals(entries, store.history.value)
+                assertEquals(2, server.requestCount)
+                assertEquals("/v1/videos/recent?limit=100&offset=0", server.takeRequest().path)
+                assertEquals("/v1/videos/recent?limit=0", server.takeRequest().path)
+            }
+        }
+
+    @Test
+    fun legacyResponseSmallerThanOnePageDoesNotRetry() =
+        runTest {
+            MockWebServer().use { server ->
+                server.enqueue(pageResponse((0 until 99).map(::entry)))
+                val store = RemotePreferredVideoStore(server.url("/").toString())
+
+                assertTrue(store.refreshHistory())
+                assertEquals(99, store.history.value.size)
                 assertEquals(1, server.requestCount)
-                assertEquals(100, store.history.value.size)
             }
         }
 

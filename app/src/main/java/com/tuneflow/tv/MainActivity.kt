@@ -62,7 +62,6 @@ import com.tuneflow.feature.playback.LyricsRepository
 import com.tuneflow.feature.video.PreferredVideoServiceConfigStore
 import com.tuneflow.feature.video.PreferredVideoStore
 import com.tuneflow.feature.video.RemotePreferredVideoStore
-import com.tuneflow.feature.video.VIDEO_HISTORY_LIMIT
 import com.tuneflow.feature.video.VideoHistoryEntry
 import com.tuneflow.feature.video.VideoViewModel
 import com.tuneflow.feature.video.hasVisiblePlayer
@@ -958,7 +957,7 @@ private fun TuneFlowShell(
         preferredVideoServiceUrl = preferredVideoServiceUrl,
         onPreferredVideoServiceUrlChanged = { serviceUrl ->
             onPreferredVideoServiceUrlChanged(serviceUrl)
-            scope.launch { preferredVideoStore.refreshHistory(VIDEO_HISTORY_LIMIT) }
+            scope.launch { preferredVideoStore.refreshHistory() }
         },
         showExitPrompt = shellState.showExitPrompt,
         favoriteErrorMessage = favoriteError?.message,

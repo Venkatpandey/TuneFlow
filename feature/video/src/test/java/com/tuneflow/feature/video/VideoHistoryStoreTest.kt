@@ -62,7 +62,7 @@ class VideoHistoryStoreTest {
     @Test
     fun inMemoryHistoryKeepsAllUniqueVideosWithoutOneHundredCap() {
         val existing =
-            (0 until VIDEO_HISTORY_LIMIT).map {
+            (0 until 100).map {
                 historyEntry("track-$it", "video${it.toString().padStart(6, '0')}", "2026-09-01T10:00:00Z")
             }
 
