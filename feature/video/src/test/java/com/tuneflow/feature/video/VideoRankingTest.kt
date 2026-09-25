@@ -170,6 +170,148 @@ class VideoRankingTest {
         assertEquals(listOf("match"), ranked.map(VideoCandidate::videoId))
     }
 
+    @Test
+    fun recordLabelPublisherRanksAboveUserUpload() {
+        val ranked =
+            VideoCandidateRanker.rank(
+                query,
+                listOf(
+                    candidate(
+                        id = "fan",
+                        title = "Depeche Mode - Enjoy the Silence (Official Video)",
+                        publisher = "RandomUser123",
+                        durationMs = 250_000L,
+                        viewCount = 5_000L,
+                    ),
+                    candidate(
+                        id = "label",
+                        title = "Depeche Mode - Enjoy the Silence",
+                        publisher = "Warner Records",
+                        durationMs = 250_000L,
+                        viewCount = 45_000_000L,
+                    ),
+                ),
+            )
+
+        assertEquals("label", ranked.first().videoId)
+        assertTrue(ranked.first().score > ranked.last().score)
+    }
+
+    @Test
+    fun highViewCountBeatsLowViewFanUploadWithOfficialInTitle() {
+        val ranked =
+            VideoCandidateRanker.rank(
+                query,
+                listOf(
+                    candidate(
+                        id = "low-view-fan",
+                        title = "Depeche Mode - Enjoy the Silence (Official Video)",
+                        publisher = "RandomUploader",
+                        durationMs = 250_000L,
+                        viewCount = 500L,
+                    ),
+                    candidate(
+                        id = "high-view-video",
+                        title = "Depeche Mode - Enjoy the Silence",
+                        publisher = "Classic Hits",
+                        durationMs = 250_000L,
+                        viewCount = 120_000_000L,
+                    ),
+                ),
+            )
+
+        assertEquals("high-view-video", ranked.first().videoId)
+    }
+
+    @Test
+    fun cinematicIntroDurationDoesNotPenalizeOfficialVideoBelowFanUpload() {
+        val ranked =
+            VideoCandidateRanker.rank(
+                query,
+                listOf(
+                    candidate(
+                        id = "fan-exact-duration",
+                        title = "Depeche Mode - Enjoy the Silence",
+                        publisher = "Bedroom Uploader",
+                        durationMs = 250_000L,
+                        viewCount = 10_000L,
+                    ),
+                    candidate(
+                        id = "official-cinematic",
+                        title = "Depeche Mode - Enjoy the Silence (Official Video)",
+                        publisher = "DepecheModeVEVO",
+                        // 35 seconds of cinematic intro/outro
+                        durationMs = 285_000L,
+                        viewCount = 90_000_000L,
+                    ),
+                ),
+            )
+
+        assertEquals("official-cinematic", ranked.first().videoId)
+        assertTrue(ranked.first().score >= VideoCandidateRanker.AUTOPLAY_THRESHOLD)
+    }
+
+    @Test
+    fun unwantedLyricAndNightcoreTermsPenalized() {
+        val ranked =
+            VideoCandidateRanker.rank(
+                query,
+                listOf(
+                    candidate(
+                        id = "lyrics",
+                        title = "Depeche Mode - Enjoy the Silence (Lyrics)",
+                        publisher = "7clouds",
+                        durationMs = 250_000L,
+                        viewCount = 5_000_000L,
+                    ),
+                    candidate(
+                        id = "nightcore",
+                        title = "Depeche Mode - Enjoy the Silence (Nightcore)",
+                        publisher = "NightcoreVibes",
+                        durationMs = 210_000L,
+                        viewCount = 2_000_000L,
+                    ),
+                    candidate(
+                        id = "official",
+                        title = "Depeche Mode - Enjoy the Silence (Official Video)",
+                        publisher = "DepecheModeVEVO",
+                        durationMs = 251_000L,
+                        viewCount = 50_000_000L,
+                    ),
+                ),
+            )
+
+        assertEquals("official", ranked.first().videoId)
+        assertTrue(ranked.first().score > ranked[1].score + 0.20)
+    }
+
+    @Test
+    fun fanChannelWithArtistNameDoesNotGetOfficialScore() {
+        val ranked =
+            VideoCandidateRanker.rank(
+                query,
+                listOf(
+                    candidate(
+                        id = "fan-club",
+                        title = "Depeche Mode - Enjoy the Silence",
+                        publisher = "Depeche Mode Fan Club",
+                        durationMs = 250_000L,
+                        viewCount = 100_000L,
+                    ),
+                    candidate(
+                        id = "official-vevo",
+                        title = "Depeche Mode - Enjoy the Silence",
+                        publisher = "DepecheModeVEVO",
+                        durationMs = 250_000L,
+                        viewCount = 100_000L,
+                    ),
+                ),
+            )
+
+        assertEquals("official-vevo", ranked.first().videoId)
+        assertTrue(ranked.first().score > ranked.last().score)
+    }
+
     private fun candidate(
         id: String,
         title: String,

@@ -2,6 +2,7 @@ package com.tuneflow.feature.playback
 
 import com.tuneflow.core.player.PlaybackController
 import com.tuneflow.core.player.PlaybackMode
+import com.tuneflow.core.player.PlaybackPhase
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlaybackStatus
 import com.tuneflow.core.player.QueueItem
@@ -17,6 +18,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -138,6 +140,40 @@ class PlaybackViewModelTest {
         }
 
     @Test
+    fun recoveredAudioHidesStaleSourceErrorAndRetry() =
+        runTest {
+            val fake = FakeController(false, PlaybackQueue(items = listOf(QueueItem("1", "Track", "Artist", "Album", streamUrl = "s"))))
+            val vm = PlaybackViewModel(fake, positionTicker = flowOf(Unit), scopeOverride = backgroundScope)
+            fake.updateStatus(PlaybackStatus(errorCategory = "ERROR_CODE_IO_UNSPECIFIED", errorMessage = "Source error"))
+            runCurrent()
+            assertEquals("Source error", vm.uiState.value.statusMessage)
+            assertTrue(vm.uiState.value.canRetry)
+
+            fake.play()
+            runCurrent()
+
+            assertNull(vm.uiState.value.statusMessage)
+            assertFalse(vm.uiState.value.canRetry)
+        }
+
+    @Test
+    fun bufferingDoesNotOfferRetryAndReadyClearsStatus() =
+        runTest {
+            val fake = FakeController(false, PlaybackQueue(items = listOf(QueueItem("1", "Track", "Artist", "Album", streamUrl = "s"))))
+            val vm = PlaybackViewModel(fake, positionTicker = flowOf(Unit), scopeOverride = backgroundScope)
+            fake.updateStatus(PlaybackStatus(phase = PlaybackPhase.Buffering, expectedToPlay = true))
+            runCurrent()
+            assertEquals("Buffering audio stream...", vm.uiState.value.statusMessage)
+            assertFalse(vm.uiState.value.canRetry)
+
+            fake.updateStatus(PlaybackStatus(phase = PlaybackPhase.Ready))
+            runCurrent()
+
+            assertNull(vm.uiState.value.statusMessage)
+            assertFalse(vm.uiState.value.canRetry)
+        }
+
+    @Test
     fun trackChange_cancelsStaleLyricsAndNeverPublishesOldResult() =
         runTest {
             var firstRequestCancelled = false
@@ -219,7 +255,18 @@ private class FakeController(
 
     override fun seekTo(positionMs: Long) = Unit
 
-    override fun playFromIndex(index: Int) = Unit
+    override fun playFromIndex(
+        index: Int,
+        playWhenReady: Boolean,
+    ) = Unit
+
+    override fun playQueue(
+        items: List<QueueItem>,
+        startIndex: Int,
+        sourcePlaylistId: String?,
+        sourcePlaylistName: String?,
+        playWhenReady: Boolean,
+    ) = Unit
 
     override fun retryCurrent() = Unit
 
@@ -230,6 +277,10 @@ private class FakeController(
     override fun durationMs(): Long = 0L
 
     override fun cyclePlaybackMode() = Unit
+
+    fun updateStatus(status: PlaybackStatus) {
+        statusState.value = status
+    }
 
     fun updateQueue(queue: PlaybackQueue) {
         queueState.value = queue

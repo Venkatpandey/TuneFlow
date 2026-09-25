@@ -9,7 +9,6 @@ import com.tuneflow.core.network.PlaylistSummary
 import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.browse.HomeCategoryKind
 import com.tuneflow.feature.video.PreferredVideoStore
-import com.tuneflow.feature.video.VIDEO_HISTORY_LIMIT
 import com.tuneflow.feature.video.VideoHistoryEntry
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -21,6 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 internal const val HOME_RAIL_PAGE_SIZE = 5
+internal const val HOME_VIDEO_HISTORY_PAGE_SIZE = 10
 
 data class HomeRailUiState(
     val isLoaded: Boolean = false,
@@ -35,9 +35,16 @@ data class HomeUiState(
     val favorites: FavoritesBundle = FavoritesBundle(emptyList(), emptyList()),
     val artists: List<ArtistSummary> = emptyList(),
     val videoHistory: List<VideoHistoryEntry> = emptyList(),
+    val visibleVideoHistoryCount: Int = HOME_VIDEO_HISTORY_PAGE_SIZE,
     val rails: Map<HomeCategoryKind, HomeRailUiState> = emptyMap(),
 ) {
     fun rail(category: HomeCategoryKind): HomeRailUiState = rails[category] ?: HomeRailUiState()
+
+    val visibleVideoHistory: List<VideoHistoryEntry>
+        get() = videoHistory.take(visibleVideoHistoryCount)
+
+    val hasMoreVideoHistory: Boolean
+        get() = visibleVideoHistoryCount < videoHistory.size
 }
 
 class HomeViewModel(
@@ -68,8 +75,16 @@ class HomeViewModel(
         playlists = emptyList()
         favorites = FavoritesBundle(emptyList(), emptyList())
         albumOffset = 0
-        _uiState.update { HomeUiState(videoHistory = it.videoHistory) }
-        viewModelScope.launch { preferredVideoStore.refreshHistory(VIDEO_HISTORY_LIMIT) }
+        _uiState.update { HomeUiState(videoHistory = it.videoHistory, visibleVideoHistoryCount = HOME_VIDEO_HISTORY_PAGE_SIZE) }
+        viewModelScope.launch { preferredVideoStore.refreshHistory() }
+    }
+
+    fun loadMoreVideoHistory() {
+        val current = _uiState.value
+        if (!current.hasMoreVideoHistory) return
+        _uiState.update {
+            it.copy(visibleVideoHistoryCount = it.visibleVideoHistoryCount + HOME_VIDEO_HISTORY_PAGE_SIZE)
+        }
     }
 
     fun loadRail(category: HomeCategoryKind) {

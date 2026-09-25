@@ -199,7 +199,7 @@ fun NowPlayingScreen(
                 activePanel = activePanel,
                 hasLyrics = availableLyrics != null,
                 videoPreferred = videoPreferred,
-                videoPreferenceEnabled = !state.queue.sourcePlaylistName.isNullOrBlank(),
+                videoPreferenceEnabled = !state.queue.sourcePlaylistName.isNullOrBlank() || state.queue.items.size > 1,
                 favoriteState = currentFavoriteState,
                 onCycleStreamMode = onCycleStreamMode,
                 onToggleQueue = {
@@ -276,7 +276,7 @@ fun NowPlayingScreen(
                             title = "Track List",
                             playlistName = state.queue.sourcePlaylistName,
                             state = state,
-                            onSelectTrack = viewModel::playFromIndex,
+                            onSelectTrack = videoViewModel::playFromIndex,
                             favoriteStates = favoriteStates,
                             onToggleFavorite = { trackId -> scope.launch { favoriteStore.toggle(trackId) } },
                             onQueueExit = ::closeQueue,
@@ -709,7 +709,7 @@ private fun Modifier.boundaryLockedVerticalItem(
 @Composable
 internal fun PlaybackStatusCard(
     message: String,
-    onRetry: () -> Unit,
+    onRetry: (() -> Unit)?,
 ) {
     Column(
         modifier =
@@ -730,12 +730,14 @@ internal fun PlaybackStatusCard(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        PlaybackTextButton(
-            label = "Retry",
-            accent = true,
-            onClick = onRetry,
-            modifier = Modifier.width(156.dp),
-        )
+        if (onRetry != null) {
+            PlaybackTextButton(
+                label = "Retry",
+                accent = true,
+                onClick = onRetry,
+                modifier = Modifier.width(156.dp),
+            )
+        }
     }
 }
 

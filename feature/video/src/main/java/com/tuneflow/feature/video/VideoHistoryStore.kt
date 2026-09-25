@@ -63,7 +63,7 @@ interface PreferredVideoStore {
 
     suspend fun deletePreferredVideo(trackId: String): Boolean
 
-    suspend fun refreshHistory(limit: Int = VIDEO_HISTORY_LIMIT): Boolean
+    suspend fun refreshHistory(limit: Int = 0): Boolean
 }
 
 class RemotePreferredVideoStore(
@@ -81,7 +81,12 @@ class RemotePreferredVideoStore(
         _history.value = emptyList()
     }
 
+    @Suppress("ReturnCount")
     override suspend fun lookup(track: PreferredVideoTrack): PreferredVideoLookupResult {
+        val cached = _history.value.firstOrNull { it.trackId == track.trackId }
+        if (cached != null) {
+            return PreferredVideoLookupResult.Found(cached)
+        }
         val request =
             preferredVideoRequestBuilder(track)?.get()?.build()
                 ?: return PreferredVideoLookupResult.BackendUnavailable
@@ -135,28 +140,71 @@ class RemotePreferredVideoStore(
         return executeSafely(request) { response -> response.code == 204 || response.code == 404 } ?: false
     }
 
+    @Suppress("ReturnCount")
     override suspend fun refreshHistory(limit: Int): Boolean {
+        val sourceUrl = serviceUrl
         val builder = requestBuilder("v1", "videos", "recent")
         if (builder == null) {
             _history.value = emptyList()
             return false
         }
-        val url =
-            builder.build().url.newBuilder()
-                .addQueryParameter("limit", limit.coerceIn(1, VIDEO_HISTORY_LIMIT).toString())
-                .build()
-        val request = builder.url(url).get().build()
-        val result =
-            executeSafely(request) { response ->
-                if (response.code != 200) return@executeSafely null
-                val envelope = json.decodeFromString<RecentVideosResponse>(response.requireBody())
-                require(envelope.apiVersion == API_VERSION) { "Unsupported API version." }
-                require(envelope.videos.all(::isValidVideoResponse)) { "Invalid video response." }
-                envelope.videos.take(VIDEO_HISTORY_LIMIT)
+        val baseUrl = builder.build().url
+        val refreshed = mutableListOf<VideoHistoryEntry>()
+        var offset = 0
+        do {
+            val pageSize = if (limit > 0) minOf(HISTORY_PAGE_SIZE, limit - refreshed.size) else HISTORY_PAGE_SIZE
+            val url =
+                baseUrl.newBuilder()
+                    .addQueryParameter("limit", pageSize.toString())
+                    .addQueryParameter("offset", offset.toString())
+                    .build()
+            val page = fetchHistoryPage(builder.url(url).get().build()) ?: return false
+            if (page.videos.size > pageSize || serviceUrl != sourceUrl) return false
+            refreshed.addAll(page.videos)
+            val nextOffset = page.nextOffset
+            if (nextOffset == null) {
+                val legacy = fetchLegacyHistoryIfNeeded(builder, baseUrl, page, limit, offset)
+                if (serviceUrl != sourceUrl) return false
+                if (legacy != null) {
+                    refreshed.clear()
+                    refreshed.addAll(legacy)
+                }
+                break
             }
-        _history.value = result.orEmpty()
-        return result != null
+            if (page.videos.isEmpty() || nextOffset != offset + page.videos.size) return false
+            offset = nextOffset
+        } while (limit <= 0 || refreshed.size < limit)
+        _history.value = refreshed.distinctBy(VideoHistoryEntry::videoId).distinctBy(VideoHistoryEntry::trackId)
+        return true
     }
+
+    private suspend fun fetchLegacyHistoryIfNeeded(
+        builder: Request.Builder,
+        baseUrl: HttpUrl,
+        page: RecentVideosResponse,
+        limit: Int,
+        offset: Int,
+    ): List<VideoHistoryEntry>? {
+        if (limit > 0 || offset != 0 || page.videos.size != HISTORY_PAGE_SIZE) return null
+        // Older services omit pagination but support limit=0 for the complete history.
+        val url = baseUrl.newBuilder().addQueryParameter("limit", "0").build()
+        return fetchHistoryPage(
+            builder.url(url).get().build(),
+            MAX_LEGACY_HISTORY_RESPONSE_CHARACTERS,
+        )?.videos
+    }
+
+    private suspend fun fetchHistoryPage(
+        request: Request,
+        maxResponseCharacters: Int = MAX_RESPONSE_CHARACTERS,
+    ): RecentVideosResponse? =
+        executeSafely(request) { response ->
+            if (response.code != 200) return@executeSafely null
+            val envelope = json.decodeFromString<RecentVideosResponse>(response.requireBody(maxResponseCharacters))
+            require(envelope.apiVersion == API_VERSION) { "Unsupported API version." }
+            require(envelope.videos.all(::isValidVideoResponse)) { "Invalid video response." }
+            envelope
+        }
 
     private suspend fun executeVideoWrite(request: Request): Boolean =
         executeSafely(request) { response ->
@@ -263,12 +311,12 @@ internal fun updatedRemoteHistory(
 ): List<VideoHistoryEntry> =
     buildList {
         add(entry)
-        current.filterTo(this) { it.trackId != entry.trackId }
-    }.take(VIDEO_HISTORY_LIMIT)
+        current.filterTo(this) { it.videoId != entry.videoId && it.trackId != entry.trackId }
+    }
 
-private fun Response.requireBody(): String {
+private fun Response.requireBody(maxCharacters: Int = MAX_RESPONSE_CHARACTERS): String {
     val content = body?.string() ?: error("Response body is missing.")
-    require(content.length <= MAX_RESPONSE_CHARACTERS) { "Response body is too large." }
+    require(content.length <= maxCharacters) { "Response body is too large." }
     return content
 }
 
@@ -292,11 +340,11 @@ private fun preferredVideoServiceHttpUrl(baseUrl: String): HttpUrl? =
 
 private fun defaultPreferredVideoClient(): OkHttpClient =
     OkHttpClient.Builder()
-        .connectTimeout(1_500L, TimeUnit.MILLISECONDS)
-        .readTimeout(2_500L, TimeUnit.MILLISECONDS)
-        .writeTimeout(2_500L, TimeUnit.MILLISECONDS)
-        .callTimeout(3_000L, TimeUnit.MILLISECONDS)
-        .retryOnConnectionFailure(false)
+        .connectTimeout(5_000L, TimeUnit.MILLISECONDS)
+        .readTimeout(5_000L, TimeUnit.MILLISECONDS)
+        .writeTimeout(5_000L, TimeUnit.MILLISECONDS)
+        .callTimeout(10_000L, TimeUnit.MILLISECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
 @Serializable
@@ -309,6 +357,7 @@ private data class VideoResponse(
 private data class RecentVideosResponse(
     val apiVersion: String,
     val videos: List<VideoHistoryEntry>,
+    val nextOffset: Int? = null,
 )
 
 @Serializable
@@ -322,10 +371,11 @@ private data class PreferredVideoWrite(
     val viewCount: Long,
 )
 
-const val VIDEO_HISTORY_LIMIT = 100
+private const val HISTORY_PAGE_SIZE = 100
 internal const val YOUTUBE_PROVIDER = "youtube"
 private const val API_VERSION = "v1"
 private const val MAX_RESPONSE_CHARACTERS = 256 * 1024
+private const val MAX_LEGACY_HISTORY_RESPONSE_CHARACTERS = 16 * 1024 * 1024
 private const val MAXIMUM_TRACK_TEXT_LENGTH = 512
 private const val UNKNOWN_ARTIST = "Unknown Artist"
 private val YOUTUBE_VIDEO_ID = Regex("^[A-Za-z0-9_-]{11}$")

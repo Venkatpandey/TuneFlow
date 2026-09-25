@@ -2,8 +2,10 @@ package com.tuneflow.core.youtubenative
 
 import android.content.Context
 import android.graphics.Color
+import android.util.Log
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.google.android.exoplayer2.C
@@ -17,7 +19,9 @@ import com.google.android.exoplayer2.text.Cue
 import com.google.android.exoplayer2.text.TextOutput
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray
+import com.google.android.exoplayer2.upstream.HttpDataSource
 import com.google.android.exoplayer2.video.VideoListener
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -47,6 +51,11 @@ class SmartTubeYouTubeNativePlayer(
     private var videoId: String? = null
     private var initialReadyPublished = false
     private var ticker: Job? = null
+    private var resolveJob: Job? = null
+    private var loadGeneration = 0L
+    private var sourceRefreshAttempts = 0
+    private var sourceKind: YouTubeSourceKind? = null
+    private var playbackRequested = true
     private var requestedQuality: YouTubeQuality = YouTubeQuality.HighestSupported
 
     private val _state = MutableStateFlow<YouTubeNativePlayerState>(YouTubeNativePlayerState.Idle)
@@ -63,10 +72,10 @@ class SmartTubeYouTubeNativePlayer(
     override val selectedCaptionId: StateFlow<String?> = _selectedCaptionId.asStateFlow()
 
     override fun createView(context: Context): View {
-        val texture = textureView ?: AspectFitTextureView(context).also { textureView = it }
+        val texture = AspectFitTextureView(context).also { textureView = it }
         ensurePlayer().setVideoTextureView(texture)
         val captions =
-            subtitleView ?: TextView(context).apply {
+            TextView(context).apply {
                 setTextColor(Color.WHITE)
                 textSize = 22f
                 gravity = Gravity.CENTER
@@ -74,6 +83,8 @@ class SmartTubeYouTubeNativePlayer(
                 setPadding(24, 12, 24, 12)
                 subtitleView = this
             }
+        (texture.parent as? ViewGroup)?.removeView(texture)
+        (captions.parent as? ViewGroup)?.removeView(captions)
         return FrameLayout(context).apply {
             setBackgroundColor(Color.BLACK)
             addView(
@@ -90,37 +101,48 @@ class SmartTubeYouTubeNativePlayer(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
-    override fun prepare(videoId: String) {
-        this.videoId = videoId
-        initialReadyPublished = false
-        _state.value = YouTubeNativePlayerState.Resolving(videoId)
-        scope.launch {
-            try {
-                val resolved = resolver.resolve(videoId)
-                if (this@SmartTubeYouTubeNativePlayer.videoId != videoId) return@launch
-                _availableVideoFormats.value = resolved.formats.sortedByDescending(YouTubeVideoFormat::height)
-                _availableCaptions.value = resolved.captions
-                applyRequestedQuality()
-                _state.value = YouTubeNativePlayerState.Preparing(videoId, resolved.sourceKind)
-                ensurePlayer().apply {
-                    seekTo(0L)
-                    playWhenReady = true
-                    prepare(mediaSourceFactory.create(resolved))
-                }
-            } catch (error: NativeResolverException) {
-                publishError(videoId, error.kind, error.message)
-            } catch (error: Exception) {
-                publishError(videoId, YouTubeNativeError.Resolver, error.message)
-            }
+    override fun disposeView(view: View) {
+        val container = view as? ViewGroup
+        val texture =
+            (0 until (container?.childCount ?: 0))
+                .mapNotNull { container?.getChildAt(it) as? AspectFitTextureView }
+                .firstOrNull() ?: textureView
+        texture?.let {
+            player?.clearVideoTextureView(it)
+            (it.parent as? ViewGroup)?.removeView(it)
+        }
+        if (texture === textureView) {
+            textureView = null
+        }
+        val subtitles =
+            (0 until (container?.childCount ?: 0))
+                .mapNotNull { container?.getChildAt(it) as? TextView }
+                .firstOrNull() ?: subtitleView
+        (subtitles?.parent as? ViewGroup)?.removeView(subtitles)
+        if (subtitles === subtitleView) {
+            subtitleView = null
         }
     }
 
+    override fun prepare(videoId: String) {
+        resolveJob?.cancel()
+        loadGeneration += 1
+        this.videoId = videoId
+        initialReadyPublished = false
+        sourceRefreshAttempts = 0
+        sourceKind = null
+        playbackRequested = true
+        _state.value = YouTubeNativePlayerState.Resolving(videoId)
+        resolveJob = scope.launch { resolveAndPrepare(videoId, loadGeneration, 0L, 0, null) }
+    }
+
     override fun play() {
+        playbackRequested = true
         player?.playWhenReady = true
     }
 
     override fun pause() {
+        playbackRequested = false
         player?.playWhenReady = false
     }
 
@@ -161,6 +183,9 @@ class SmartTubeYouTubeNativePlayer(
     }
 
     override fun release() {
+        resolveJob?.cancel()
+        resolveJob = null
+        loadGeneration += 1
         ticker?.cancel()
         ticker = null
         player?.removeListener(this)
@@ -174,6 +199,9 @@ class SmartTubeYouTubeNativePlayer(
         subtitleView = null
         videoId = null
         initialReadyPublished = false
+        sourceRefreshAttempts = 0
+        sourceKind = null
+        playbackRequested = false
         scope.cancel()
         scope = newScope()
         _state.value = YouTubeNativePlayerState.Idle
@@ -206,6 +234,10 @@ class SmartTubeYouTubeNativePlayer(
     }
 
     override fun onPlayerError(error: ExoPlaybackException) {
+        if (shouldRefreshSource(error, sourceRefreshAttempts)) {
+            refreshRejectedSource()
+            return
+        }
         val kind =
             when {
                 error.type == ExoPlaybackException.TYPE_RENDERER -> YouTubeNativeError.Decoder
@@ -213,6 +245,81 @@ class SmartTubeYouTubeNativePlayer(
                 else -> YouTubeNativeError.Initialization
             }
         publishError(videoId.orEmpty(), kind, error.message)
+    }
+
+    private fun refreshRejectedSource() {
+        val id = videoId ?: return
+        val currentPlayer = player ?: return
+        val positionMs = currentPlayer.currentPosition.coerceAtLeast(0L)
+        val durationMs = currentPlayer.duration.takeIf { it != C.TIME_UNSET }?.coerceAtLeast(0L) ?: 0L
+        playbackRequested = currentPlayer.playWhenReady
+        val rejectedKind = sourceKind
+        sourceRefreshAttempts += 1
+        loadGeneration += 1
+        resolveJob?.cancel()
+        ticker?.cancel()
+        initialReadyPublished = true
+        _state.value = YouTubeNativePlayerState.Buffering(id, positionMs, durationMs)
+        Log.w(TAG, "Video source returned HTTP 403; refresh attempt $sourceRefreshAttempts at ${positionMs / 1000}s")
+        resolveJob =
+            scope.launch {
+                resolveAndPrepare(id, loadGeneration, positionMs, sourceRefreshAttempts, rejectedKind)
+            }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun resolveAndPrepare(
+        id: String,
+        generation: Long,
+        positionMs: Long,
+        refreshAttempt: Int,
+        rejectedKind: YouTubeSourceKind?,
+    ) {
+        try {
+            val fresh = resolver.resolve(id)
+            if (videoId != id || loadGeneration != generation) return
+            val resolved = sourceForRecovery(fresh, refreshAttempt, rejectedKind)
+            val kind = resolved.sourceKind
+            sourceKind = kind
+            _availableVideoFormats.value = resolved.formats.sortedByDescending(YouTubeVideoFormat::height)
+            _availableCaptions.value = resolved.captions
+            applyRequestedQuality()
+            if (refreshAttempt == 0) _state.value = YouTubeNativePlayerState.Preparing(id, kind)
+            ensurePlayer().apply {
+                playWhenReady = playbackRequested
+                prepare(mediaSourceFactory.create(resolved))
+                seekTo(positionMs)
+            }
+            if (refreshAttempt > 0) Log.i(TAG, "Prepared refreshed $kind source at ${positionMs / 1000}s")
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: NativeResolverException) {
+            if (videoId == id && loadGeneration == generation) publishError(id, error.kind, error.message)
+        } catch (error: Exception) {
+            if (videoId == id && loadGeneration == generation) publishError(id, YouTubeNativeError.Resolver, error.message)
+        }
+    }
+
+    private fun sourceForRecovery(
+        fresh: ResolvedYouTubeVideo,
+        refreshAttempt: Int,
+        rejectedKind: YouTubeSourceKind?,
+    ): ResolvedYouTubeVideo {
+        if (refreshAttempt == 0 || rejectedKind == null) return fresh
+        val info = fresh.formatInfo
+        val available =
+            listOfNotNull(
+                YouTubeSourceKind.Dash.takeIf { info.containsDashFormats() || info.containsDashUrl() },
+                YouTubeSourceKind.Sabr.takeIf { info.containsSabrFormats() && !info.isLive },
+                YouTubeSourceKind.Hls.takeIf { info.containsHlsUrl() },
+                YouTubeSourceKind.Direct.takeIf { info.containsUrlFormats() },
+            )
+        val nextKind = selectRecoverySourceKind(available, rejectedKind)
+        return when {
+            nextKind != null -> fresh.copy(sourceKind = nextKind)
+            refreshAttempt == 1 -> fresh
+            else -> throw NativeResolverException(YouTubeNativeError.Network, "YouTube rejected the available video streams.")
+        }
     }
 
     override fun onTracksChanged(
@@ -362,9 +469,28 @@ class SmartTubeYouTubeNativePlayer(
     private fun newScope() = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private companion object {
+        const val TAG = "TuneFlowVideo"
         const val POSITION_UPDATE_MS = 500L
     }
 }
+
+internal fun shouldRefreshSource(
+    error: ExoPlaybackException,
+    previousAttempts: Int,
+): Boolean =
+    previousAttempts < 2 &&
+        error.type == ExoPlaybackException.TYPE_SOURCE &&
+        generateSequence(error.sourceException as Throwable?) { it.cause }
+            .take(8)
+            .any { it is HttpDataSource.InvalidResponseCodeException && it.responseCode == 403 }
+
+internal fun selectRecoverySourceKind(
+    available: List<YouTubeSourceKind>,
+    rejectedKind: YouTubeSourceKind,
+): YouTubeSourceKind? =
+    available.firstOrNull {
+        it != rejectedKind && (it == YouTubeSourceKind.Hls || it == YouTubeSourceKind.Direct)
+    }
 
 internal fun mapPlayerState(
     videoId: String,
