@@ -205,10 +205,10 @@ internal fun NowPlayingPrimaryColumn(
             )
         }
 
-        state.statusMessage?.let {
+        state.audioStatusMessage(videoState)?.let {
             PlaybackStatusCard(
                 message = it,
-                onRetry = onRetry,
+                onRetry = onRetry.takeIf { state.canRetry },
             )
         }
 
@@ -728,3 +728,6 @@ internal fun formatTime(ms: Long): String {
         "%02d:%02d".format(minutes, seconds)
     }
 }
+
+internal fun NowPlayingUiState.audioStatusMessage(videoState: VideoUiState): String? =
+    statusMessage.takeUnless { videoState.hasVisiblePlayer || isPlaying }

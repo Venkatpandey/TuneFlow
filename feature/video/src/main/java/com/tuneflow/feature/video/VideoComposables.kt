@@ -70,6 +70,7 @@ import kotlinx.coroutines.delay
 import java.text.NumberFormat
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 fun NativeVideoPlayerSurface(
     player: NativeVideoPlayer,
     trackDetails: VideoTrackDetails,
@@ -114,41 +115,52 @@ fun NativeVideoPlayerSurface(
             }
         }
     val currentOnKeyEvent = rememberUpdatedState(onKeyEvent)
-    DisposableEffect(player, host, view, controlsView) {
+    DisposableEffect(player, host, view) {
         (view.parent as? ViewGroup)?.removeView(view)
-        host.removeAllViews()
         host.addView(
             view,
+            0,
             FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             ),
         )
-        controlsView?.let { overlay ->
-            host.addView(
-                overlay,
-                FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                ),
-            )
-        }
         host.visibility = View.VISIBLE
         host.bringToFront()
         view.setOnKeyListener { _, _, event -> currentOnKeyEvent.value(event) }
-        controlsView?.setOnKeyListener { _, _, event -> currentOnKeyEvent.value(event) }
         view.onFocusChangeListener =
             View.OnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) player.focusPlayer() else player.clearPlayerFocus()
             }
         onDispose {
             view.setOnKeyListener(null)
-            controlsView?.setOnKeyListener(null)
             view.onFocusChangeListener = null
             host.removeView(view)
-            controlsView?.let(host::removeView)
-            host.visibility = View.GONE
+            if (host.childCount == 0) {
+                host.visibility = View.GONE
+            }
             player.disposeSurfaceView(view)
+        }
+    }
+
+    DisposableEffect(host, controlsView) {
+        if (controlsView != null) {
+            (controlsView.parent as? ViewGroup)?.removeView(controlsView)
+            host.addView(
+                controlsView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            controlsView.bringToFront()
+            controlsView.setOnKeyListener { _, _, event -> currentOnKeyEvent.value(event) }
+        }
+        onDispose {
+            controlsView?.setOnKeyListener(null)
+            if (controlsView != null) {
+                host.removeView(controlsView)
+            }
         }
     }
 
@@ -177,7 +189,7 @@ fun NativeVideoPlayerSurface(
         onDispose { }
     }
 
-    DisposableEffect(view, requestFocus) {
+    DisposableEffect(view, requestFocus, controlsView) {
         val focusView = controlsView ?: view
         focusView.isFocusable = requestFocus
         focusView.isFocusableInTouchMode = requestFocus

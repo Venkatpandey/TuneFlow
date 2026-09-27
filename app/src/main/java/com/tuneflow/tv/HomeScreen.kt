@@ -177,10 +177,12 @@ fun HomeScreen(
             item(key = "video-history-heading") { SectionHeading("Recently played videos") }
             item(key = "video-history-row") {
                 HomeContentRow(
-                    items = state.videoHistory,
+                    items = state.visibleVideoHistory,
                     listState = videoHistoryRowState,
-                    key = { _, video -> video.videoHistoryItemKey() },
+                    key = { _, video -> "video:${video.videoId}" },
                     onShowAll = onOpenVideoHistory,
+                    hasMore = state.hasMoreVideoHistory,
+                    onLoadMore = viewModel::loadMoreVideoHistory,
                 ) { video ->
                     HomeVideoCard(video = video, onClick = { onPlayVideo(video) })
                 }

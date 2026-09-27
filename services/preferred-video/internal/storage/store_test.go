@@ -65,12 +65,67 @@ func TestRecentOrdersByPlaybackAndHonorsLimit(t *testing.T) {
 		t.Fatalf("mark played: %v", err)
 	}
 
-	videos, err := store.Recent(context.Background(), 2)
+	videos, err := store.Recent(context.Background(), 2, 0)
 	if err != nil {
 		t.Fatalf("recent: %v", err)
 	}
 	if len(videos) != 2 || videos[0].TrackID != "track-1" || videos[1].TrackID != "track-3" {
 		t.Fatalf("unexpected recent order: %+v", videos)
+	}
+}
+
+func TestRecentDeduplicatesByVideoIDAndSupportsUnlimited(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	base := time.Date(2026, time.August, 30, 10, 0, 0, 0, time.UTC)
+	// track-1 and track-2 share the same videoID "aaaaaaaaaaa"
+	store.now = func() time.Time { return base }
+	if _, err := store.Put(context.Background(), "track-1", videoInput("aaaaaaaaaaa"), nil); err != nil {
+		t.Fatalf("put track-1: %v", err)
+	}
+	store.now = func() time.Time { return base.Add(time.Minute) }
+	if _, err := store.Put(context.Background(), "track-2", videoInput("aaaaaaaaaaa"), nil); err != nil {
+		t.Fatalf("put track-2: %v", err)
+	}
+	store.now = func() time.Time { return base.Add(2 * time.Minute) }
+	if _, err := store.Put(context.Background(), "track-3", videoInput("bbbbbbbbbbb"), nil); err != nil {
+		t.Fatalf("put track-3: %v", err)
+	}
+
+	// Limit 0 should return all unique videos deduplicated by video_id
+	videos, err := store.Recent(context.Background(), 0, 0)
+	if err != nil {
+		t.Fatalf("recent: %v", err)
+	}
+	if len(videos) != 2 {
+		t.Fatalf("recent count = %d, want 2 unique videos", len(videos))
+	}
+	if videos[0].VideoID != "bbbbbbbbbbb" || videos[1].VideoID != "aaaaaaaaaaa" {
+		t.Fatalf("unexpected unique recent videos: %+v", videos)
+	}
+}
+
+func TestResolveKeepsDirectMappingEvenIfIdentityMismatch(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	if _, err := store.Put(
+		context.Background(),
+		"track-1",
+		videoInput("aaaaaaaaaaa"),
+		trackIdentity("Song", "Artist", 180_000),
+	); err != nil {
+		t.Fatalf("put track-1: %v", err)
+	}
+
+	// When track-1 is resolved with a different duration (e.g. 260_000), it should still return the existing mapping!
+	resolved, err := store.Resolve(
+		context.Background(),
+		"track-1",
+		trackIdentity("Song", "Artist", 260_000),
+	)
+	if err != nil {
+		t.Fatalf("resolve track-1 error = %v, want success", err)
+	}
+	if resolved.VideoID != "aaaaaaaaaaa" {
+		t.Fatalf("resolved videoID = %s, want aaaaaaaaaaa", resolved.VideoID)
 	}
 }
 
@@ -293,4 +348,34 @@ func videoInput(videoID string) model.UpsertPreferredVideo {
 
 func trackIdentity(title, artist string, durationMS int64) *model.TrackIdentity {
 	return &model.TrackIdentity{Title: title, Artist: artist, DurationMS: durationMS}
+}
+
+func TestRecentPagesAfterDeduplication(t *testing.T) {
+	store := openTestStore(t, filepath.Join(t.TempDir(), "videos.db"))
+	store.now = func() time.Time { return time.Date(2026, time.September, 21, 10, 0, 0, 0, time.UTC) }
+	for _, item := range []struct{ trackID, videoID string }{
+		{"track-1", "aaaaaaaaaaa"},
+		{"track-2", "aaaaaaaaaaa"},
+		{"track-3", "bbbbbbbbbbb"},
+		{"track-4", "ccccccccccc"},
+	} {
+		if _, err := store.Put(context.Background(), item.trackID, videoInput(item.videoID), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := store.Recent(context.Background(), 2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.Recent(context.Background(), 2, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 2 || len(second) != 1 || first[0].VideoID != "aaaaaaaaaaa" || first[1].VideoID != "bbbbbbbbbbb" || second[0].VideoID != "ccccccccccc" {
+		t.Fatalf("unexpected pages: %+v / %+v", first, second)
+	}
+	end, err := store.Recent(context.Background(), 2, 3)
+	if err != nil || len(end) != 0 {
+		t.Fatalf("end = %+v, error = %v", end, err)
+	}
 }

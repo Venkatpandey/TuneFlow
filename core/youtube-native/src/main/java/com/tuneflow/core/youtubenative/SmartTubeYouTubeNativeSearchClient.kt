@@ -23,7 +23,7 @@ class SmartTubeYouTubeNativeSearchClient(
     ): List<YouTubeNativeSearchResult> =
         withContext(Dispatchers.IO) {
             val query = buildSmartTubeVideoSearchQuery(artist, title)
-            val options = SearchOptions.TYPE_VIDEO or SearchOptions.SORT_BY_VIEW_COUNT
+            val options = SearchOptions.TYPE_VIDEO or SearchOptions.SORT_BY_RELEVANCE
             val contentService = YouTubeServiceManager.instance().contentService
             val groups =
                 collectSmartTubeSearchGroups(
@@ -141,8 +141,14 @@ internal fun mapSmartTubeFields(
     val mappedVideoId = videoId?.takeIf(String::isNotBlank) ?: return null
     val mappedTitle = title?.takeIf(String::isNotBlank) ?: return null
     val details = secondTitle.orEmpty().split(DETAIL_SEPARATOR).map(String::trim).filter(String::isNotBlank)
-    val channel = details.firstOrNull().orEmpty().ifBlank { author.orEmpty() }
     val viewCount = details.firstNotNullOfOrNull(::parseYouTubeViewCount) ?: 0L
+    val candidateChannel =
+        details.firstOrNull { detail ->
+            parseYouTubeViewCount(detail) == null && !isDateOrTimeAgo(detail)
+        }
+    val channel =
+        candidateChannel?.takeIf(String::isNotBlank)
+            ?: author?.takeIf(String::isNotBlank).orEmpty()
     return YouTubeNativeSearchResult(
         videoId = mappedVideoId,
         title = mappedTitle,
@@ -201,6 +207,31 @@ private val TRAILING_AUDIO_METADATA =
     Regex(
         """\s*[-–—]\s*(?:\d{4}\s*)?(?:remaster(?:ed)?|album version|single version|radio edit|explicit|clean|mono|stereo|bonus track|original mix).*$""",
         RegexOption.IGNORE_CASE,
+    )
+
+private fun isDateOrTimeAgo(text: String): Boolean {
+    val lower = text.lowercase(Locale.ROOT)
+    return DATE_TIME_MARKERS.any(lower::contains) || Regex("""\b(19|20)\d{2}\b""").containsMatchIn(lower)
+}
+
+private val DATE_TIME_MARKERS =
+    listOf(
+        "ago",
+        "vor",
+        "year",
+        "month",
+        "week",
+        "day",
+        "hour",
+        "minute",
+        "sec",
+        "yr",
+        "mo",
+        "wk",
+        "hr",
+        "min",
+        "il y a",
+        "hace",
     )
 private val VIEW_MARKERS = listOf("view", "aufruf", "vue", "visualiz", "watched")
 private val THOUSAND_MARKERS = listOf("k view", "k aufruf", "tsd")

@@ -69,6 +69,52 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun videoHistoryPaginatesByTenAndSupportsLoadMore() =
+        runTest(dispatcher) {
+            val client = PagedHomeClient()
+            val videos =
+                (1..25).map {
+                    VideoHistoryEntry(
+                        trackId = "track-$it",
+                        provider = "youtube",
+                        videoId = "video${it.toString().padStart(6, '0')}",
+                        title = "Video $it",
+                        publisher = "Publisher",
+                        thumbnailUrl = null,
+                        durationMs = 180_000L,
+                        viewCount = 100L,
+                        mappingUpdatedAt = "2026-09-01T00:00:00Z",
+                        lastPlayedAt = "2026-09-01T00:00:00Z",
+                    )
+                }
+            val store = PopulatedPreferredVideoStore(videos)
+            val viewModel = HomeViewModel(browseRepository(client), store)
+            runCurrent()
+
+            assertEquals(25, viewModel.uiState.value.videoHistory.size)
+            assertEquals(10, viewModel.uiState.value.visibleVideoHistory.size)
+            assertTrue(viewModel.uiState.value.hasMoreVideoHistory)
+
+            viewModel.loadMoreVideoHistory()
+            runCurrent()
+
+            assertEquals(20, viewModel.uiState.value.visibleVideoHistory.size)
+            assertTrue(viewModel.uiState.value.hasMoreVideoHistory)
+
+            viewModel.loadMoreVideoHistory()
+            runCurrent()
+
+            assertEquals(25, viewModel.uiState.value.visibleVideoHistory.size)
+            assertFalse(viewModel.uiState.value.hasMoreVideoHistory)
+
+            viewModel.refresh()
+            runCurrent()
+
+            assertEquals(10, viewModel.uiState.value.visibleVideoHistory.size)
+            assertTrue(viewModel.uiState.value.hasMoreVideoHistory)
+        }
+
+    @Test
     fun homeDoesNotFetchOffscreenRails() =
         runTest(dispatcher) {
             val client = PagedHomeClient()
@@ -285,4 +331,23 @@ private class SlowPreferredVideoStore : PreferredVideoStore {
         delay(10_000L)
         return false
     }
+}
+
+private class PopulatedPreferredVideoStore(
+    entries: List<VideoHistoryEntry>,
+) : PreferredVideoStore {
+    override val history: StateFlow<List<VideoHistoryEntry>> = MutableStateFlow(entries)
+
+    override suspend fun lookup(track: PreferredVideoTrack) = PreferredVideoLookupResult.Missing
+
+    override suspend fun savePreferredVideo(
+        track: PreferredVideoTrack,
+        candidate: VideoCandidate,
+    ) = true
+
+    override suspend fun markPlayed(trackId: String) = true
+
+    override suspend fun deletePreferredVideo(trackId: String) = true
+
+    override suspend fun refreshHistory(limit: Int) = true
 }

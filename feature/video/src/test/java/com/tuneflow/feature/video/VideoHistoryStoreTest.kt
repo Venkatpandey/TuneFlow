@@ -31,7 +31,7 @@ class VideoHistoryStoreTest {
         }
 
     @Test
-    fun historyRequestsUpToOneHundredVideos() =
+    fun historyStartsWithBoundedPageWhenLimitIsZero() =
         runTest {
             MockWebServer().use { server ->
                 server.enqueue(
@@ -42,25 +42,27 @@ class VideoHistoryStoreTest {
                 val store = RemotePreferredVideoStore(server.url("/").toString())
 
                 assertTrue(store.refreshHistory())
-                assertEquals("/v1/videos/recent?limit=100", server.takeRequest().path)
+                assertEquals("/v1/videos/recent?limit=100&offset=0", server.takeRequest().path)
             }
         }
 
     @Test
-    fun repeatedTrackMovesToFrontWithoutDuplication() {
+    fun repeatedVideoMovesToFrontWithoutDuplicationEvenForDifferentTracks() {
         val first = historyEntry("track-1", "aaaaaaaaaaa", "2026-09-01T10:00:00Z")
         val second = historyEntry("track-2", "bbbbbbbbbbb", "2026-09-01T11:00:00Z")
 
-        val updated = updatedRemoteHistory(listOf(first, second), first.copy(lastPlayedAt = "2026-09-01T12:00:00Z"))
+        // Another track with same videoId "aaaaaaaaaaa"
+        val updated = updatedRemoteHistory(listOf(first, second), historyEntry("track-3", "aaaaaaaaaaa", "2026-09-01T12:00:00Z"))
 
-        assertEquals(listOf("track-1", "track-2"), updated.map(VideoHistoryEntry::trackId))
+        assertEquals(listOf("aaaaaaaaaaa", "bbbbbbbbbbb"), updated.map(VideoHistoryEntry::videoId))
+        assertEquals("track-3", updated.first().trackId)
         assertEquals("2026-09-01T12:00:00Z", updated.first().lastPlayedAt)
     }
 
     @Test
-    fun inMemoryHistoryKeepsOnlyOneHundredNewestMappings() {
+    fun inMemoryHistoryKeepsAllUniqueVideosWithoutOneHundredCap() {
         val existing =
-            (0 until VIDEO_HISTORY_LIMIT).map {
+            (0 until 100).map {
                 historyEntry("track-$it", "video${it.toString().padStart(6, '0')}", "2026-09-01T10:00:00Z")
             }
 
@@ -70,9 +72,9 @@ class VideoHistoryStoreTest {
                 historyEntry("new", "newvideo001", "2026-09-01T12:00:00Z"),
             )
 
-        assertEquals(100, updated.size)
+        assertEquals(101, updated.size)
         assertEquals("new", updated.first().trackId)
-        assertEquals("track-98", updated.last().trackId)
+        assertEquals("track-99", updated.last().trackId)
     }
 
     @Test
@@ -159,6 +161,34 @@ class VideoHistoryStoreTest {
                 assertTrue(request.body.readUtf8().contains("\"videoId\":\"aaaaaaaaaaa\""))
             }
         }
+
+    @Test
+    fun lookupReturnsCachedHistoryEntryWithoutNetworkRequest() =
+        runTest {
+            MockWebServer().use { server ->
+                server.enqueue(MockResponse().setResponseCode(200).setBody(videoEnvelope("track-1", "aaaaaaaaaaa")))
+                val store = RemotePreferredVideoStore(server.url("/").toString())
+                store.savePreferredVideo(preferredTrack("track-1"), candidate("aaaaaaaaaaa"))
+                server.takeRequest() // consume the PUT request
+
+                val result = store.lookup(preferredTrack("track-1"))
+                assertTrue(result is PreferredVideoLookupResult.Found)
+                assertEquals("aaaaaaaaaaa", (result as PreferredVideoLookupResult.Found).video.videoId)
+                assertEquals(1, server.requestCount) // only the initial PUT request
+            }
+        }
+
+    @Test
+    fun replacingTrackMappingRemovesOldVideoAndKeepsQueueIdsUnique() {
+        val old = historyEntry("track-1", "aaaaaaaaaaa", "2026-09-01T10:00:00Z")
+        val other = historyEntry("track-2", "ccccccccccc", "2026-09-01T10:00:00Z")
+        val replacement = historyEntry("track-1", "bbbbbbbbbbb", "2026-09-01T11:00:00Z")
+
+        val updated = updatedRemoteHistory(listOf(old, other), replacement)
+
+        assertEquals(listOf(replacement, other), updated)
+        assertEquals(updated.size, updated.map(VideoHistoryEntry::trackId).distinct().size)
+    }
 
     private fun historyEntry(
         trackId: String,

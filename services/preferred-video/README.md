@@ -101,7 +101,18 @@ All JSON responses include `"apiVersion":"v1"`.
 - `PUT /v1/tracks/{trackId}/preferred-video`
 - `DELETE /v1/tracks/{trackId}/preferred-video`
 - `POST /v1/tracks/{trackId}/preferred-video/played`
-- `GET /v1/videos/recent?limit=5` (`limit` capped at 100)
+- `GET /v1/videos/recent?limit=100&offset=0` (`limit` capped at 10,000)
+
+Recent videos are unique by video ID and ordered by latest playback, then video
+ID. A positive `limit` selects a page; `offset` counts unique videos to skip.
+When another page exists, the response includes `nextOffset`. Pass that value
+as the next request's `offset`, keeping the same `limit`. The final page omits
+`nextOffset`. Omitting `limit` or passing zero retains the legacy unlimited
+response.
+
+TuneFlow fetches 100 videos per request and keeps the previous history if a page
+fails. Deploy the updated service before the APK to load the full history:
+older services omit `nextOffset`, so the app displays only their first page.
 
 `GET` and `PUT` preferred-video requests may include `trackTitle`, `trackArtist`,
 and `trackDurationMs` together. The service still prefers the exact Navidrome

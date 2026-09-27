@@ -123,6 +123,8 @@ interface YouTubeNativePlayer {
 
     fun createView(context: Context): View
 
+    fun disposeView(view: View) = Unit
+
     fun prepare(videoId: String)
 
     fun play()

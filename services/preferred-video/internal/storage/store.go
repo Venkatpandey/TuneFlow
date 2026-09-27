@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -21,7 +22,7 @@ import (
 
 var ErrNotFound = errors.New("preferred video not found")
 
-const trackDurationToleranceMS int64 = 10_000
+const trackDurationToleranceMS int64 = 30_000
 
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
@@ -161,17 +162,14 @@ func (s *Store) Resolve(
 	identityKey, hasIdentity := canonicalTrackIdentity(identity)
 	if err == nil {
 		if hasIdentity {
-			if err := s.rememberTrackIdentity(ctx, trackID, identityKey, *identity); err != nil {
-				return model.PreferredVideo{}, err
-			}
+			_ = s.rememberTrackIdentity(ctx, trackID, identityKey, *identity)
 			latest, err := s.getByTrackIdentity(ctx, identityKey, identity.DurationMS)
-			if err != nil {
-				return model.PreferredVideo{}, err
+			if err == nil {
+				_ = s.synchronizeTrackIdentity(ctx, identityKey, identity.DurationMS, latest)
+				if updated, err := s.Get(ctx, trackID); err == nil {
+					return updated, nil
+				}
 			}
-			if err := s.synchronizeTrackIdentity(ctx, identityKey, identity.DurationMS, latest); err != nil {
-				return model.PreferredVideo{}, err
-			}
-			return s.Get(ctx, trackID)
 		}
 		return video, nil
 	}
@@ -358,19 +356,26 @@ func (s *Store) MarkPlayed(ctx context.Context, trackID string) (model.Preferred
 	return s.Get(ctx, trackID)
 }
 
-func (s *Store) Recent(ctx context.Context, limit int) ([]model.PreferredVideo, error) {
-	rows, err := s.db.QueryContext(ctx, `
+func (s *Store) Recent(ctx context.Context, limit, offset int) ([]model.PreferredVideo, error) {
+	query := `
 		SELECT track_id, provider, video_id, title, publisher, thumbnail_url,
-		       duration_ms, view_count, mapping_updated_at, last_played_at
+		       duration_ms, view_count, mapping_updated_at, MAX(last_played_at) AS last_played_at
 		FROM preferred_videos
-		ORDER BY last_played_at DESC, track_id ASC
-		LIMIT ?`, limit)
+		GROUP BY video_id
+		ORDER BY MAX(last_played_at) DESC, video_id ASC`
+	var rows *sql.Rows
+	var err error
+	if limit <= 0 {
+		limit = -1
+	}
+	query += " LIMIT ? OFFSET ?"
+	rows, err = s.db.QueryContext(ctx, query, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query recent videos: %w", err)
 	}
 	defer rows.Close()
 
-	videos := make([]model.PreferredVideo, 0, limit)
+	videos := make([]model.PreferredVideo, 0)
 	for rows.Next() {
 		video, err := scanVideo(rows)
 		if err != nil {
@@ -500,8 +505,16 @@ func canonicalTrackIdentity(identity *model.TrackIdentity) (string, bool) {
 	return hex.EncodeToString(digest[:]), true
 }
 
+var titleNoisePattern = regexp.MustCompile(`(?i)\s*[\(\[\{](?:feat\.?|ft\.?|featuring|remaster(?:ed)?(?:\s+\d+)?|live|official(?:\s+(?:video|audio|music\s+video))?|version|radio\s+edit|deluxe|bonus\s+track|mono|stereo)[^\)\]\}]*[\)\]\}]|\s*-\s*(?:remaster(?:ed)?(?:\s+\d+)?|live|radio\s+edit|mono|stereo).*$`)
+
 func normalizeIdentityPart(value string) string {
-	return strings.ToLower(strings.Join(strings.Fields(value), " "))
+	val := strings.ToLower(value)
+	val = strings.ReplaceAll(val, "’", "'")
+	val = strings.ReplaceAll(val, "‘", "'")
+	val = strings.ReplaceAll(val, "“", "\"")
+	val = strings.ReplaceAll(val, "”", "\"")
+	val = titleNoisePattern.ReplaceAllString(val, "")
+	return strings.TrimSpace(strings.Join(strings.Fields(val), " "))
 }
 
 func durationRange(durationMS int64) (int64, int64) {

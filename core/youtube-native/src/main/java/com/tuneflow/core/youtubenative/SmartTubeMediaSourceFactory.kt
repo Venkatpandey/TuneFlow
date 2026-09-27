@@ -14,6 +14,7 @@ import com.google.android.exoplayer2.source.sabr.SabrMediaSource
 import com.google.android.exoplayer2.source.sabr.manifest.SabrManifestParser
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory
+import com.liskovsoft.googlecommon.common.helpers.DefaultHeaders
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItemFormatInfo
 
 internal class SmartTubeMediaSourceFactory(context: Context) {
@@ -21,7 +22,7 @@ internal class SmartTubeMediaSourceFactory(context: Context) {
         DefaultDataSourceFactory(
             context.applicationContext,
             null,
-            DefaultHttpDataSourceFactory(USER_AGENT, null, CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, true),
+            DefaultHttpDataSourceFactory(DefaultHeaders.APP_USER_AGENT, null, CONNECT_TIMEOUT_MS, READ_TIMEOUT_MS, true),
         )
 
     fun create(resolved: ResolvedYouTubeVideo): MediaSource =
@@ -51,6 +52,5 @@ internal class SmartTubeMediaSourceFactory(context: Context) {
         const val MAX_SEGMENTS_PER_LOAD = 1
         const val CONNECT_TIMEOUT_MS = 15_000
         const val READ_TIMEOUT_MS = 20_000
-        const val USER_AGENT = "Mozilla/5.0 (Linux; Android TV) AppleWebKit/537.36 Chrome/120 Safari/537.36"
     }
 }
