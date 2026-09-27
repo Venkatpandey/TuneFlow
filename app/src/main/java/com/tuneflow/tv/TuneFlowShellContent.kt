@@ -67,6 +67,10 @@ internal fun ShellContent(
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     onPlayPlaylistTracks: (String, String, List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShufflePlaylistTracks: (String, String, List<com.tuneflow.core.network.TrackSummary>) -> Unit,
+    /** Add a single track (or list) immediately after the currently playing item. */
+    onAddTracksToQueueNext: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
+    /** Append a single track (or list) at the end of the queue. */
+    onAddTracksToQueueEnd: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
 ) {
@@ -158,6 +162,8 @@ internal fun ShellContent(
                     onOpenAlbum = onOpenAlbum,
                     onOpenPlaylist = onOpenPlaylist,
                     onPlayTracks = onPlayTracks,
+                    onAddToQueueEnd = { track -> onAddTracksToQueueEnd(listOf(track)) },
+                    onAddToQueueNext = { track -> onAddTracksToQueueNext(listOf(track)) },
                 )
             }
             ShellDestination.Albums -> {
@@ -192,6 +198,8 @@ internal fun ShellContent(
                     onOpenArtist = onOpenArtist,
                     onOpenAlbum = onOpenAlbum,
                     onPlayTracks = onPlayTracks,
+                    onAddToQueueEnd = { track -> onAddTracksToQueueEnd(listOf(track)) },
+                    onAddToQueueNext = { track -> onAddTracksToQueueNext(listOf(track)) },
                 )
             }
         }

@@ -273,9 +273,10 @@ fun NowPlayingScreen(
                 when (activePanel) {
                     NowPlayingPanel.TrackList ->
                         QueuePanel(
-                            title = "Track List",
+                            title = "Queue",
                             playlistName = state.queue.sourcePlaylistName,
                             state = state,
+                            viewModel = viewModel,
                             onSelectTrack = videoViewModel::playFromIndex,
                             favoriteStates = favoriteStates,
                             onToggleFavorite = { trackId -> scope.launch { favoriteStore.toggle(trackId) } },
@@ -464,6 +465,7 @@ private fun QueuePanel(
     title: String,
     playlistName: String?,
     state: NowPlayingUiState,
+    viewModel: PlaybackViewModel,
     onSelectTrack: (Int) -> Unit,
     favoriteStates: Map<String, TrackFavoriteState>,
     onToggleFavorite: (String) -> Unit,
@@ -472,9 +474,12 @@ private fun QueuePanel(
     initialFocusIndex: Int,
     preferredExitTarget: QueueExitTarget,
 ) {
+    val queueToast by viewModel.queueToast.collectAsStateWithLifecycle()
     val initialItemFocusRequester = remember { FocusRequester() }
     val queueListState = rememberLazyListState()
     val currentIndex = state.queue.currentIndex
+    val upNextStartIndex = state.queue.upNextStartIndex
+    val hasUpcoming = currentIndex < state.queue.items.lastIndex
     val initialItemIndex =
         resolveQueuePanelFocusIndex(
             previousFocusedIndex = initialFocusIndex,
@@ -491,58 +496,119 @@ private fun QueuePanel(
         }
     }
 
-    Column(
+    Box(
         modifier =
             Modifier
                 .width(312.dp)
-                .fillMaxHeight()
-                .clip(TuneFlowShapes.panel)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.76f))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
-                    shape = TuneFlowShapes.panel,
-                )
-                .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+                .fillMaxHeight(),
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        playlistName?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        LazyColumn(
-            state = queueListState,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .clip(TuneFlowShapes.panel)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.76f))
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
+                        shape = TuneFlowShapes.panel,
+                    )
+                    .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            itemsIndexed(state.queue.items, key = { _, track -> track.id }) { index, track ->
-                QueueRow(
-                    trackId = track.id,
-                    title = track.title,
-                    subtitle = track.artist,
-                    isCurrent = index == currentIndex,
-                    showDivider = index != state.queue.items.lastIndex,
-                    favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
-                    onClick = { onSelectTrack(index) },
-                    onToggleFavorite = { onToggleFavorite(track.id) },
-                    onExitLeft = { onQueueExit(preferredExitTarget) },
-                    onFocused = { onFocusedIndexChanged(index) },
-                    externalRowFocusRequester = initialItemFocusRequester.takeIf { index == initialItemIndex },
-                    modifier =
-                        Modifier
-                            .boundaryLockedVerticalItem(
-                                index = index,
-                                lastIndex = state.queue.items.lastIndex,
-                            ),
+            // Title: "Playing from" or "Queue"
+            val panelTitle = if (playlistName != null) "Playing from" else title
+            Text(
+                text = panelTitle,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            playlistName?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            LazyColumn(
+                state = queueListState,
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                itemsIndexed(state.queue.items, key = { _, track -> track.id }) { index, track ->
+                    // "Up Next" section header before the first user-enqueued item
+                    if (index == upNextStartIndex) {
+                        Text(
+                            text = "Up Next",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+                        )
+                    }
+                    QueueRow(
+                        trackId = track.id,
+                        title = track.title,
+                        subtitle = track.artist,
+                        isCurrent = index == currentIndex,
+                        isUpcoming = index > currentIndex,
+                        showDivider = index != state.queue.items.lastIndex,
+                        favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
+                        onClick = { onSelectTrack(index) },
+                        onToggleFavorite = { onToggleFavorite(track.id) },
+                        onExitLeft = { onQueueExit(preferredExitTarget) },
+                        onFocused = { onFocusedIndexChanged(index) },
+                        onRemove = { viewModel.removeFromQueue(index) },
+                        onMoveUp =
+                            if (index > currentIndex + 1) {
+                                { viewModel.moveInQueue(index, index - 1) }
+                            } else {
+                                null
+                            },
+                        onMoveDown =
+                            if (index > currentIndex && index < state.queue.items.lastIndex) {
+                                { viewModel.moveInQueue(index, index + 1) }
+                            } else {
+                                null
+                            },
+                        externalRowFocusRequester = initialItemFocusRequester.takeIf { index == initialItemIndex },
+                        modifier =
+                            Modifier
+                                .boundaryLockedVerticalItem(
+                                    index = index,
+                                    lastIndex = state.queue.items.lastIndex,
+                                ),
+                    )
+                }
+            }
+            // "Clear Up Next" button — only visible when there are items after current
+            if (hasUpcoming) {
+                PlaybackTextButton(
+                    label = "Clear Up Next",
+                    compact = true,
+                    onClick = viewModel::clearUpcoming,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        // Non-modal toast overlay anchored at the bottom of the panel
+        queueToast?.let { message ->
+            androidx.compose.material3.Surface(
+                shape = TuneFlowShapes.panel,
+                color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.92f),
+                tonalElevation = 4.dp,
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 16.dp),
+            ) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                 )
             }
         }
@@ -550,116 +616,202 @@ private fun QueuePanel(
 }
 
 @Composable
-@Suppress("CyclomaticComplexMethod")
+@Suppress("CyclomaticComplexMethod", "LongParameterList")
 private fun QueueRow(
     trackId: String,
     title: String,
     subtitle: String,
     isCurrent: Boolean,
+    isUpcoming: Boolean,
     showDivider: Boolean,
     favoriteState: TrackFavoriteState,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
     onExitLeft: () -> Unit,
     onFocused: () -> Unit,
+    onRemove: () -> Unit,
+    onMoveUp: (() -> Unit)?,
+    onMoveDown: (() -> Unit)?,
     externalRowFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     val rowFocusRequester = remember(trackId) { FocusRequester() }
     val favoriteFocusRequester = remember(trackId) { FocusRequester() }
+    var showActionMenu by remember(trackId) { mutableStateOf(false) }
 
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TuneFlowTrackRow(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .focusRequester(rowFocusRequester)
-                    .then(externalRowFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
-                    .onPreviewKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        when (event.nativeKeyEvent.keyCode) {
-                            AndroidKeyEvent.KEYCODE_DPAD_LEFT -> {
-                                onExitLeft()
-                                true
-                            }
-                            AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
-                                if (
-                                    trackRowFocusDestination(
-                                        TrackRowFocusTarget.RowBody,
-                                        HorizontalFocusDirection.Right,
-                                    ) == TrackRowFocusTarget.FavoriteButton
-                                ) {
-                                    favoriteFocusRequester.requestFocus()
-                                    true
-                                } else {
-                                    false
-                                }
-                            }
-                            else -> false
-                        }
-                    },
-            selected = isCurrent,
-            showDivider = showDivider,
-            onFocusedChange = { if (it) onFocused() },
-            onClick = onClick,
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (isCurrent) {
-                Image(
-                    painter = painterResource(id = R.drawable.currently_playing),
-                    contentDescription = "Currently playing",
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.size(18.dp),
-                    contentScale = ContentScale.Fit,
-                )
-            } else {
-                Spacer(modifier = Modifier.size(18.dp))
+            TuneFlowTrackRow(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .focusRequester(rowFocusRequester)
+                        .then(externalRowFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when (event.nativeKeyEvent.keyCode) {
+                                AndroidKeyEvent.KEYCODE_DPAD_LEFT -> {
+                                    if (showActionMenu) {
+                                        showActionMenu = false
+                                        true
+                                    } else {
+                                        onExitLeft()
+                                        true
+                                    }
+                                }
+                                AndroidKeyEvent.KEYCODE_DPAD_CENTER, AndroidKeyEvent.KEYCODE_ENTER -> {
+                                    // Open action menu for upcoming (non-current) items
+                                    if (isUpcoming && !isCurrent) {
+                                        showActionMenu = !showActionMenu
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                    if (showActionMenu) {
+                                        showActionMenu = false
+                                    }
+                                    if (
+                                        trackRowFocusDestination(
+                                            TrackRowFocusTarget.RowBody,
+                                            HorizontalFocusDirection.Right,
+                                        ) == TrackRowFocusTarget.FavoriteButton
+                                    ) {
+                                        favoriteFocusRequester.requestFocus()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                AndroidKeyEvent.KEYCODE_BACK -> {
+                                    if (showActionMenu) {
+                                        showActionMenu = false
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                else -> false
+                            }
+                        },
+                selected = isCurrent,
+                showDivider = showDivider,
+                onFocusedChange = { if (it) onFocused() },
+                onClick = {
+                    if (showActionMenu) {
+                        showActionMenu = false
+                    } else {
+                        onClick()
+                    }
+                },
+            ) {
+                if (isCurrent) {
+                    Image(
+                        painter = painterResource(id = R.drawable.currently_playing),
+                        contentDescription = "Currently playing",
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.size(18.dp),
+                        contentScale = ContentScale.Fit,
+                    )
+                } else {
+                    Spacer(modifier = Modifier.size(18.dp))
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+            TrackFavoriteButton(
+                isFavorite = favoriteState.isFavorite,
+                isPending = favoriteState.isPending,
+                onClick = onToggleFavorite,
+                modifier =
+                    Modifier
+                        .focusRequester(favoriteFocusRequester)
+                        .onFocusChanged { if (it.hasFocus) onFocused() }
+                        .onPreviewKeyEvent { event ->
+                            if (
+                                event.type == KeyEventType.KeyDown &&
+                                event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT &&
+                                trackRowFocusDestination(
+                                    TrackRowFocusTarget.FavoriteButton,
+                                    HorizontalFocusDirection.Left,
+                                ) == TrackRowFocusTarget.RowBody
+                            ) {
+                                rowFocusRequester.requestFocus()
+                                true
+                            } else {
+                                false
+                            }
+                        },
+            )
+        }
+
+        // Action menu — shown when DPAD_CENTER is pressed on an upcoming row
+        if (showActionMenu && isUpcoming && !isCurrent) {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 28.dp, top = 4.dp)
+                        .clip(TuneFlowShapes.panel)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f))
+                        .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (onMoveUp != null) {
+                    PlaybackTextButton(
+                        label = "Move Up",
+                        compact = true,
+                        onClick = {
+                            onMoveUp()
+                            showActionMenu = false
+                            rowFocusRequester.requestFocus()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (onMoveDown != null) {
+                    PlaybackTextButton(
+                        label = "Move Down",
+                        compact = true,
+                        onClick = {
+                            onMoveDown()
+                            showActionMenu = false
+                            rowFocusRequester.requestFocus()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                PlaybackTextButton(
+                    label = "Remove",
+                    compact = true,
+                    onClick = {
+                        showActionMenu = false
+                        onRemove()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         }
-        TrackFavoriteButton(
-            isFavorite = favoriteState.isFavorite,
-            isPending = favoriteState.isPending,
-            onClick = onToggleFavorite,
-            modifier =
-                Modifier
-                    .focusRequester(favoriteFocusRequester)
-                    .onFocusChanged { if (it.hasFocus) onFocused() }
-                    .onPreviewKeyEvent { event ->
-                        if (
-                            event.type == KeyEventType.KeyDown &&
-                            event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_LEFT &&
-                            trackRowFocusDestination(
-                                TrackRowFocusTarget.FavoriteButton,
-                                HorizontalFocusDirection.Left,
-                            ) == TrackRowFocusTarget.RowBody
-                        ) {
-                            rowFocusRequester.requestFocus()
-                            true
-                        } else {
-                            false
-                        }
-                    },
-        )
     }
 }
 

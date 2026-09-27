@@ -1260,6 +1260,29 @@ private class VideoViewModelFakeAudio(
 
     override fun cyclePlaybackMode() = Unit
 
+    override fun addToQueueNext(items: List<QueueItem>) {
+        queueState.value = queueState.value.insertNext(items)
+    }
+
+    override fun addToQueueEnd(items: List<QueueItem>) {
+        queueState.value = queueState.value.appendItems(items)
+    }
+
+    override fun removeFromQueue(index: Int) {
+        queueState.value = queueState.value.removeAt(index)
+    }
+
+    override fun moveInQueue(
+        from: Int,
+        to: Int,
+    ) {
+        queueState.value = queueState.value.moveItem(from, to)
+    }
+
+    override fun clearUpcoming() {
+        queueState.value = queueState.value.clearUpcoming()
+    }
+
     fun replaceTrack(id: String) {
         queueState.value = queueFor(id)
     }

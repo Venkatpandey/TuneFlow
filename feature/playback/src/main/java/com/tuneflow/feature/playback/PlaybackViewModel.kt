@@ -7,6 +7,7 @@ import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.PlaybackPhase
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.PlaybackStatus
+import com.tuneflow.core.player.QueueItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -130,6 +131,51 @@ class PlaybackViewModel(
     fun retry() = playerManager.retryCurrent()
 
     fun cyclePlaybackMode() = playerManager.cyclePlaybackMode()
+
+    // ── Queue mutation actions ────────────────────────────────────────────────
+
+    private val _queueToast = MutableStateFlow<String?>(null)
+
+    /** Short-lived non-modal announcement after a queue mutation (auto-clears after 3 s). */
+    val queueToast: StateFlow<String?> = _queueToast.asStateFlow()
+
+    fun addToQueueNext(items: List<QueueItem>) {
+        if (items.isEmpty()) return
+        playerManager.addToQueueNext(items)
+        showQueueToast("Added to Up Next")
+    }
+
+    fun addToQueueEnd(items: List<QueueItem>) {
+        if (items.isEmpty()) return
+        playerManager.addToQueueEnd(items)
+        showQueueToast(if (items.size == 1) "Added to queue" else "Added ${items.size} tracks to queue")
+    }
+
+    fun removeFromQueue(index: Int) {
+        playerManager.removeFromQueue(index)
+        showQueueToast("Removed from queue")
+    }
+
+    fun moveInQueue(
+        from: Int,
+        to: Int,
+    ) {
+        playerManager.moveInQueue(from, to)
+    }
+
+    fun clearUpcoming() {
+        playerManager.clearUpcoming()
+        showQueueToast("Up Next cleared")
+    }
+
+    private fun showQueueToast(message: String) {
+        val scope = scopeOverride ?: viewModelScope
+        scope.launch {
+            _queueToast.value = message
+            delay(3_000L)
+            _queueToast.compareAndSet(message, null)
+        }
+    }
 }
 
 private fun LyricsLoadResult.toUiState(trackId: String): LyricsUiState =
