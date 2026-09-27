@@ -802,6 +802,20 @@ private fun TuneFlowShell(
         sourcePlaylistName = sourcePlaylistName,
     )
 
+    fun addTracksToQueueNext(tracks: List<com.tuneflow.core.network.TrackSummary>) {
+        scope.launch {
+            val queueItems = buildQueueItems(tracks, browseRepository, preferDirectWithFallback)
+            playbackViewModel.addToQueueNext(queueItems)
+        }
+    }
+
+    fun addTracksToQueueEnd(tracks: List<com.tuneflow.core.network.TrackSummary>) {
+        scope.launch {
+            val queueItems = buildQueueItems(tracks, browseRepository, preferDirectWithFallback)
+            playbackViewModel.addToQueueEnd(queueItems)
+        }
+    }
+
     fun playVideoHistory(entry: VideoHistoryEntry) {
         scope.launch {
             val history = preferredVideoStore.history.value.ifEmpty { listOf(entry) }
@@ -954,6 +968,8 @@ private fun TuneFlowShell(
         onShufflePlaylistTracks = { playlistId, playlistName, tracks ->
             shuffleTracks(tracks, playlistId, playlistName)
         },
+        onAddTracksToQueueNext = ::addTracksToQueueNext,
+        onAddTracksToQueueEnd = ::addTracksToQueueEnd,
         preferredVideoServiceUrl = preferredVideoServiceUrl,
         onPreferredVideoServiceUrlChanged = { serviceUrl ->
             onPreferredVideoServiceUrlChanged(serviceUrl)

@@ -40,4 +40,36 @@ interface PlaybackController {
     fun durationMs(): Long
 
     fun cyclePlaybackMode()
+
+    /**
+     * Inserts [items] immediately after the current item without interrupting playback.
+     * Has no effect if the queue is empty.
+     */
+    fun addToQueueNext(items: List<QueueItem>)
+
+    /**
+     * Appends [items] at the end of the queue without interrupting playback.
+     */
+    fun addToQueueEnd(items: List<QueueItem>)
+
+    /**
+     * Removes the item at [index] from the queue without interrupting playback.
+     * Has no effect if [index] is the current item or out of bounds.
+     */
+    fun removeFromQueue(index: Int)
+
+    /**
+     * Moves the upcoming item at [from] to position [to] in the queue.
+     * Has no effect if either index is the current item or out of bounds.
+     */
+    fun moveInQueue(
+        from: Int,
+        to: Int,
+    )
+
+    /**
+     * Removes all items after the current item (clears upcoming items).
+     * Current item, position, and play state are unaffected.
+     */
+    fun clearUpcoming()
 }
