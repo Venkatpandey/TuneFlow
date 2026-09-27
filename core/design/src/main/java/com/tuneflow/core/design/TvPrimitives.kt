@@ -87,7 +87,7 @@ fun TuneFlowActionSurface(
         focusedScale = LocalTuneFlowMotion.current.buttonFocusScale,
         restingColor =
             if (accent) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.88f)
+                MaterialTheme.colorScheme.primary
             } else {
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.54f)
             },
@@ -95,7 +95,7 @@ fun TuneFlowActionSurface(
             if (accent) {
                 MaterialTheme.colorScheme.primary
             } else {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+                MaterialTheme.colorScheme.surfaceVariant
             },
         contentPadding = contentPadding,
         contentAlignment = contentAlignment,
@@ -113,7 +113,7 @@ private fun TuneFlowFocusableSurface(
     shape: Shape,
     focusedScale: Float,
     restingColor: Color,
-    focusedColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+    focusedColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     contentPadding: PaddingValues,
     contentAlignment: Alignment = Alignment.TopStart,
     onFocusedChange: (Boolean) -> Unit,
@@ -127,7 +127,7 @@ private fun TuneFlowFocusableSurface(
             targetValue =
                 when {
                     focused -> focusedColor
-                    selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                    selected -> MaterialTheme.colorScheme.primaryContainer
                     else -> restingColor
                 },
             animationSpec =
@@ -142,8 +142,8 @@ private fun TuneFlowFocusableSurface(
         animateColorAsState(
             targetValue =
                 when {
-                    focused -> MaterialTheme.colorScheme.primary
-                    selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.72f)
+                    focused -> MaterialTheme.colorScheme.onSurface
+                    selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
                     else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
                 },
             animationSpec =
@@ -206,8 +206,8 @@ fun TuneFlowTrackRow(
         animateColorAsState(
             targetValue =
                 when {
-                    focused -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                    selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                    focused -> MaterialTheme.colorScheme.surfaceVariant
+                    selected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
                     else -> Color.Transparent
                 },
             animationSpec =
@@ -242,6 +242,11 @@ fun TuneFlowTrackRow(
                 .height(height)
                 .clip(TuneFlowShapes.row)
                 .background(backgroundColor)
+                .border(
+                    width = 2.dp,
+                    color = if (focused) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                    shape = TuneFlowShapes.row,
+                )
                 .onFocusChanged {
                     focused = it.hasFocus
                     onFocusedChange(it.hasFocus)

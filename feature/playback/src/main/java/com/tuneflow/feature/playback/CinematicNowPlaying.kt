@@ -64,7 +64,7 @@ internal fun NowPlayingArtworkBackground(
                             Brush.radialGradient(
                                 colors =
                                     listOf(
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                        MaterialTheme.colorScheme.background.copy(alpha = 0.12f),
                                         Color.Transparent,
                                     ),
                             ),

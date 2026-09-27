@@ -19,30 +19,24 @@ TuneFlow is a native Android TV / Fire TV Navidrome client built for remote-firs
 
 ## Screenshots
 
+Charcoal and champagne theme, captured from TuneFlow Beta on Fire TV.
+
 <table>
   <tr>
-    <td><img src="docs/screenshots/home.png" alt="TuneFlow Home screen"></td>
-    <td><img src="docs/screenshots/albums.png" alt="TuneFlow Albums screen"></td>
+    <td><img src="docs/screenshots/albums.png" alt="TuneFlow album grid with an ivory focus border and champagne navigation accents"></td>
+    <td><img src="docs/screenshots/album-detail.png" alt="TuneFlow album detail with artwork, track list, and champagne playback buttons"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Home</sub></td>
     <td align="center"><sub>Albums</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/now-playing-video.png" alt="TuneFlow Now Playing screen with video"></td>
-    <td><img src="docs/screenshots/now-playing-lyrics.png" alt="TuneFlow Now Playing screen with synchronized lyrics"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Now Playing video</sub></td>
-    <td align="center"><sub>Now Playing with lyrics</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/album-detail.png" alt="TuneFlow album detail screen"></td>
-    <td><img src="docs/screenshots/search.png" alt="TuneFlow Search screen"></td>
-  </tr>
-  <tr>
     <td align="center"><sub>Album detail</sub></td>
-    <td align="center"><sub>Search</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/now-playing.png" alt="TuneFlow Now Playing screen with album artwork and focused playback controls"></td>
+    <td><img src="docs/screenshots/login.png" alt="TuneFlow sign-in screen with charcoal surfaces and a champagne login button"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Now Playing</sub></td>
+    <td align="center"><sub>Sign in</sub></td>
   </tr>
 </table>
 

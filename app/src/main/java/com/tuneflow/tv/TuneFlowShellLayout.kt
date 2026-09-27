@@ -36,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -46,7 +45,6 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
@@ -159,35 +157,13 @@ internal fun TuneFlowShellLayout(
                 }
                 .background(MaterialTheme.colorScheme.background),
     ) {
-        androidx.compose.foundation.Image(
-            painter = painterResource(id = R.drawable.login_background),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-            alpha = 0.16f,
-        )
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.radialGradient(
-                            colors =
-                                listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.96f),
-                                ),
-                        ),
-                    ),
-        )
-
         TuneFlowSafeArea {
             Box(
                 modifier =
                     Modifier
                         .fillMaxSize()
                         .clip(TuneFlowShapes.surface)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
                         .border(
                             width = 1.dp,
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
@@ -435,12 +411,7 @@ private fun NavRail(
                 .width(148.dp)
                 .fillMaxHeight()
                 .clip(TuneFlowShapes.container)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
-                    shape = TuneFlowShapes.container,
-                )
+                .background(MaterialTheme.colorScheme.background)
                 .padding(vertical = 20.dp, horizontal = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -503,7 +474,7 @@ private fun ProfileHeader(
                 .clip(TuneFlowShapes.row)
                 .background(
                     if (focused) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                        MaterialTheme.colorScheme.surfaceVariant
                     } else {
                         Color.Transparent
                     },
@@ -512,7 +483,7 @@ private fun ProfileHeader(
                     width = if (focused) 2.dp else 1.dp,
                     color =
                         if (focused) {
-                            MaterialTheme.colorScheme.primary
+                            MaterialTheme.colorScheme.onSurface
                         } else {
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
                         },
@@ -558,10 +529,10 @@ private fun ProfileHeader(
                 Modifier
                     .size(44.dp)
                     .clip(TuneFlowShapes.avatar)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(
                         1.dp,
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                        MaterialTheme.colorScheme.outlineVariant,
                         TuneFlowShapes.avatar,
                     ),
             contentAlignment = Alignment.Center,
@@ -582,7 +553,7 @@ private fun ProfileHeader(
             Text(
                 text = "v$appVersionName",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -682,18 +653,18 @@ internal fun NowPlayingRailWidget(
                 .clip(TuneFlowShapes.card)
                 .background(
                     if (active) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                        MaterialTheme.colorScheme.surfaceVariant
                     } else {
                         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
                     },
                 )
                 .border(
-                    width = if (active) 3.dp else 1.dp,
+                    width = if (focused) 2.dp else 1.dp,
                     color =
-                        if (active) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                        when {
+                            focused -> MaterialTheme.colorScheme.onSurface
+                            selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+                            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
                     shape = TuneFlowShapes.card,
                 )
