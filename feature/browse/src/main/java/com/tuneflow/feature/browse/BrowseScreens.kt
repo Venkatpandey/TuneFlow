@@ -67,7 +67,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -2116,6 +2116,7 @@ private fun CurrentlyPlayingIndicator() {
     Image(
         painter = painterResource(id = R.drawable.currently_playing),
         contentDescription = "Currently playing",
+        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
         modifier = Modifier.size(20.dp),
         contentScale = ContentScale.Fit,
     )
@@ -2289,6 +2290,7 @@ private fun BrowseActionIcon(
     Image(
         painter = painter,
         contentDescription = contentDescription,
+        colorFilter = ColorFilter.tint(androidx.compose.material3.LocalContentColor.current),
         modifier = modifier.size(iconSize),
     )
 }
@@ -2522,6 +2524,7 @@ private fun SearchResultsSkeleton() {
 
 @Composable
 private fun Modifier.shimmerEffect(): Modifier {
+    if (!LocalTuneFlowMotion.current.enabled) return background(MaterialTheme.colorScheme.surfaceVariant)
     val transition = rememberInfiniteTransition(label = "shimmer")
     val translateAnim by transition.animateFloat(
         initialValue = 0f,
@@ -2539,9 +2542,9 @@ private fun Modifier.shimmerEffect(): Modifier {
             Brush.linearGradient(
                 colors =
                     listOf(
-                        Color(0xFF141420),
-                        Color(0xFF1E1E2E),
-                        Color(0xFF141420),
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        MaterialTheme.colorScheme.surface,
                     ),
                 start = Offset(translateAnim - 500f, 0f),
                 end = Offset(translateAnim, 0f),

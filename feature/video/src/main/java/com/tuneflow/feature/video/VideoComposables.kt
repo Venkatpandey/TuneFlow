@@ -910,7 +910,7 @@ private fun VideoTextButton(
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = if (accent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -951,7 +951,7 @@ fun VideoControlIconButton(
             painter = painterResource(iconResId),
             contentDescription = contentDescription,
             modifier = Modifier.size(30.dp),
-            tint = MaterialTheme.colorScheme.onSurface,
+            tint = if (accent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
         )
     }
 }

@@ -611,6 +611,7 @@ private fun QueueRow(
                 Image(
                     painter = painterResource(id = R.drawable.currently_playing),
                     contentDescription = "Currently playing",
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary),
                     modifier = Modifier.size(18.dp),
                     contentScale = ContentScale.Fit,
                 )

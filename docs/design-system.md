@@ -185,60 +185,44 @@ All content must be inset from screen edges to account for TV overscan and bezel
 
 ## 3. Color System
 
-### 3.1 Full Color Palette
+### 3.1 Runtime Color Palette
 
-All colors are defined for **dark theme only**. TuneFlow does not support a light theme.
+The app uses charcoal surfaces, warm ivory text, and a champagne accent. Album artwork supplies the screen's broader colour. `app/src/main/java/com/tuneflow/tv/Theme.kt` defines all Material colour roles, including dialog containers and inverse surfaces, so default purple colours cannot bleed into the UI.
 
-#### Background Colors
-
-| Token | Hex | Usage |
+| Material role | Hex | Usage |
 |---|---|---|
-| `color.background` | `#0A0A0F` | Root screen background |
-| `color.surface` | `#141420` | Cards, sidebars, elevated surfaces |
-| `color.surfaceVariant` | `#1E1E2E` | Input fields, secondary surfaces |
-| `color.overlay` | `#000000CC` | Modal overlays (80% opacity) |
+| `background` | `#101211` | Root and navigation rail |
+| `surface` | `#191C1A` | Cards and panels |
+| `surfaceContainerLow` | `#151815` | Main content shell |
+| `surfaceVariant` | `#303530` | Focused surfaces and input fields |
+| `primary` | `#D8BE91` | Primary actions, progress and active indicators |
+| `onPrimary` | `#211B12` | Text and icons on champagne buttons |
+| `primaryContainer` | `#3B3224` | Selected surfaces |
+| `onSurface`, `onBackground` | `#F2F0EA` | Main text and shared focus borders |
+| `onSurfaceVariant` | `#B7BCB5` | Metadata and secondary labels |
+| `secondary` | `#C5BFB3` | Neutral secondary emphasis |
+| `tertiary` | `#AFBDAA` | Muted sage status accent |
+| `outline` | `#858C83` | Borders, with component-specific opacity |
+| `outlineVariant` | `#383E37` | Subtle separators |
+| `error` | `#F2AAA0` | Error text and indicators |
 
-#### Brand / Accent Colors
-
-| Token | Hex | Usage |
-|---|---|---|
-| `color.primary` | `#6C63FF` | Active focus border, primary buttons, progress bars |
-| `color.primaryVariant` | `#8B85FF` | Hover/pressed state of primary |
-| `color.secondary` | `#FF6584` | Badges, "Now Playing" indicator, error states |
-| `color.tertiary` | `#43E97B` | Success states, "Added to queue" confirmation |
-
-#### Text Colors
-
-| Token | Hex | Usage |
-|---|---|---|
-| `color.onBackground` | `#FFFFFF` | Primary text on background |
-| `color.onSurface` | `#F0F0FF` | Primary text on surface |
-| `color.textSecondary` | `#A0A0C0` | Subtitles, metadata, secondary labels |
-| `color.textDisabled` | `#505070` | Disabled labels, placeholder text |
-| `color.textOnPrimary` | `#FFFFFF` | Text on primary-colored buttons |
-
-#### State Colors
-
-| Token | Hex | Usage |
-|---|---|---|
-| `color.focusBorder` | `#6C63FF` | Focus ring border |
-| `color.focusGlow` | `#6C63FF40` | Focus glow shadow (25% opacity) |
-| `color.selected` | `#6C63FF1A` | Selected row/item background (10% opacity) |
-| `color.divider` | `#FFFFFF14` | Dividers, separators (8% opacity) |
-
----
+Keep the shell free of background images and accent washes. Use a dark horizontal scrim behind hero text, with 24dp content padding. Login uses a desaturated background. Loading placeholders use theme surfaces and remain static when system animations are disabled.
 
 ### 3.2 Contrast Requirements
 
-| Pair | Contrast Ratio | Requirement |
-|---|---|---|
-| `onBackground` on `background` | ≥ 15.8:1 | ✅ Exceeds WCAG AAA |
-| `textSecondary` on `background` | ≥ 5.2:1 | ✅ Meets WCAG AA |
-| `textDisabled` on `background` | ~2.5:1 | ⚠️ Intentionally low — disabled only |
-| `textOnPrimary` on `primary` | ≥ 4.5:1 | ✅ Meets WCAG AA |
-| `onSurface` on `surface` | ≥ 12:1 | ✅ Exceeds WCAG AAA |
+Measured opaque colour pairs:
 
-> **TV Rule:** Minimum contrast ratio for any readable text is **4.5:1**. For primary content (titles, track names), target **7:1+**.
+| Pair | Contrast ratio |
+|---|---|
+| `onPrimary` on `primary` | 9.51:1 |
+| `onSurface` on `surface` | 15.08:1 |
+| `onSurfaceVariant` on `surfaceVariant` | 6.48:1 |
+| `onPrimaryContainer` on `primaryContainer` | 9.31:1 |
+| `primary` on `background` | 10.47:1 |
+
+Use at least 4.5:1 for readable text. Check artwork overlays on-device because their contrast depends on the image.
+
+The branding/export examples later in this document describe the earlier purple asset set. Launcher assets retain those colours. In-app logo placeholders render in monochrome; the runtime palette above governs app surfaces and controls.
 
 ---
 
@@ -303,7 +287,7 @@ All colors are defined for **dark theme only**. TuneFlow does not support a ligh
 │  [Icon]  LABEL TEXT          │  Height: 52dp
 └──────────────────────────────┘  Padding: 24dp horizontal, 14dp vertical
                                   Corner radius: 8dp
-                                  Background: color.primary (#6C63FF)
+                                  Background: color.primary (#D8BE91)
                                   Text: typography.labelLarge, color.textOnPrimary
 ```
 
@@ -495,13 +479,9 @@ Persistent bar at the bottom of the screen (visible on all screens except Now Pl
 
 ### 6.1 Focus Visibility Rules
 
-Every focused element **must** have at least two of the following three indicators:
+Shared cards, buttons, and track rows use a 2dp ivory focus border (`#F2F0EA`). Neutral surfaces also brighten on focus. Compact buttons retain their existing 1.05× focus scale when motion is enabled; cards and rows do not scale.
 
-1. **Scale change:** 1.05× for compact buttons only (cards and rows: no scale)
-2. **Border:** 2dp solid `color.focusBorder` (#6C63FF)
-3. **Glow:** Drop shadow, 0dp offset, 12dp blur, `color.focusGlow` (#6C63FF40)
-
-> **Rule:** Color change alone is **never** sufficient for focus indication.
+Selected items use a champagne marker or muted warm fill. Keep selection visually distinct from the current remote focus. Use borders and surface changes without a glow shadow. Text fields retain champagne focus accents.
 
 ---
 
@@ -598,8 +578,8 @@ Screens are divided into focus regions. D-pad navigation stays within a region u
 | Playback buffering | Circular progress on play button | Loop until buffered |
 
 **Shimmer specification:**
-- Base color: `color.surface` (#141420)
-- Highlight color: `color.surfaceVariant` (#1E1E2E)
+- Base color: `color.surface` (#191C1A)
+- Highlight color: `color.surfaceVariant` (#303530)
 - Direction: Left to right
 - Duration: 1200ms per cycle
 - Easing: Linear
@@ -816,7 +796,7 @@ Track list: Same as Album Detail track list
 
 ### 10.1 Base Background
 
-- Root background: `color.background` (#0A0A0F) — near-black with a slight blue tint
+- Root background: `color.background` (#101211), neutral charcoal
 - Never use pure black (#000000) — it creates harsh contrast with OLED screens
 
 ### 10.2 Elevation System
@@ -825,9 +805,9 @@ TuneFlow uses a flat elevation model. Depth is conveyed through color, not shado
 
 | Level | Color | Usage |
 |---|---|---|
-| 0 (base) | `color.background` (#0A0A0F) | Screen background |
-| 1 (surface) | `color.surface` (#141420) | Cards, sidebar, mini bar |
-| 2 (raised) | `color.surfaceVariant` (#1E1E2E) | Input fields, chips, tooltips |
+| 0 (base) | `color.background` (#101211) | Screen background |
+| 1 (surface) | `color.surface` (#191C1A) | Cards, sidebar, mini bar |
+| 2 (raised) | `color.surfaceVariant` (#303530) | Input fields, chips, tooltips |
 | 3 (overlay) | `color.overlay` (#000000CC) | Modal backgrounds |
 
 > **Rule:** Do not use `elevation` or `shadow` on cards in the grid — it creates visual noise. Use color differentiation only.
@@ -840,7 +820,7 @@ Gradients are permitted only in these specific contexts:
 |---|---|---|
 | Card image bottom | `transparent → #000000AA` (vertical, bottom 40%) | Improve text legibility over art |
 | Now Playing background | Album art → blur + dark overlay | Immersive background |
-| Hero banner bottom | `transparent → color.background` (vertical, bottom 30%) | Blend into page background |
+| Hero banner | Dark horizontal scrim, strongest behind text | Keep titles readable while showing artwork |
 
 **Forbidden gradient uses:**
 - Decorative gradients on UI chrome (sidebar, headers, buttons)
@@ -983,27 +963,7 @@ object TuneFlowTheme {
 
 ### 13.2 Color Tokens
 
-```kotlin
-data class TuneFlowColors(
-    val background: Color = Color(0xFF0A0A0F),
-    val surface: Color = Color(0xFF141420),
-    val surfaceVariant: Color = Color(0xFF1E1E2E),
-    val overlay: Color = Color(0xCC000000),
-    val primary: Color = Color(0xFF6C63FF),
-    val primaryVariant: Color = Color(0xFF8B85FF),
-    val secondary: Color = Color(0xFFFF6584),
-    val tertiary: Color = Color(0xFF43E97B),
-    val onBackground: Color = Color(0xFFFFFFFF),
-    val onSurface: Color = Color(0xFFF0F0FF),
-    val textSecondary: Color = Color(0xFFA0A0C0),
-    val textDisabled: Color = Color(0xFF505070),
-    val textOnPrimary: Color = Color(0xFFFFFFFF),
-    val focusBorder: Color = Color(0xFF6C63FF),
-    val focusGlow: Color = Color(0x406C63FF),
-    val selected: Color = Color(0x1A6C63FF),
-    val divider: Color = Color(0x14FFFFFF),
-)
-```
+Use `MaterialTheme.colorScheme` in composables. The `TuneFlowDarkScheme` in `app/src/main/java/com/tuneflow/tv/Theme.kt` supplies the roles listed in section 3. Buttons with `primary` backgrounds must use `onPrimary` for both labels and icons. Use `onSurface` for shared focus borders and `primaryContainer` for selected surfaces.
 
 ### 13.3 Typography Tokens
 
@@ -1738,14 +1698,14 @@ Every approved asset package must include:
 | Sidebar width (expanded) | 240dp |
 | Focus scale (card) | None |
 | Focus scale (button) | 1.05× |
-| Focus border | 2dp #6C63FF |
-| Focus glow | 12dp blur #6C63FF40 |
+| Focus border | 2dp #F2F0EA |
+| Focus glow | None |
 | Focus gain duration | 150ms |
 | Focus loss duration | 100ms |
 | Screen transition | 250ms |
-| Primary color | #6C63FF |
-| Background | #0A0A0F |
-| Surface | #141420 |
+| Primary color | #D8BE91 |
+| Background | #101211 |
+| Surface | #191C1A |
 | Min body text | 14sp |
 | Min caption text | 12sp |
 | Logo min size (UI) | 40dp |

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -558,7 +559,7 @@ private fun HomeHero(
                 height = 246.dp,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
-                alpha = 0.28f,
+                alpha = 0.42f,
                 placeholderText = currentItem.title,
             )
         }
@@ -568,15 +569,15 @@ private fun HomeHero(
                 Modifier
                     .fillMaxSize()
                     .background(
-                        Brush.verticalGradient(
-                            0f to MaterialTheme.colorScheme.background.copy(alpha = 0.24f),
-                            1f to MaterialTheme.colorScheme.background.copy(alpha = 0.58f),
+                        Brush.horizontalGradient(
+                            0f to MaterialTheme.colorScheme.background.copy(alpha = 0.86f),
+                            1f to MaterialTheme.colorScheme.background.copy(alpha = 0.18f),
                         ),
                     ),
         )
 
         Row(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -590,7 +591,7 @@ private fun HomeHero(
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    text = currentItem?.title ?: "A TV-first Navidrome experience tuned for your remote.",
+                    text = currentItem?.title ?: "Make time for music.",
                     style = MaterialTheme.typography.displaySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
@@ -599,15 +600,15 @@ private fun HomeHero(
                 Text(
                     text =
                         currentItem?.let { "${it.artist} • ${it.album}" }
-                            ?: "Calm dark surfaces, large artwork, and fast access to favorites, artists, and search.",
+                            ?: "Find an old favourite or play something new.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     HeroActionButton(
-                        label = if (currentItem != null) "Resume" else "Start Searching",
+                        label = if (currentItem != null) "Resume" else "Find music",
                         accent = true,
                         onClick = onPrimaryAction,
                         modifier = primaryActionModifier,
