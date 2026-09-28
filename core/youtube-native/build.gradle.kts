@@ -39,7 +39,7 @@ dependencies {
     compileOnly(smartTubeAars)
     testImplementation(smartTubeAars)
 
-    implementation("androidx.annotation:annotation:1.8.2")
+    implementation("androidx.annotation:annotation:1.11.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.preference:preference:1.2.1")
     implementation("androidx.webkit:webkit:1.14.0")
