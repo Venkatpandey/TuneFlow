@@ -10,6 +10,7 @@ import com.tuneflow.core.player.PlaybackStatus
 import com.tuneflow.core.player.QueueItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -135,6 +136,7 @@ class PlaybackViewModel(
     // ── Queue mutation actions ────────────────────────────────────────────────
 
     private val _queueToast = MutableStateFlow<String?>(null)
+    private var queueToastClearJob: Job? = null
 
     /** Short-lived non-modal announcement after a queue mutation (auto-clears after 3 s). */
     val queueToast: StateFlow<String?> = _queueToast.asStateFlow()
@@ -152,6 +154,8 @@ class PlaybackViewModel(
     }
 
     fun removeFromQueue(index: Int) {
+        val queue = playerManager.queue.value
+        if (index !in queue.items.indices || index == queue.currentIndex) return
         playerManager.removeFromQueue(index)
         showQueueToast("Removed from queue")
     }
@@ -160,21 +164,32 @@ class PlaybackViewModel(
         from: Int,
         to: Int,
     ) {
+        val queue = playerManager.queue.value
+        if (from == to || from <= queue.currentIndex || to <= queue.currentIndex ||
+            from !in queue.items.indices || to !in queue.items.indices
+        ) {
+            return
+        }
         playerManager.moveInQueue(from, to)
+        showQueueToast("Queue order updated")
     }
 
     fun clearUpcoming() {
+        val queue = playerManager.queue.value
+        if (queue.currentIndex >= queue.items.lastIndex) return
         playerManager.clearUpcoming()
         showQueueToast("Up Next cleared")
     }
 
     private fun showQueueToast(message: String) {
+        queueToastClearJob?.cancel()
+        _queueToast.value = message
         val scope = scopeOverride ?: viewModelScope
-        scope.launch {
-            _queueToast.value = message
-            delay(3_000L)
-            _queueToast.compareAndSet(message, null)
-        }
+        queueToastClearJob =
+            scope.launch {
+                delay(3_000L)
+                _queueToast.compareAndSet(message, null)
+            }
     }
 }
 

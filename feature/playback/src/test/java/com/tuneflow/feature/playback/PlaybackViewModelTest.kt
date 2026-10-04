@@ -302,6 +302,39 @@ class PlaybackViewModelTest {
             assertEquals("Up Next cleared", vm.queueToast.value)
             assertEquals(1, fake.queue.value.items.size)
         }
+
+    @Test
+    fun movingUpcomingTrack_announcesNewOrder() =
+        runTest {
+            val tracks =
+                listOf(
+                    QueueItem("1", "T1", "A", "AL", streamUrl = "s1"),
+                    QueueItem("2", "T2", "A", "AL", streamUrl = "s2"),
+                    QueueItem("3", "T3", "A", "AL", streamUrl = "s3"),
+                )
+            val fake = FakeController(isPlaying = true, queue = PlaybackQueue(items = tracks))
+            val vm = PlaybackViewModel(fake, positionTicker = flowOf(Unit), scopeOverride = backgroundScope)
+
+            vm.moveInQueue(2, 1)
+
+            assertEquals(listOf("1", "3", "2"), fake.queue.value.items.map { it.id })
+            assertEquals("Queue order updated", vm.queueToast.value)
+        }
+
+    @Test
+    fun rejectedQueueMutation_doesNotAnnounceSuccess() =
+        runTest {
+            val track = QueueItem("1", "T1", "A", "AL", streamUrl = "s1")
+            val fake = FakeController(isPlaying = true, queue = PlaybackQueue(items = listOf(track)))
+            val vm = PlaybackViewModel(fake, positionTicker = flowOf(Unit), scopeOverride = backgroundScope)
+
+            vm.removeFromQueue(0)
+            vm.moveInQueue(0, 1)
+            vm.clearUpcoming()
+
+            assertEquals(listOf(track), fake.queue.value.items)
+            assertNull(vm.queueToast.value)
+        }
 }
 
 private class FakeController(

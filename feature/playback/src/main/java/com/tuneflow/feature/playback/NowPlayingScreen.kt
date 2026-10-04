@@ -108,6 +108,8 @@ fun NowPlayingScreen(
     var requestVideoFocus by rememberSaveable { mutableStateOf(false) }
     var requestInitialTransportFocus by remember { mutableStateOf(true) }
     var focusedQueueIndex by rememberSaveable { mutableIntStateOf(-1) }
+    var openQueueActionIndex by remember { mutableStateOf<Int?>(null) }
+    var menuCloseRevision by remember { mutableIntStateOf(0) }
     val panelVisible = activePanel != NowPlayingPanel.None
     val artSize by animateDpAsState(targetValue = if (panelVisible) 152.dp else 180.dp, label = "now-playing-art-size")
     val artFrameHeight by animateDpAsState(targetValue = if (panelVisible) 176.dp else 200.dp, label = "now-playing-art-frame-height")
@@ -143,6 +145,7 @@ fun NowPlayingScreen(
     }
 
     fun closeQueue(target: QueueExitTarget) {
+        openQueueActionIndex = null
         activePanel = NowPlayingPanel.None
         requestStreamFocus = target == QueueExitTarget.StreamControls
         requestTransportFocus = target == QueueExitTarget.TransportControls
@@ -150,6 +153,7 @@ fun NowPlayingScreen(
 
     fun closePanelToButton() {
         val closedPanel = activePanel
+        openQueueActionIndex = null
         activePanel = NowPlayingPanel.None
         when (resolvePanelFocusTarget(closedPanel, availableLyrics != null)) {
             PanelFocusTarget.QueueButton -> requestQueueFocus = true
@@ -163,16 +167,26 @@ fun NowPlayingScreen(
         modifier =
             modifier
                 .fillMaxSize()
-                .onPreviewKeyEvent {
-                        event ->
-                    handleNowPlayingKeyEvent(
-                        event = event,
-                        activePanel = activePanel,
-                        videoActive = videoState.hasVisiblePlayer,
-                        onClosePanel = ::closePanelToButton,
-                        viewModel = viewModel,
-                        videoViewModel = videoViewModel,
-                    )
+                .onPreviewKeyEvent { event ->
+                    if (
+                        activePanel == NowPlayingPanel.TrackList &&
+                        openQueueActionIndex != null &&
+                        event.type == KeyEventType.KeyDown &&
+                        event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_BACK
+                    ) {
+                        openQueueActionIndex = null
+                        menuCloseRevision++
+                        true
+                    } else {
+                        handleNowPlayingKeyEvent(
+                            event = event,
+                            activePanel = activePanel,
+                            videoActive = videoState.hasVisiblePlayer,
+                            onClosePanel = ::closePanelToButton,
+                            viewModel = viewModel,
+                            videoViewModel = videoViewModel,
+                        )
+                    }
                 },
     ) {
         NowPlayingArtworkBackground(
@@ -283,6 +297,9 @@ fun NowPlayingScreen(
                             onQueueExit = ::closeQueue,
                             onFocusedIndexChanged = { focusedQueueIndex = it },
                             initialFocusIndex = focusedQueueIndex,
+                            openActionIndex = openQueueActionIndex,
+                            onOpenActionIndexChanged = { openQueueActionIndex = it },
+                            menuCloseRevision = menuCloseRevision,
                             preferredExitTarget =
                                 resolveQueueExitTarget(
                                     focusedIndex = focusedQueueIndex,
@@ -303,6 +320,7 @@ fun NowPlayingScreen(
                             is VideoUiState.Candidates ->
                                 VideoCandidatePicker(
                                     candidates = currentVideoState.candidates,
+                                    showingUnfilteredResults = currentVideoState.showingUnfilteredResults,
                                     onSelect = videoViewModel::selectCandidate,
                                 )
                             else -> Unit
@@ -472,13 +490,15 @@ private fun QueuePanel(
     onQueueExit: (QueueExitTarget) -> Unit,
     onFocusedIndexChanged: (Int) -> Unit,
     initialFocusIndex: Int,
+    openActionIndex: Int?,
+    onOpenActionIndexChanged: (Int?) -> Unit,
+    menuCloseRevision: Int,
     preferredExitTarget: QueueExitTarget,
 ) {
     val queueToast by viewModel.queueToast.collectAsStateWithLifecycle()
     val initialItemFocusRequester = remember { FocusRequester() }
     val queueListState = rememberLazyListState()
     val currentIndex = state.queue.currentIndex
-    val upNextStartIndex = state.queue.upNextStartIndex
     val hasUpcoming = currentIndex < state.queue.items.lastIndex
     val initialItemIndex =
         resolveQueuePanelFocusIndex(
@@ -487,7 +507,7 @@ private fun QueuePanel(
             itemCount = state.queue.items.size,
         )
 
-    LaunchedEffect(initialItemIndex, state.queue.items.map { it.id }) {
+    LaunchedEffect(initialItemIndex, state.queue.items.map { it.id }, menuCloseRevision) {
         if (initialItemIndex >= 0) {
             queueListState.scrollToItem(initialItemIndex)
             withFrameNanos { }
@@ -537,9 +557,8 @@ private fun QueuePanel(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                itemsIndexed(state.queue.items, key = { _, track -> track.id }) { index, track ->
-                    // "Up Next" section header before the first user-enqueued item
-                    if (index == upNextStartIndex) {
+                itemsIndexed(state.queue.items, key = { index, _ -> index }) { index, track ->
+                    if (index == currentIndex + 1) {
                         Text(
                             text = "Up Next",
                             style = MaterialTheme.typography.labelLarge,
@@ -549,6 +568,7 @@ private fun QueuePanel(
                     }
                     QueueRow(
                         trackId = track.id,
+                        rowIndex = index,
                         title = track.title,
                         subtitle = track.artist,
                         isCurrent = index == currentIndex,
@@ -559,26 +579,32 @@ private fun QueuePanel(
                         onToggleFavorite = { onToggleFavorite(track.id) },
                         onExitLeft = { onQueueExit(preferredExitTarget) },
                         onFocused = { onFocusedIndexChanged(index) },
-                        onRemove = { viewModel.removeFromQueue(index) },
+                        showActionMenu = openActionIndex == index,
+                        onActionMenuVisible = { visible -> onOpenActionIndexChanged(index.takeIf { visible }) },
+                        onRemove = {
+                            onFocusedIndexChanged(resolveFocusAfterQueueRemoval(index, state.queue.items.size))
+                            viewModel.removeFromQueue(index)
+                        },
                         onMoveUp =
                             if (index > currentIndex + 1) {
-                                { viewModel.moveInQueue(index, index - 1) }
+                                {
+                                    onFocusedIndexChanged(index - 1)
+                                    viewModel.moveInQueue(index, index - 1)
+                                }
                             } else {
                                 null
                             },
                         onMoveDown =
                             if (index > currentIndex && index < state.queue.items.lastIndex) {
-                                { viewModel.moveInQueue(index, index + 1) }
+                                {
+                                    onFocusedIndexChanged(index + 1)
+                                    viewModel.moveInQueue(index, index + 1)
+                                }
                             } else {
                                 null
                             },
                         externalRowFocusRequester = initialItemFocusRequester.takeIf { index == initialItemIndex },
-                        modifier =
-                            Modifier
-                                .boundaryLockedVerticalItem(
-                                    index = index,
-                                    lastIndex = state.queue.items.lastIndex,
-                                ),
+                        modifier = Modifier.boundaryLockedVerticalItem(index),
                     )
                 }
             }
@@ -587,7 +613,10 @@ private fun QueuePanel(
                 PlaybackTextButton(
                     label = "Clear Up Next",
                     compact = true,
-                    onClick = viewModel::clearUpcoming,
+                    onClick = {
+                        onFocusedIndexChanged(currentIndex)
+                        viewModel.clearUpcoming()
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -619,6 +648,7 @@ private fun QueuePanel(
 @Suppress("CyclomaticComplexMethod", "LongParameterList")
 private fun QueueRow(
     trackId: String,
+    rowIndex: Int,
     title: String,
     subtitle: String,
     isCurrent: Boolean,
@@ -629,15 +659,16 @@ private fun QueueRow(
     onToggleFavorite: () -> Unit,
     onExitLeft: () -> Unit,
     onFocused: () -> Unit,
+    showActionMenu: Boolean,
+    onActionMenuVisible: (Boolean) -> Unit,
     onRemove: () -> Unit,
     onMoveUp: (() -> Unit)?,
     onMoveDown: (() -> Unit)?,
     externalRowFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
-    val rowFocusRequester = remember(trackId) { FocusRequester() }
-    val favoriteFocusRequester = remember(trackId) { FocusRequester() }
-    var showActionMenu by remember(trackId) { mutableStateOf(false) }
+    val rowFocusRequester = remember(trackId, rowIndex) { FocusRequester() }
+    val favoriteFocusRequester = remember(trackId, rowIndex) { FocusRequester() }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -656,7 +687,7 @@ private fun QueueRow(
                             when (event.nativeKeyEvent.keyCode) {
                                 AndroidKeyEvent.KEYCODE_DPAD_LEFT -> {
                                     if (showActionMenu) {
-                                        showActionMenu = false
+                                        onActionMenuVisible(false)
                                         true
                                     } else {
                                         onExitLeft()
@@ -666,7 +697,7 @@ private fun QueueRow(
                                 AndroidKeyEvent.KEYCODE_DPAD_CENTER, AndroidKeyEvent.KEYCODE_ENTER -> {
                                     // Open action menu for upcoming (non-current) items
                                     if (isUpcoming && !isCurrent) {
-                                        showActionMenu = !showActionMenu
+                                        onActionMenuVisible(!showActionMenu)
                                         true
                                     } else {
                                         false
@@ -674,7 +705,7 @@ private fun QueueRow(
                                 }
                                 AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
                                     if (showActionMenu) {
-                                        showActionMenu = false
+                                        onActionMenuVisible(false)
                                     }
                                     if (
                                         trackRowFocusDestination(
@@ -690,7 +721,7 @@ private fun QueueRow(
                                 }
                                 AndroidKeyEvent.KEYCODE_BACK -> {
                                     if (showActionMenu) {
-                                        showActionMenu = false
+                                        onActionMenuVisible(false)
                                         true
                                     } else {
                                         false
@@ -704,7 +735,7 @@ private fun QueueRow(
                 onFocusedChange = { if (it) onFocused() },
                 onClick = {
                     if (showActionMenu) {
-                        showActionMenu = false
+                        onActionMenuVisible(false)
                     } else {
                         onClick()
                     }
@@ -783,9 +814,9 @@ private fun QueueRow(
                         compact = true,
                         onClick = {
                             onMoveUp()
-                            showActionMenu = false
-                            rowFocusRequester.requestFocus()
+                            onActionMenuVisible(false)
                         },
+                        requestFocus = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -795,9 +826,9 @@ private fun QueueRow(
                         compact = true,
                         onClick = {
                             onMoveDown()
-                            showActionMenu = false
-                            rowFocusRequester.requestFocus()
+                            onActionMenuVisible(false)
                         },
+                        requestFocus = onMoveUp == null,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -805,9 +836,10 @@ private fun QueueRow(
                     label = "Remove",
                     compact = true,
                     onClick = {
-                        showActionMenu = false
+                        onActionMenuVisible(false)
                         onRemove()
                     },
+                    requestFocus = onMoveUp == null && onMoveDown == null,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -832,6 +864,11 @@ internal fun resolveQueuePanelFocusIndex(
         else -> -1
     }
 
+internal fun resolveFocusAfterQueueRemoval(
+    removedIndex: Int,
+    itemCount: Int,
+): Int = (itemCount - 2).coerceAtLeast(0).coerceAtMost(removedIndex)
+
 internal fun resolveQueueExitTarget(
     focusedIndex: Int,
     itemCount: Int,
@@ -845,16 +882,12 @@ internal fun resolveQueueExitTarget(
     }
 }
 
-private fun Modifier.boundaryLockedVerticalItem(
-    index: Int,
-    lastIndex: Int,
-): Modifier =
+private fun Modifier.boundaryLockedVerticalItem(index: Int): Modifier =
     onPreviewKeyEvent { event ->
         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
 
         when {
             event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP && index == 0 -> true
-            event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_DOWN && index == lastIndex -> true
             else -> false
         }
     }

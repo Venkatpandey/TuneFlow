@@ -113,6 +113,8 @@ internal fun ShellContent(
                     favoriteStore = favoriteStore,
                     onPlayAlbum = onPlayTracks,
                     onShuffleAlbum = onShuffleTracks,
+                    onAddToQueueEnd = { track -> onAddTracksToQueueEnd(listOf(track)) },
+                    onAddToQueueNext = { track -> onAddTracksToQueueNext(listOf(track)) },
                 )
             }
             is ShellDestination.Artist -> {
@@ -187,6 +189,8 @@ internal fun ShellContent(
                     currentPlaylistName = playbackQueue.sourcePlaylistName,
                     onPlayTracks = onPlayPlaylistTracks,
                     onShuffleTracks = onShufflePlaylistTracks,
+                    onAddToQueueEnd = { track -> onAddTracksToQueueEnd(listOf(track)) },
+                    onAddToQueueNext = { track -> onAddTracksToQueueNext(listOf(track)) },
                 )
             }
             ShellDestination.Search -> {

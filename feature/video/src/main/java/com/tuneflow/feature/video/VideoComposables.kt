@@ -690,6 +690,7 @@ private fun VideoCandidateSkeletonRow(color: Color) {
 @Composable
 fun VideoCandidatePicker(
     candidates: List<VideoCandidate>,
+    showingUnfilteredResults: Boolean = false,
     onSelect: (VideoCandidate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -714,7 +715,12 @@ fun VideoCandidatePicker(
             color = Color.White,
         )
         Text(
-            text = "${candidates.size} matches. Select one to play full screen.",
+            text =
+                if (showingUnfilteredResults) {
+                    "No close match. Showing ${candidates.size} YouTube search results. Choose one to play."
+                } else {
+                    "${candidates.size} matches. Select one to play full screen."
+                },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

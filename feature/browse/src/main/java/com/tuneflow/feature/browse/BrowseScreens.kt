@@ -228,6 +228,8 @@ fun AlbumDetailScreen(
     favoriteStore: TrackFavoriteStore,
     onPlayAlbum: (tracks: List<TrackSummary>, index: Int) -> Unit,
     onShuffleAlbum: (tracks: List<TrackSummary>) -> Unit,
+    onAddToQueueEnd: ((TrackSummary) -> Unit)? = null,
+    onAddToQueueNext: ((TrackSummary) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -312,7 +314,7 @@ fun AlbumDetailScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         contentPadding = PaddingValues(bottom = 32.dp),
                     ) {
-                        itemsIndexed(album.tracks, key = { _, track -> track.id }) { index, track ->
+                        itemsIndexed(album.tracks, key = { index, track -> "$index:${track.id}" }) { index, track ->
                             PremiumListRow(
                                 trackId = track.id,
                                 title = track.title,
@@ -321,6 +323,8 @@ fun AlbumDetailScreen(
                                 favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
                                 onToggleFavorite = { scope.launch { favoriteStore.toggle(track.id) } },
                                 onClick = { onPlayAlbum(album.tracks, index) },
+                                onAddToQueue = onAddToQueueEnd?.let { add -> { add(track) } },
+                                onPlayNext = onAddToQueueNext?.let { next -> { next(track) } },
                                 showDivider = index != album.tracks.lastIndex,
                                 modifier =
                                     Modifier.boundaryLockedVerticalItem(
@@ -465,6 +469,8 @@ fun PlaylistsScreen(
     currentPlaylistName: String? = null,
     onPlayTracks: (playlistId: String, playlistName: String, tracks: List<TrackSummary>, index: Int) -> Unit,
     onShuffleTracks: (playlistId: String, playlistName: String, tracks: List<TrackSummary>) -> Unit,
+    onAddToQueueEnd: ((TrackSummary) -> Unit)? = null,
+    onAddToQueueNext: ((TrackSummary) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -741,6 +747,8 @@ fun PlaylistsScreen(
                                     index,
                                 )
                             },
+                            onAddToQueue = onAddToQueueEnd?.let { add -> { add(track) } },
+                            onPlayNext = onAddToQueueNext?.let { next -> { next(track) } },
                             showDivider = index != selected.tracks.lastIndex,
                             modifier =
                                 Modifier.boundaryLockedVerticalItem(
@@ -1995,6 +2003,11 @@ private fun PremiumListRow(
     val hasQueueActions = onAddToQueue != null || onPlayNext != null
     var showQueueActions by remember(trackId) { mutableStateOf(false) }
 
+    BackHandler(enabled = showQueueActions) {
+        showQueueActions = false
+        rowBodyFocusRequester.requestFocus()
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2018,7 +2031,6 @@ private fun PremiumListRow(
                                     favoriteFocusRequester.requestFocus()
                                     true
                                 }
-                                // Toggle queue-action chips with MENU or long-select (KEYCODE_MENU)
                                 hasQueueActions && event.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_MENU -> {
                                     showQueueActions = !showQueueActions
                                     true
@@ -2028,7 +2040,11 @@ private fun PremiumListRow(
                         },
                 showDivider = showDivider && !showQueueActions,
                 onClick = {
-                    if (showQueueActions) showQueueActions = false else onClick()
+                    if (showQueueActions) {
+                        showQueueActions = false
+                    } else {
+                        onClick()
+                    }
                 },
             ) {
                 Row(
@@ -2107,6 +2123,7 @@ private fun PremiumListRow(
                 if (onPlayNext != null) {
                     QueueActionChip(
                         label = "Play Next",
+                        requestFocus = true,
                         onClick = {
                             showQueueActions = false
                             onPlayNext()
@@ -2117,6 +2134,7 @@ private fun PremiumListRow(
                 if (onAddToQueue != null) {
                     QueueActionChip(
                         label = "Add to Queue",
+                        requestFocus = onPlayNext == null,
                         onClick = {
                             showQueueActions = false
                             onAddToQueue()
@@ -2133,9 +2151,16 @@ private fun PremiumListRow(
 private fun QueueActionChip(
     label: String,
     onClick: () -> Unit,
+    requestFocus: Boolean = false,
 ) {
     val focusRequester = remember { FocusRequester() }
     var isFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(requestFocus) {
+        if (requestFocus) {
+            withFrameNanos { }
+            focusRequester.requestFocus()
+        }
+    }
     TuneFlowActionSurface(
         onClick = onClick,
         modifier =

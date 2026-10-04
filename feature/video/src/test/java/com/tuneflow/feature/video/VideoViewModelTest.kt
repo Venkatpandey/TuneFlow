@@ -86,6 +86,75 @@ class VideoViewModelTest {
         }
 
     @Test
+    fun filteredOutSearchResultsRemainAvailableForManualChoice() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativeBackend = FakeNativeBackend(resultCount = 0, excludedResultCount = 2)
+            val viewModel = createViewModel(audio, backgroundScope, nativeBackend)
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+
+            val state = viewModel.uiState.value as VideoUiState.Candidates
+            assertTrue(state.showingUnfilteredResults)
+            assertEquals(2, state.candidates.size)
+            assertTrue(state.candidates.all { "cover" in it.title })
+            assertEquals(0, audio.pauseCalls)
+        }
+
+    @Test
+    fun editingUpcomingQueueDoesNotPauseCurrentAudioInPreferredVideoMode() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val viewModel = createViewModel(audio, backgroundScope)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+            val pausesBeforeEdit = audio.pauseCalls
+
+            audio.addToQueueEnd(playlistQueue("added").items)
+            runCurrent()
+
+            assertEquals(pausesBeforeEdit, audio.pauseCalls)
+            assertTrue(audio.isPlaying.value)
+            assertEquals("track", audio.queue.value.currentItem?.id)
+        }
+
+    @Test
+    fun queueEditDuringPreferredLookupKeepsCurrentTrackLookupResult() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val store = FakePreferredVideoStore(lookupDelayMs = 1_000L)
+            val viewModel = createViewModel(audio, backgroundScope, preferredVideoStore = store)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+
+            audio.addToQueueEnd(playlistQueue("added").items)
+            runCurrent()
+            advanceTimeBy(1_000L)
+            runCurrent()
+
+            assertEquals(listOf("track"), store.lookupTrackIds)
+            assertTrue(viewModel.preferredVideoState.value is PreferredVideoState.Unmapped)
+            assertTrue(audio.isPlaying.value)
+        }
+
+    @Test
+    fun emptyYouTubeResponseShowsError() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(resultCount = 0))
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Error)
+        }
+
+    @Test
     fun firstUseNeverAutoplaysEvenWithOneSearchResult() =
         runTest {
             val audio = VideoViewModelFakeAudio()

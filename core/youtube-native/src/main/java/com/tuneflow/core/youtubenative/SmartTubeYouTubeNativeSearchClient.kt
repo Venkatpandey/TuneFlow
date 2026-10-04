@@ -31,9 +31,22 @@ class SmartTubeYouTubeNativeSearchClient(
                     maximumPagesPerGroup = MAX_SEARCH_PAGES,
                     continueGroup = contentService::continueGroup,
                 )
-            mapSmartTubeSearchItems(
-                groups.flatMap { it.mediaItems.orEmpty() },
-            )
+            val focusedResults =
+                mapSmartTubeSearchItems(
+                    groups.flatMap { it.mediaItems.orEmpty() },
+                )
+            if (focusedResults.isNotEmpty()) {
+                focusedResults
+            } else {
+                val broadQuery = buildSmartTubeVideoSearchQuery(artist, title, includeOfficialVideo = false)
+                val broadGroups =
+                    collectSmartTubeSearchGroups(
+                        initialGroups = contentService.getSearch(broadQuery, options).orEmpty(),
+                        maximumPagesPerGroup = MAX_SEARCH_PAGES,
+                        continueGroup = contentService::continueGroup,
+                    )
+                mapSmartTubeSearchItems(broadGroups.flatMap { it.mediaItems.orEmpty() })
+            }
         }
 }
 
@@ -71,13 +84,14 @@ internal fun collectSmartTubeSearchGroups(
 internal fun buildSmartTubeVideoSearchQuery(
     artist: String,
     title: String,
+    includeOfficialVideo: Boolean = true,
 ): String {
     val cleanedArtist = artist.trim()
     val cleanedTitle = cleanTrackTitleForVideoSearch(title)
     require(cleanedArtist.isNotBlank() || cleanedTitle.isNotBlank()) {
         "Artist and title cannot both be blank."
     }
-    return listOf(cleanedArtist, cleanedTitle, OFFICIAL_VIDEO_QUERY)
+    return (listOf(cleanedArtist, cleanedTitle) + listOfNotNull(OFFICIAL_VIDEO_QUERY.takeIf { includeOfficialVideo }))
         .filter(String::isNotBlank)
         .joinToString(" ")
 }

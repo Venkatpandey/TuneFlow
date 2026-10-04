@@ -191,6 +191,7 @@ sealed interface VideoUiState {
         override val trackId: String,
         val generation: Long,
         val candidates: List<VideoCandidate>,
+        val showingUnfilteredResults: Boolean = false,
     ) : VideoUiState
 
     data class Loading(
