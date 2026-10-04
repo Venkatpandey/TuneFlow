@@ -69,7 +69,7 @@ class VideoViewModelTest {
         }
 
     @Test
-    fun ambiguousSearchFiltersAllMatchesThenReturnsTopFifty() =
+    fun ambiguousSearchShowsRankedMatchesThenRawResults() =
         runTest {
             val audio = VideoViewModelFakeAudio()
             val nativeBackend = FakeNativeBackend(resultCount = 60, excludedResultCount = 20)
@@ -80,9 +80,80 @@ class VideoViewModelTest {
             runCurrent()
 
             val state = viewModel.uiState.value as VideoUiState.Candidates
-            assertEquals(50, state.candidates.size)
-            assertTrue(state.candidates.none { "cover" in it.title })
+            assertEquals(50, state.rankedCount)
+            assertEquals(130, state.candidates.size)
+            assertTrue(state.candidates.take(state.rankedCount).none { "cover" in it.title })
+            assertTrue(state.candidates.drop(state.rankedCount).any { "cover" in it.title })
             assertEquals(0, audio.pauseCalls)
+        }
+
+    @Test
+    fun filteredOutSearchResultsRemainAvailableForManualChoice() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val nativeBackend = FakeNativeBackend(resultCount = 0, excludedResultCount = 2)
+            val viewModel = createViewModel(audio, backgroundScope, nativeBackend)
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+
+            val state = viewModel.uiState.value as VideoUiState.Candidates
+            assertEquals(0, state.rankedCount)
+            assertEquals(2, state.candidates.size)
+            assertTrue(state.candidates.all { "cover" in it.title })
+            assertEquals(0, audio.pauseCalls)
+        }
+
+    @Test
+    fun editingUpcomingQueueDoesNotPauseCurrentAudioInPreferredVideoMode() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val viewModel = createViewModel(audio, backgroundScope)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+            val pausesBeforeEdit = audio.pauseCalls
+
+            audio.addToQueueEnd(playlistQueue("added").items)
+            runCurrent()
+
+            assertEquals(pausesBeforeEdit, audio.pauseCalls)
+            assertTrue(audio.isPlaying.value)
+            assertEquals("track", audio.queue.value.currentItem?.id)
+        }
+
+    @Test
+    fun queueEditDuringPreferredLookupKeepsCurrentTrackLookupResult() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val store = FakePreferredVideoStore(lookupDelayMs = 1_000L)
+            val viewModel = createViewModel(audio, backgroundScope, preferredVideoStore = store)
+            runCurrent()
+            viewModel.toggleVideoPreferredMode()
+            runCurrent()
+
+            audio.addToQueueEnd(playlistQueue("added").items)
+            runCurrent()
+            advanceTimeBy(1_000L)
+            runCurrent()
+
+            assertEquals(listOf("track"), store.lookupTrackIds)
+            assertTrue(viewModel.preferredVideoState.value is PreferredVideoState.Unmapped)
+            assertTrue(audio.isPlaying.value)
+        }
+
+    @Test
+    fun emptyYouTubeResponseShowsError() =
+        runTest {
+            val audio = VideoViewModelFakeAudio()
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(resultCount = 0))
+            runCurrent()
+
+            viewModel.requestVideo()
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Error)
         }
 
     @Test
@@ -1259,6 +1330,29 @@ private class VideoViewModelFakeAudio(
     override fun durationMs() = 180_000L
 
     override fun cyclePlaybackMode() = Unit
+
+    override fun addToQueueNext(items: List<QueueItem>) {
+        queueState.value = queueState.value.insertNext(items)
+    }
+
+    override fun addToQueueEnd(items: List<QueueItem>) {
+        queueState.value = queueState.value.appendItems(items)
+    }
+
+    override fun removeFromQueue(index: Int) {
+        queueState.value = queueState.value.removeAt(index)
+    }
+
+    override fun moveInQueue(
+        from: Int,
+        to: Int,
+    ) {
+        queueState.value = queueState.value.moveItem(from, to)
+    }
+
+    override fun clearUpcoming() {
+        queueState.value = queueState.value.clearUpcoming()
+    }
 
     fun replaceTrack(id: String) {
         queueState.value = queueFor(id)

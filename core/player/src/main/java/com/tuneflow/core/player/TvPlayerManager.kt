@@ -373,6 +373,60 @@ class TvPlayerManager(
         }
     }
 
+    override fun addToQueueNext(items: List<QueueItem>) {
+        if (items.isEmpty()) return
+        if (_queue.value.items.isEmpty()) {
+            addToQueueEnd(items)
+            return
+        }
+        val insertAt = _queue.value.currentIndex + 1
+        val mediaItems = items.map { it.toMediaItem() }
+        _queue.update { it.insertNext(items) }
+        player.addMediaItems(insertAt, mediaItems)
+        persist()
+    }
+
+    override fun addToQueueEnd(items: List<QueueItem>) {
+        if (items.isEmpty()) return
+        val mediaItems = items.map { it.toMediaItem() }
+        _queue.update { it.appendItems(items) }
+        player.addMediaItems(mediaItems)
+        persist()
+    }
+
+    override fun removeFromQueue(index: Int) {
+        val queue = _queue.value
+        if (index < 0 || index >= queue.items.size || index == queue.currentIndex) return
+        _queue.update { it.removeAt(index) }
+        player.removeMediaItem(index)
+        persist()
+    }
+
+    override fun moveInQueue(
+        from: Int,
+        to: Int,
+    ) {
+        val queue = _queue.value
+        val isValid =
+            from != to && from > queue.currentIndex && to > queue.currentIndex &&
+                from in queue.items.indices && to in queue.items.indices
+        if (!isValid) return
+        _queue.update { it.moveItem(from, to) }
+        player.moveMediaItem(from, to)
+        persist()
+    }
+
+    override fun clearUpcoming() {
+        val queue = _queue.value
+        if (queue.currentIndex >= queue.items.lastIndex) return
+        _queue.update { it.clearUpcoming() }
+        // Remove items after currentIndex in reverse order to keep indices stable
+        for (i in queue.items.lastIndex downTo queue.currentIndex + 1) {
+            player.removeMediaItem(i)
+        }
+        persist()
+    }
+
     fun release() {
         listenSessionTracker.reset()
         cancelFallbackMonitor()

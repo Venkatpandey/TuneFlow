@@ -65,6 +65,71 @@ data class PlaybackQueue(
     }
 
     fun seek(positionMs: Long): PlaybackQueue = copy(currentPositionMs = positionMs.coerceAtLeast(0L))
+
+    /** Inserts [newItems] immediately after the current item (play next). */
+    fun insertNext(newItems: List<QueueItem>): PlaybackQueue =
+        when {
+            newItems.isEmpty() -> this
+            items.isEmpty() -> appendItems(newItems)
+            else -> {
+                val insertAt = currentIndex + 1
+                val merged = items.toMutableList().also { it.addAll(insertAt, newItems) }
+                copy(items = merged)
+            }
+        }
+
+    /** Appends [newItems] at the end of the queue. */
+    fun appendItems(newItems: List<QueueItem>): PlaybackQueue {
+        if (newItems.isEmpty()) return this
+        return copy(items = items + newItems)
+    }
+
+    /**
+     * Removes the item at [index]. Rejects the request if [index] == [currentIndex].
+     * Adjusts [currentIndex] to keep the active item selected.
+     * Returns unchanged queue if the index is invalid or is the current item.
+     */
+    fun removeAt(index: Int): PlaybackQueue {
+        if (index !in items.indices || index == currentIndex) return this
+        val newItems = items.toMutableList().also { it.removeAt(index) }
+        val newCurrentIndex = if (index < currentIndex) currentIndex - 1 else currentIndex
+        return copy(
+            items = newItems,
+            currentIndex = newCurrentIndex,
+        )
+    }
+
+    /**
+     * Moves the item at [from] to [to]. Both indices must be valid and neither can be
+     * the [currentIndex].
+     * Returns unchanged queue if constraints are violated.
+     */
+    fun moveItem(
+        from: Int,
+        to: Int,
+    ): PlaybackQueue {
+        if (!canMoveItem(from, to)) return this
+        val newItems = items.toMutableList()
+        val item = newItems.removeAt(from)
+        newItems.add(to, item)
+        return copy(items = newItems)
+    }
+
+    private fun canMoveItem(
+        from: Int,
+        to: Int,
+    ): Boolean {
+        if (from == to || from <= currentIndex || to <= currentIndex) return false
+        return from in items.indices && to in items.indices
+    }
+
+    /** Removes all items after the current item (clears upcoming items). */
+    fun clearUpcoming(): PlaybackQueue {
+        if (currentIndex >= items.lastIndex) return this
+        return copy(
+            items = items.subList(0, currentIndex + 1),
+        )
+    }
 }
 
 @Serializable

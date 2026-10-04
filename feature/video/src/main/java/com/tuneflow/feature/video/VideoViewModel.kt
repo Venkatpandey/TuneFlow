@@ -69,6 +69,7 @@ class VideoViewModel(
     private var recordedVideoIdForSession: String? = null
     private var playbackPersistenceAction: PlaybackPersistenceAction = PlaybackPersistenceAction.None
     private var lastCandidates: List<VideoCandidate> = emptyList()
+    private var lastRankedCandidateCount = 0
     private var pendingVideoRequest: PendingVideoRequest? = null
 
     init {
@@ -279,7 +280,7 @@ class VideoViewModel(
         sessionAudioTrackId = audio.queue.value.currentItem?.id
         recordedVideoIdForSession = null
         playbackPersistenceAction = PlaybackPersistenceAction.None
-        _uiState.value = VideoUiState.Candidates(trackId, generation, candidates)
+        _uiState.value = VideoUiState.Candidates(trackId, generation, candidates, lastRankedCandidateCount)
     }
 
     fun enterFullscreen() {
@@ -355,6 +356,7 @@ class VideoViewModel(
         recordedVideoIdForSession = null
         playbackPersistenceAction = PlaybackPersistenceAction.None
         lastCandidates = emptyList()
+        lastRankedCandidateCount = 0
         pendingVideoRequest = null
         generation += 1
         _uiState.value = availableIdleState()
@@ -411,6 +413,8 @@ class VideoViewModel(
     ) {
         val track = audio.queue.value.currentItem?.takeIf { it.id == trackId } ?: return
         searchJob?.cancel()
+        lastCandidates = emptyList()
+        lastRankedCandidateCount = 0
         _uiState.value = VideoUiState.Searching(trackId, requestGeneration)
         val locale = Locale.getDefault()
         val query =
@@ -422,21 +426,25 @@ class VideoViewModel(
             scope.launch {
                 try {
                     val discovered = nativeBackend.search(query)
-                    val ranked =
-                        VideoCandidateRanker
-                            .rank(query, filterUnwantedVideoCandidates(query, discovered))
-                            .take(YOUTUBE_SEARCH_RESULT_LIMIT)
+                    val results = selectVideoSearchCandidates(query, discovered)
                     if (!isCurrent(trackId, requestGeneration)) return@launch
-                    lastCandidates = ranked
-                    if (ranked.isEmpty()) {
+                    lastCandidates = results.candidates
+                    lastRankedCandidateCount = results.rankedCount
+                    if (results.candidates.isEmpty()) {
                         _uiState.value =
                             VideoUiState.Error(
                                 trackId,
                                 requestGeneration,
-                                "No playable YouTube match found.",
+                                "YouTube returned no playable videos for this search.",
                             )
                     } else {
-                        _uiState.value = VideoUiState.Candidates(trackId, requestGeneration, ranked)
+                        _uiState.value =
+                            VideoUiState.Candidates(
+                                trackId,
+                                requestGeneration,
+                                results.candidates,
+                                results.rankedCount,
+                            )
                     }
                 } catch (_: TimeoutCancellationException) {
                     publishSearchError(trackId, requestGeneration, "YouTube search timed out.")
@@ -458,7 +466,14 @@ class VideoViewModel(
 
     private fun onQueuePositionChanged(position: VideoQueuePosition?) {
         if (changingAudioQueue || position == lastHandledQueuePosition) return
+        val queueEditedCurrentTrack =
+            lastHandledQueuePosition?.let { previous ->
+                position != null &&
+                    previous.representsSameTrack(position) &&
+                    previous.queueTrackIds != position.queueTrackIds
+            } == true
         lastHandledQueuePosition = position
+        if (queueEditedCurrentTrack) return
         updateVideoForQueuePosition(position)
     }
 
@@ -499,6 +514,7 @@ class VideoViewModel(
         recordedVideoIdForSession = null
         playbackPersistenceAction = PlaybackPersistenceAction.None
         lastCandidates = emptyList()
+        lastRankedCandidateCount = 0
         pendingVideoRequest = null
         generation += 1
         _uiState.value = availableIdleState()
@@ -793,17 +809,18 @@ private class PreferredVideoLookupCoordinator(
         job =
             scope.launch {
                 val result = store.lookup(position.track)
+                val activePosition = currentPosition()
                 if (
                     requestGeneration != generation ||
                     !canLookup() ||
-                    currentPosition() != position
+                    !position.representsSameTrack(activePosition)
                 ) {
                     return@launch
                 }
                 pendingAudioResume = false
                 val preferredState = result.toPreferredVideoState(position.trackId)
                 mutableState.value = preferredState
-                onResolved(position, preferredState, carryAudioResume)
+                onResolved(requireNotNull(activePosition), preferredState, carryAudioResume)
             }
     }
 
@@ -927,5 +944,27 @@ private enum class DisclosureAction {
     EnableVideoPreferred,
 }
 
-private const val YOUTUBE_SEARCH_RESULT_LIMIT = 50
+private const val RANKED_VIDEO_RESULT_LIMIT = 50
+private const val RAW_VIDEO_RESULT_LIMIT = 100
+
+internal data class VideoSearchCandidates(
+    val candidates: List<VideoCandidate>,
+    val rankedCount: Int,
+)
+
+internal fun selectVideoSearchCandidates(
+    query: VideoTrackQuery,
+    discovered: List<VideoCandidate>,
+): VideoSearchCandidates {
+    val ranked =
+        VideoCandidateRanker
+            .rank(query, filterUnwantedVideoCandidates(query, discovered))
+            .take(RANKED_VIDEO_RESULT_LIMIT)
+    val raw = discovered.distinctBy(VideoCandidate::videoId).take(RAW_VIDEO_RESULT_LIMIT)
+    return VideoSearchCandidates(
+        candidates = ranked + raw,
+        rankedCount = ranked.size,
+    )
+}
+
 private const val VIDEO_LOG_TAG = "TuneFlowVideo"
