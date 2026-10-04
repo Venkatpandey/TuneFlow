@@ -2154,7 +2154,6 @@ private fun QueueActionChip(
     requestFocus: Boolean = false,
 ) {
     val focusRequester = remember { FocusRequester() }
-    var isFocused by remember { mutableStateOf(false) }
     LaunchedEffect(requestFocus) {
         if (requestFocus) {
             withFrameNanos { }
@@ -2165,18 +2164,12 @@ private fun QueueActionChip(
         onClick = onClick,
         modifier =
             Modifier
-                .focusRequester(focusRequester)
-                .onFocusChanged { isFocused = it.isFocused },
+                .focusRequester(focusRequester),
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            color =
-                if (isFocused) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
         )
     }
