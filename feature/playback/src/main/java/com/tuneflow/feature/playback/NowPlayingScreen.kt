@@ -320,7 +320,7 @@ fun NowPlayingScreen(
                             is VideoUiState.Candidates ->
                                 VideoCandidatePicker(
                                     candidates = currentVideoState.candidates,
-                                    showingUnfilteredResults = currentVideoState.showingUnfilteredResults,
+                                    rankedCount = currentVideoState.rankedCount,
                                     onSelect = videoViewModel::selectCandidate,
                                 )
                             else -> Unit

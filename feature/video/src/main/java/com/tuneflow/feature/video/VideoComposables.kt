@@ -690,12 +690,15 @@ private fun VideoCandidateSkeletonRow(color: Color) {
 @Composable
 fun VideoCandidatePicker(
     candidates: List<VideoCandidate>,
-    showingUnfilteredResults: Boolean = false,
+    rankedCount: Int = candidates.size,
     onSelect: (VideoCandidate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val firstCandidateFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(candidates.firstOrNull()?.videoId) {
+    val topCount = rankedCount.coerceIn(0, candidates.size)
+    val rankedCandidates = candidates.take(topCount)
+    val rawCandidates = candidates.drop(topCount)
+    LaunchedEffect(candidates.firstOrNull()?.videoId, topCount) {
         if (candidates.isNotEmpty()) firstCandidateFocusRequester.requestFocus()
     }
     Column(
@@ -716,10 +719,10 @@ fun VideoCandidatePicker(
         )
         Text(
             text =
-                if (showingUnfilteredResults) {
-                    "No close match. Showing ${candidates.size} YouTube search results. Choose one to play."
+                if (rankedCandidates.isEmpty()) {
+                    "${rawCandidates.size} YouTube search results. Choose one to play."
                 } else {
-                    "${candidates.size} matches. Select one to play full screen."
+                    "${rankedCandidates.size} top matches, then ${rawCandidates.size} unfiltered results."
                 },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -728,12 +731,42 @@ fun VideoCandidatePicker(
             modifier = Modifier.fillMaxWidth().weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            itemsIndexed(candidates, key = { _, candidate -> candidate.videoId }) { index, candidate ->
+            if (rankedCandidates.isNotEmpty()) {
+                item(key = "top-matches-heading") {
+                    Text(
+                        text = "Top matches",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+            itemsIndexed(rankedCandidates, key = { _, candidate -> "ranked:${candidate.videoId}" }) { index, candidate ->
                 VideoCandidateRow(
                     candidate = candidate,
                     onClick = { onSelect(candidate) },
                     modifier =
                         if (index == 0) {
+                            Modifier.focusRequester(firstCandidateFocusRequester)
+                        } else {
+                            Modifier
+                        },
+                )
+            }
+            if (rawCandidates.isNotEmpty()) {
+                item(key = "all-results-heading") {
+                    Text(
+                        text = "All YouTube results",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+            itemsIndexed(rawCandidates, key = { _, candidate -> "raw:${candidate.videoId}" }) { index, candidate ->
+                VideoCandidateRow(
+                    candidate = candidate,
+                    onClick = { onSelect(candidate) },
+                    modifier =
+                        if (rankedCandidates.isEmpty() && index == 0) {
                             Modifier.focusRequester(firstCandidateFocusRequester)
                         } else {
                             Modifier

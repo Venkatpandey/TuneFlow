@@ -69,7 +69,7 @@ class VideoViewModelTest {
         }
 
     @Test
-    fun ambiguousSearchFiltersAllMatchesThenReturnsTopFifty() =
+    fun ambiguousSearchShowsRankedMatchesThenRawResults() =
         runTest {
             val audio = VideoViewModelFakeAudio()
             val nativeBackend = FakeNativeBackend(resultCount = 60, excludedResultCount = 20)
@@ -80,8 +80,10 @@ class VideoViewModelTest {
             runCurrent()
 
             val state = viewModel.uiState.value as VideoUiState.Candidates
-            assertEquals(50, state.candidates.size)
-            assertTrue(state.candidates.none { "cover" in it.title })
+            assertEquals(50, state.rankedCount)
+            assertEquals(130, state.candidates.size)
+            assertTrue(state.candidates.take(state.rankedCount).none { "cover" in it.title })
+            assertTrue(state.candidates.drop(state.rankedCount).any { "cover" in it.title })
             assertEquals(0, audio.pauseCalls)
         }
 
@@ -97,7 +99,7 @@ class VideoViewModelTest {
             runCurrent()
 
             val state = viewModel.uiState.value as VideoUiState.Candidates
-            assertTrue(state.showingUnfilteredResults)
+            assertEquals(0, state.rankedCount)
             assertEquals(2, state.candidates.size)
             assertTrue(state.candidates.all { "cover" in it.title })
             assertEquals(0, audio.pauseCalls)

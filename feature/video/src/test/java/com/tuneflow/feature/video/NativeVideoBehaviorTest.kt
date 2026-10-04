@@ -34,8 +34,21 @@ class NativeVideoBehaviorTest {
 
         val result = selectVideoSearchCandidates(query, listOf(unrelated, repeated, another))
 
-        assertTrue(result.showingUnfilteredResults)
+        assertEquals(0, result.rankedCount)
         assertEquals(listOf("first", "second"), result.candidates.map(VideoCandidate::videoId))
+    }
+
+    @Test
+    fun rawSearchResultsStayAvailableWhenRankedMatchesExist() {
+        val query = VideoTrackQuery("1", "Song", "Artist", "Album", 100L, null, null)
+        val cover = candidate("cover", "Artist Song cover")
+        val match = candidate("match", "Artist Song official video")
+
+        val result = selectVideoSearchCandidates(query, listOf(cover, match))
+
+        assertEquals(1, result.rankedCount)
+        assertEquals("match", result.candidates.first().videoId)
+        assertEquals(listOf("cover", "match"), result.candidates.drop(result.rankedCount).map(VideoCandidate::videoId))
     }
 
     @Test

@@ -77,6 +77,14 @@ class YouTubeNativeLogicTest {
                 includeOfficialVideo = false,
             ),
         )
+        assertEquals(
+            "Song",
+            buildSmartTubeVideoSearchQuery(
+                artist = "",
+                title = "Song - 2009 Remaster (feat. Guest)",
+                includeOfficialVideo = false,
+            ),
+        )
     }
 
     @Test

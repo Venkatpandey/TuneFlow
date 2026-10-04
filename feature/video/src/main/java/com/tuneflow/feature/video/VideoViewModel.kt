@@ -69,7 +69,7 @@ class VideoViewModel(
     private var recordedVideoIdForSession: String? = null
     private var playbackPersistenceAction: PlaybackPersistenceAction = PlaybackPersistenceAction.None
     private var lastCandidates: List<VideoCandidate> = emptyList()
-    private var lastCandidatesUnfiltered = false
+    private var lastRankedCandidateCount = 0
     private var pendingVideoRequest: PendingVideoRequest? = null
 
     init {
@@ -280,7 +280,7 @@ class VideoViewModel(
         sessionAudioTrackId = audio.queue.value.currentItem?.id
         recordedVideoIdForSession = null
         playbackPersistenceAction = PlaybackPersistenceAction.None
-        _uiState.value = VideoUiState.Candidates(trackId, generation, candidates, lastCandidatesUnfiltered)
+        _uiState.value = VideoUiState.Candidates(trackId, generation, candidates, lastRankedCandidateCount)
     }
 
     fun enterFullscreen() {
@@ -356,7 +356,7 @@ class VideoViewModel(
         recordedVideoIdForSession = null
         playbackPersistenceAction = PlaybackPersistenceAction.None
         lastCandidates = emptyList()
-        lastCandidatesUnfiltered = false
+        lastRankedCandidateCount = 0
         pendingVideoRequest = null
         generation += 1
         _uiState.value = availableIdleState()
@@ -414,7 +414,7 @@ class VideoViewModel(
         val track = audio.queue.value.currentItem?.takeIf { it.id == trackId } ?: return
         searchJob?.cancel()
         lastCandidates = emptyList()
-        lastCandidatesUnfiltered = false
+        lastRankedCandidateCount = 0
         _uiState.value = VideoUiState.Searching(trackId, requestGeneration)
         val locale = Locale.getDefault()
         val query =
@@ -429,7 +429,7 @@ class VideoViewModel(
                     val results = selectVideoSearchCandidates(query, discovered)
                     if (!isCurrent(trackId, requestGeneration)) return@launch
                     lastCandidates = results.candidates
-                    lastCandidatesUnfiltered = results.showingUnfilteredResults
+                    lastRankedCandidateCount = results.rankedCount
                     if (results.candidates.isEmpty()) {
                         _uiState.value =
                             VideoUiState.Error(
@@ -443,7 +443,7 @@ class VideoViewModel(
                                 trackId,
                                 requestGeneration,
                                 results.candidates,
-                                results.showingUnfilteredResults,
+                                results.rankedCount,
                             )
                     }
                 } catch (_: TimeoutCancellationException) {
@@ -514,7 +514,7 @@ class VideoViewModel(
         recordedVideoIdForSession = null
         playbackPersistenceAction = PlaybackPersistenceAction.None
         lastCandidates = emptyList()
-        lastCandidatesUnfiltered = false
+        lastRankedCandidateCount = 0
         pendingVideoRequest = null
         generation += 1
         _uiState.value = availableIdleState()
@@ -944,11 +944,12 @@ private enum class DisclosureAction {
     EnableVideoPreferred,
 }
 
-private const val YOUTUBE_SEARCH_RESULT_LIMIT = 50
+private const val RANKED_VIDEO_RESULT_LIMIT = 50
+private const val RAW_VIDEO_RESULT_LIMIT = 100
 
 internal data class VideoSearchCandidates(
     val candidates: List<VideoCandidate>,
-    val showingUnfilteredResults: Boolean,
+    val rankedCount: Int,
 )
 
 internal fun selectVideoSearchCandidates(
@@ -958,11 +959,11 @@ internal fun selectVideoSearchCandidates(
     val ranked =
         VideoCandidateRanker
             .rank(query, filterUnwantedVideoCandidates(query, discovered))
-            .take(YOUTUBE_SEARCH_RESULT_LIMIT)
-    if (ranked.isNotEmpty()) return VideoSearchCandidates(ranked, showingUnfilteredResults = false)
+            .take(RANKED_VIDEO_RESULT_LIMIT)
+    val raw = discovered.distinctBy(VideoCandidate::videoId).take(RAW_VIDEO_RESULT_LIMIT)
     return VideoSearchCandidates(
-        candidates = discovered.distinctBy(VideoCandidate::videoId).take(YOUTUBE_SEARCH_RESULT_LIMIT),
-        showingUnfilteredResults = discovered.isNotEmpty(),
+        candidates = ranked + raw,
+        rankedCount = ranked.size,
     )
 }
 
