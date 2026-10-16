@@ -26,6 +26,32 @@ class NativeVideoBehaviorTest {
     }
 
     @Test
+    fun weakRankedResultsFallBackToUniqueRawSearchOrder() {
+        val query = VideoTrackQuery("1", "Song", "Artist", "Album", 100L, null, null)
+        val unrelated = candidate("first", "Other song").copy(publisher = "Other")
+        val repeated = unrelated.copy(title = "Duplicate")
+        val another = candidate("second", "Different song").copy(publisher = "Other")
+
+        val result = selectVideoSearchCandidates(query, listOf(unrelated, repeated, another))
+
+        assertEquals(0, result.rankedCount)
+        assertEquals(listOf("first", "second"), result.candidates.map(VideoCandidate::videoId))
+    }
+
+    @Test
+    fun rawSearchResultsStayAvailableWhenRankedMatchesExist() {
+        val query = VideoTrackQuery("1", "Song", "Artist", "Album", 100L, null, null)
+        val cover = candidate("cover", "Artist Song cover")
+        val match = candidate("match", "Artist Song official video")
+
+        val result = selectVideoSearchCandidates(query, listOf(cover, match))
+
+        assertEquals(1, result.rankedCount)
+        assertEquals("match", result.candidates.first().videoId)
+        assertEquals(listOf("cover", "match"), result.candidates.drop(result.rankedCount).map(VideoCandidate::videoId))
+    }
+
+    @Test
     fun dpadBehaviorUsesTwoStageBackAndHiddenSeeking() {
         assertEquals(NativeControlAction.HideControls, nativeControlAction(KeyEvent.KEYCODE_BACK, true))
         assertEquals(NativeControlAction.ExitFullscreen, nativeControlAction(KeyEvent.KEYCODE_BACK, false))

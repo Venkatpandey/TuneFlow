@@ -220,6 +220,121 @@ class PlaybackViewModelTest {
             assertEquals("New", state.lyrics.lines.single().text)
             assertTrue(firstRequestCancelled)
         }
+
+    @Test
+    fun addToQueueNext_emitsQueueToast() =
+        runTest {
+            val fake =
+                FakeController(
+                    isPlaying = true,
+                    queue = PlaybackQueue(items = listOf(QueueItem("1", "T1", "A", "AL", streamUrl = "s"))),
+                )
+            val vm = PlaybackViewModel(fake, positionTicker = flowOf(Unit), scopeOverride = backgroundScope)
+            vm.addToQueueNext(listOf(QueueItem("2", "T2", "A", "AL", streamUrl = "s2")))
+            runCurrent()
+
+            assertEquals("Added to Up Next", vm.queueToast.value)
+            assertEquals(2, fake.queue.value.items.size)
+            assertEquals("2", fake.queue.value.items[1].id)
+        }
+
+    @Test
+    fun addToQueueEnd_emitsQueueToast() =
+        runTest {
+            val fake =
+                FakeController(
+                    isPlaying = true,
+                    queue = PlaybackQueue(items = listOf(QueueItem("1", "T1", "A", "AL", streamUrl = "s"))),
+                )
+            val vm = PlaybackViewModel(fake, positionTicker = flowOf(Unit), scopeOverride = backgroundScope)
+            vm.addToQueueEnd(listOf(QueueItem("2", "T2", "A", "AL", streamUrl = "s2")))
+            runCurrent()
+
+            assertEquals("Added to queue", vm.queueToast.value)
+            assertEquals(2, fake.queue.value.items.size)
+            assertEquals("2", fake.queue.value.items[1].id)
+        }
+
+    @Test
+    fun removeFromQueue_emitsQueueToast() =
+        runTest {
+            val fake =
+                FakeController(
+                    isPlaying = true,
+                    queue =
+                        PlaybackQueue(
+                            items =
+                                listOf(
+                                    QueueItem("1", "T1", "A", "AL", streamUrl = "s1"),
+                                    QueueItem("2", "T2", "A", "AL", streamUrl = "s2"),
+                                ),
+                            currentIndex = 0,
+                        ),
+                )
+            val vm = PlaybackViewModel(fake, positionTicker = flowOf(Unit), scopeOverride = backgroundScope)
+            vm.removeFromQueue(1)
+            runCurrent()
+
+            assertEquals("Removed from queue", vm.queueToast.value)
+            assertEquals(1, fake.queue.value.items.size)
+        }
+
+    @Test
+    fun clearUpcoming_emitsQueueToast() =
+        runTest {
+            val fake =
+                FakeController(
+                    isPlaying = true,
+                    queue =
+                        PlaybackQueue(
+                            items =
+                                listOf(
+                                    QueueItem("1", "T1", "A", "AL", streamUrl = "s1"),
+                                    QueueItem("2", "T2", "A", "AL", streamUrl = "s2"),
+                                ),
+                            currentIndex = 0,
+                        ),
+                )
+            val vm = PlaybackViewModel(fake, positionTicker = flowOf(Unit), scopeOverride = backgroundScope)
+            vm.clearUpcoming()
+            runCurrent()
+
+            assertEquals("Up Next cleared", vm.queueToast.value)
+            assertEquals(1, fake.queue.value.items.size)
+        }
+
+    @Test
+    fun movingUpcomingTrack_announcesNewOrder() =
+        runTest {
+            val tracks =
+                listOf(
+                    QueueItem("1", "T1", "A", "AL", streamUrl = "s1"),
+                    QueueItem("2", "T2", "A", "AL", streamUrl = "s2"),
+                    QueueItem("3", "T3", "A", "AL", streamUrl = "s3"),
+                )
+            val fake = FakeController(isPlaying = true, queue = PlaybackQueue(items = tracks))
+            val vm = PlaybackViewModel(fake, positionTicker = flowOf(Unit), scopeOverride = backgroundScope)
+
+            vm.moveInQueue(2, 1)
+
+            assertEquals(listOf("1", "3", "2"), fake.queue.value.items.map { it.id })
+            assertEquals("Queue order updated", vm.queueToast.value)
+        }
+
+    @Test
+    fun rejectedQueueMutation_doesNotAnnounceSuccess() =
+        runTest {
+            val track = QueueItem("1", "T1", "A", "AL", streamUrl = "s1")
+            val fake = FakeController(isPlaying = true, queue = PlaybackQueue(items = listOf(track)))
+            val vm = PlaybackViewModel(fake, positionTicker = flowOf(Unit), scopeOverride = backgroundScope)
+
+            vm.removeFromQueue(0)
+            vm.moveInQueue(0, 1)
+            vm.clearUpcoming()
+
+            assertEquals(listOf(track), fake.queue.value.items)
+            assertNull(vm.queueToast.value)
+        }
 }
 
 private class FakeController(
@@ -277,6 +392,29 @@ private class FakeController(
     override fun durationMs(): Long = 0L
 
     override fun cyclePlaybackMode() = Unit
+
+    override fun addToQueueNext(items: List<QueueItem>) {
+        queueState.value = queueState.value.insertNext(items)
+    }
+
+    override fun addToQueueEnd(items: List<QueueItem>) {
+        queueState.value = queueState.value.appendItems(items)
+    }
+
+    override fun removeFromQueue(index: Int) {
+        queueState.value = queueState.value.removeAt(index)
+    }
+
+    override fun moveInQueue(
+        from: Int,
+        to: Int,
+    ) {
+        queueState.value = queueState.value.moveItem(from, to)
+    }
+
+    override fun clearUpcoming() {
+        queueState.value = queueState.value.clearUpcoming()
+    }
 
     fun updateStatus(status: PlaybackStatus) {
         statusState.value = status

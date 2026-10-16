@@ -79,6 +79,13 @@ class NowPlayingNavigationTest {
     }
 
     @Test
+    fun removingQueueItem_targetsNearestSurvivingRow() {
+        assertEquals(2, resolveFocusAfterQueueRemoval(2, itemCount = 4))
+        assertEquals(1, resolveFocusAfterQueueRemoval(3, itemCount = 3))
+        assertEquals(0, resolveFocusAfterQueueRemoval(1, itemCount = 2))
+    }
+
+    @Test
     fun playlistContextLabel_onlyShowsNamedPlaylist() {
         assertEquals("Playlist • Evening Mix", playlistContextLabel(" Evening Mix "))
         assertEquals(null, playlistContextLabel("  "))

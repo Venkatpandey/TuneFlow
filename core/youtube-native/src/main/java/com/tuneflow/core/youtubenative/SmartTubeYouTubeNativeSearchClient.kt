@@ -22,18 +22,34 @@ class SmartTubeYouTubeNativeSearchClient(
         title: String,
     ): List<YouTubeNativeSearchResult> =
         withContext(Dispatchers.IO) {
-            val query = buildSmartTubeVideoSearchQuery(artist, title)
             val options = SearchOptions.TYPE_VIDEO or SearchOptions.SORT_BY_RELEVANCE
             val contentService = YouTubeServiceManager.instance().contentService
-            val groups =
-                collectSmartTubeSearchGroups(
-                    initialGroups = contentService.getSearch(query, options).orEmpty(),
-                    maximumPagesPerGroup = MAX_SEARCH_PAGES,
-                    continueGroup = contentService::continueGroup,
-                )
-            mapSmartTubeSearchItems(
-                groups.flatMap { it.mediaItems.orEmpty() },
-            )
+
+            fun searchQuery(query: String): List<YouTubeNativeSearchResult> {
+                val groups =
+                    collectSmartTubeSearchGroups(
+                        initialGroups = contentService.getSearch(query, options).orEmpty(),
+                        maximumPagesPerGroup = MAX_SEARCH_PAGES,
+                        continueGroup = contentService::continueGroup,
+                    )
+                return mapSmartTubeSearchItems(groups.flatMap { it.mediaItems.orEmpty() })
+            }
+            val focusedQuery = buildSmartTubeVideoSearchQuery(artist, title)
+            val broadQuery = buildSmartTubeVideoSearchQuery(artist, title, includeOfficialVideo = false)
+            val focusedResults = searchQuery(focusedQuery)
+            val broadResults = if (broadQuery == focusedQuery) emptyList() else searchQuery(broadQuery)
+            val combined =
+                (focusedResults.take(MAX_RESULTS_PER_QUERY) + broadResults.take(MAX_RESULTS_PER_QUERY))
+                    .distinctBy(YouTubeNativeSearchResult::videoId)
+            if (combined.isNotEmpty()) {
+                combined
+            } else {
+                val titleOnlyQuery =
+                    title.takeIf(String::isNotBlank)?.let {
+                        buildSmartTubeVideoSearchQuery("", it, includeOfficialVideo = false)
+                    }
+                if (titleOnlyQuery == null || titleOnlyQuery == broadQuery) combined else searchQuery(titleOnlyQuery)
+            }
         }
 }
 
@@ -71,13 +87,14 @@ internal fun collectSmartTubeSearchGroups(
 internal fun buildSmartTubeVideoSearchQuery(
     artist: String,
     title: String,
+    includeOfficialVideo: Boolean = true,
 ): String {
     val cleanedArtist = artist.trim()
     val cleanedTitle = cleanTrackTitleForVideoSearch(title)
     require(cleanedArtist.isNotBlank() || cleanedTitle.isNotBlank()) {
         "Artist and title cannot both be blank."
     }
-    return listOf(cleanedArtist, cleanedTitle, OFFICIAL_VIDEO_QUERY)
+    return (listOf(cleanedArtist, cleanedTitle) + listOfNotNull(OFFICIAL_VIDEO_QUERY.takeIf { includeOfficialVideo }))
         .filter(String::isNotBlank)
         .joinToString(" ")
 }
@@ -238,4 +255,5 @@ private val THOUSAND_MARKERS = listOf("k view", "k aufruf", "tsd")
 private val MILLION_MARKERS = listOf("m view", "m aufruf", "mio", "million")
 private val BILLION_MARKERS = listOf("b view", "b aufruf", "mrd", "billion", "milliard")
 private const val MAX_SEARCH_PAGES = 3
+private const val MAX_RESULTS_PER_QUERY = 50
 private const val OFFICIAL_VIDEO_QUERY = "official music video"
