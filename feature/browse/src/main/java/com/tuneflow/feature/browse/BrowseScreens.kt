@@ -88,6 +88,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tuneflow.core.design.CurrentlyPlayingIndicator
 import com.tuneflow.core.design.HorizontalFocusDirection
 import com.tuneflow.core.design.InitialFocusEffect
 import com.tuneflow.core.design.LocalTuneFlowMotion
@@ -2109,17 +2110,6 @@ internal fun playlistRowsForDisplay(
     val used = orderedIds.mapNotNull(playlistsById::get)
     val usedIds = used.mapTo(mutableSetOf(), PlaylistSummary::id)
     return used + filtered.filterNot { it.id in usedIds }
-}
-
-@Composable
-private fun CurrentlyPlayingIndicator() {
-    Image(
-        painter = painterResource(id = R.drawable.currently_playing),
-        contentDescription = "Currently playing",
-        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-        modifier = Modifier.size(20.dp),
-        contentScale = ContentScale.Fit,
-    )
 }
 
 @Composable
