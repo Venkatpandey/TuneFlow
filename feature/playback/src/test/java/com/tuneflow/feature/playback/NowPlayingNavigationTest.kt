@@ -71,11 +71,22 @@ class NowPlayingNavigationTest {
     }
 
     @Test
-    fun reopeningQueue_restoresLastFocusedTrack() {
-        assertEquals(4, resolveQueuePanelFocusIndex(previousFocusedIndex = 4, currentIndex = 1, itemCount = 6))
-        assertEquals(1, resolveQueuePanelFocusIndex(previousFocusedIndex = 8, currentIndex = 1, itemCount = 6))
-        assertEquals(0, resolveQueuePanelFocusIndex(previousFocusedIndex = 8, currentIndex = -1, itemCount = 6))
-        assertEquals(-1, resolveQueuePanelFocusIndex(previousFocusedIndex = 0, currentIndex = 0, itemCount = 0))
+    fun openingQueue_focusesTopTrack() {
+        assertEquals(0, resolveQueuePanelFocusIndex(itemCount = 6))
+        assertEquals(-1, resolveQueuePanelFocusIndex(itemCount = 0))
+    }
+
+    @Test
+    fun calculateCenterScrollDelta_centersItemCorrectly() {
+        // Item is above center: delta is negative (scroll up)
+        assertEquals(-160, calculateCenterScrollDelta(itemOffset = 100, itemSize = 80, viewportHeight = 600))
+        // Item is exactly centered: delta is 0
+        assertEquals(0, calculateCenterScrollDelta(itemOffset = 260, itemSize = 80, viewportHeight = 600))
+        // Item is below center: delta is positive (scroll down)
+        assertEquals(160, calculateCenterScrollDelta(itemOffset = 420, itemSize = 80, viewportHeight = 600))
+        // Invalid or zero viewport height
+        assertEquals(0, calculateCenterScrollDelta(itemOffset = 100, itemSize = 80, viewportHeight = 0))
+        assertEquals(0, calculateCenterScrollDelta(itemOffset = 100, itemSize = 80, viewportHeight = -100))
     }
 
     @Test

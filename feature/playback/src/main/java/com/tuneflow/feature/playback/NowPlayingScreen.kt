@@ -1,16 +1,21 @@
 package com.tuneflow.feature.playback
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -53,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuneflow.core.design.CurrentlyPlayingIndicator
 import com.tuneflow.core.design.HorizontalFocusDirection
+import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.design.TrackFavoriteButton
 import com.tuneflow.core.design.TrackRowFocusTarget
 import com.tuneflow.core.design.TuneFlowActionSurface
@@ -68,6 +74,7 @@ import com.tuneflow.feature.video.VideoUiState
 import com.tuneflow.feature.video.VideoViewModel
 import com.tuneflow.feature.video.hasVisiblePlayer
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import android.view.KeyEvent as AndroidKeyEvent
 
 @Composable
@@ -202,6 +209,9 @@ fun NowPlayingScreen(
                 favoriteState = currentFavoriteState,
                 onCycleStreamMode = onCycleStreamMode,
                 onToggleQueue = {
+                    if (activePanel != NowPlayingPanel.TrackList) {
+                        focusedQueueIndex = 0
+                    }
                     activePanel = toggleNowPlayingPanel(activePanel, NowPlayingPanel.TrackList)
                     clearRequestedFocus()
                 },
@@ -280,7 +290,6 @@ fun NowPlayingScreen(
                             onToggleFavorite = { trackId -> scope.launch { favoriteStore.toggle(trackId) } },
                             onQueueExit = ::closeQueue,
                             onFocusedIndexChanged = { focusedQueueIndex = it },
-                            initialFocusIndex = focusedQueueIndex,
                             preferredExitTarget =
                                 resolveQueueExitTarget(
                                     focusedIndex = focusedQueueIndex,
@@ -468,25 +477,65 @@ private fun QueuePanel(
     onToggleFavorite: (String) -> Unit,
     onQueueExit: (QueueExitTarget) -> Unit,
     onFocusedIndexChanged: (Int) -> Unit,
-    initialFocusIndex: Int,
     preferredExitTarget: QueueExitTarget,
 ) {
     val initialItemFocusRequester = remember { FocusRequester() }
     val queueListState = rememberLazyListState()
     val currentIndex = state.queue.currentIndex
-    val initialItemIndex =
-        resolveQueuePanelFocusIndex(
-            previousFocusedIndex = initialFocusIndex,
-            currentIndex = currentIndex,
-            itemCount = state.queue.items.size,
-        )
+    val initialItemIndex = resolveQueuePanelFocusIndex(itemCount = state.queue.items.size)
+    var currentFocusedIndex by remember { mutableIntStateOf(initialItemIndex) }
+    val motion = LocalTuneFlowMotion.current
 
-    LaunchedEffect(initialItemIndex, state.queue.items.map { it.id }) {
+    LaunchedEffect(Unit) {
         if (initialItemIndex >= 0) {
-            queueListState.scrollToItem(initialItemIndex)
+            queueListState.scrollToItem(0)
             withFrameNanos { }
             runCatching { initialItemFocusRequester.requestFocus() }
             onFocusedIndexChanged(initialItemIndex)
+        }
+    }
+
+    LaunchedEffect(currentFocusedIndex) {
+        if (currentFocusedIndex !in 0 until state.queue.items.size) return@LaunchedEffect
+
+        if (currentFocusedIndex == 0 &&
+            queueListState.firstVisibleItemIndex == 0 &&
+            queueListState.firstVisibleItemScrollOffset == 0
+        ) {
+            return@LaunchedEffect
+        }
+
+        var itemInfo = queueListState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentFocusedIndex }
+        if (itemInfo == null) {
+            queueListState.animateScrollToItem(currentFocusedIndex)
+            withFrameNanos { }
+            itemInfo = queueListState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentFocusedIndex }
+        }
+
+        if (itemInfo != null) {
+            val viewportHeight = queueListState.layoutInfo.viewportSize.height
+            if (viewportHeight > 0) {
+                val scrollDelta =
+                    calculateCenterScrollDelta(
+                        itemOffset = itemInfo.offset,
+                        itemSize = itemInfo.size,
+                        viewportHeight = viewportHeight,
+                    )
+                if (abs(scrollDelta) > 2) {
+                    if (motion.enabled) {
+                        queueListState.animateScrollBy(
+                            value = scrollDelta.toFloat(),
+                            animationSpec =
+                                tween(
+                                    durationMillis = motion.screenBackDurationMs,
+                                    easing = FastOutSlowInEasing,
+                                ),
+                        )
+                    } else {
+                        queueListState.scrollBy(scrollDelta.toFloat())
+                    }
+                }
+            }
         }
     }
 
@@ -522,6 +571,7 @@ private fun QueuePanel(
         LazyColumn(
             state = queueListState,
             verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = 32.dp),
         ) {
             itemsIndexed(state.queue.items, key = { _, track -> track.id }) { index, track ->
                 QueueRow(
@@ -535,7 +585,10 @@ private fun QueuePanel(
                     onClick = { onSelectTrack(index) },
                     onToggleFavorite = { onToggleFavorite(track.id) },
                     onExitLeft = { onQueueExit(preferredExitTarget) },
-                    onFocused = { onFocusedIndexChanged(index) },
+                    onFocused = {
+                        currentFocusedIndex = index
+                        onFocusedIndexChanged(index)
+                    },
                     externalRowFocusRequester = initialItemFocusRequester.takeIf { index == initialItemIndex },
                     modifier =
                         Modifier
@@ -666,17 +719,18 @@ internal enum class QueueExitTarget {
     TransportControls,
 }
 
-internal fun resolveQueuePanelFocusIndex(
-    previousFocusedIndex: Int,
-    currentIndex: Int,
-    itemCount: Int,
-): Int =
-    when {
-        previousFocusedIndex in 0 until itemCount -> previousFocusedIndex
-        currentIndex in 0 until itemCount -> currentIndex
-        itemCount > 0 -> 0
-        else -> -1
-    }
+internal fun resolveQueuePanelFocusIndex(itemCount: Int): Int = if (itemCount > 0) 0 else -1
+
+internal fun calculateCenterScrollDelta(
+    itemOffset: Int,
+    itemSize: Int,
+    viewportHeight: Int,
+): Int {
+    if (viewportHeight <= 0) return 0
+    val itemCenter = itemOffset + itemSize / 2
+    val viewportCenter = viewportHeight / 2
+    return itemCenter - viewportCenter
+}
 
 internal fun resolveQueueExitTarget(
     focusedIndex: Int,
