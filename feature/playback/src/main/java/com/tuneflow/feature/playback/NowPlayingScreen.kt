@@ -529,6 +529,7 @@ private fun QueuePanel(
                     title = track.title,
                     subtitle = track.artist,
                     isCurrent = index == currentIndex,
+                    isPlaying = state.isPlaying,
                     showDivider = index != state.queue.items.lastIndex,
                     favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
                     onClick = { onSelectTrack(index) },
@@ -555,6 +556,7 @@ private fun QueueRow(
     title: String,
     subtitle: String,
     isCurrent: Boolean,
+    isPlaying: Boolean,
     showDivider: Boolean,
     favoriteState: TrackFavoriteState,
     onClick: () -> Unit,
@@ -608,6 +610,7 @@ private fun QueueRow(
         ) {
             if (isCurrent) {
                 CurrentlyPlayingIndicator(
+                    isPlaying = isPlaying,
                     modifier = Modifier.size(18.dp),
                 )
             } else {

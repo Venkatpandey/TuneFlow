@@ -74,7 +74,7 @@ fun CurrentlyPlayingIndicator(
     Canvas(
         modifier =
             modifier.semantics {
-                contentDescription = "Currently playing"
+                contentDescription = if (isPlaying) "Currently playing" else "Playback paused"
             },
     ) {
         val totalWidth = size.width

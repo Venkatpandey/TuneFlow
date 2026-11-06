@@ -14,7 +14,9 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.IntRect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.network.PlaylistFavoriteStore
 import com.tuneflow.core.network.TrackFavoriteStore
@@ -169,6 +171,7 @@ internal fun ShellContent(
                 )
             }
             ShellDestination.Playlists -> {
+                val playbackState by playbackViewModel.uiState.collectAsStateWithLifecycle()
                 PlaylistsScreen(
                     viewModel = playlistsViewModel,
                     favoriteStore = favoriteStore,
@@ -179,6 +182,7 @@ internal fun ShellContent(
                     currentTrackId = playbackQueue.currentItem?.id,
                     currentPlaylistId = playbackQueue.sourcePlaylistId,
                     currentPlaylistName = playbackQueue.sourcePlaylistName,
+                    isPlaying = playbackState.isPlaying,
                     onPlayTracks = onPlayPlaylistTracks,
                     onShuffleTracks = onShufflePlaylistTracks,
                 )

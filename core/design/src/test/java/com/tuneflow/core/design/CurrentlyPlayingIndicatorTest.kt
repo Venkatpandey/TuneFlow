@@ -33,6 +33,14 @@ class CurrentlyPlayingIndicatorTest {
     }
 
     @Test
+    fun restingFractionsForPausedPlaybackAreDistinctAndNonZero() {
+        assertEquals(3, CurrentlyPlayingIndicatorDefaults.RestingFractions.size)
+        assertTrue(CurrentlyPlayingIndicatorDefaults.RestingFractions.all { it > 0f })
+        val distinctValues = CurrentlyPlayingIndicatorDefaults.RestingFractions.distinct()
+        assertTrue("Resting bars should have varying heights to form an equalizer shape", distinctValues.size > 1)
+    }
+
+    @Test
     fun durationsArePositive() {
         for (duration in CurrentlyPlayingIndicatorDefaults.BarDurations) {
             assertTrue("Animation duration must be positive", duration > 0)
