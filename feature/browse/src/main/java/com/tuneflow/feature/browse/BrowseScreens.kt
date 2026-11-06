@@ -88,6 +88,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tuneflow.core.design.CurrentlyPlayingIndicator
 import com.tuneflow.core.design.HorizontalFocusDirection
 import com.tuneflow.core.design.InitialFocusEffect
 import com.tuneflow.core.design.LocalTuneFlowMotion
@@ -463,6 +464,7 @@ fun PlaylistsScreen(
     currentTrackId: String? = null,
     currentPlaylistId: String? = null,
     currentPlaylistName: String? = null,
+    isPlaying: Boolean = false,
     onPlayTracks: (playlistId: String, playlistName: String, tracks: List<TrackSummary>, index: Int) -> Unit,
     onShuffleTracks: (playlistId: String, playlistName: String, tracks: List<TrackSummary>) -> Unit,
     modifier: Modifier = Modifier,
@@ -640,6 +642,7 @@ fun PlaylistsScreen(
                         PremiumPlaylistRow(
                             playlist = playlist,
                             isCurrentlyPlaying = playlist.id == resolvedCurrentPlaylistId,
+                            isPlaying = isPlaying,
                             isFavorite = isFavorite,
                             onToggleFavorite = {
                                 if (favoritesOnly && isFavorite) requestSearchFocus = true
@@ -730,7 +733,7 @@ fun PlaylistsScreen(
                             onToggleFavorite = { scope.launch { favoriteStore.toggle(track.id) } },
                             leadingContent = {
                                 if (track.id == currentTrackId) {
-                                    CurrentlyPlayingIndicator()
+                                    CurrentlyPlayingIndicator(isPlaying = isPlaying)
                                 }
                             },
                             onClick = {
@@ -1561,6 +1564,7 @@ private fun PremiumPlaylistRow(
     modifier: Modifier = Modifier,
     containerModifier: Modifier = Modifier,
     isCurrentlyPlaying: Boolean = false,
+    isPlaying: Boolean = false,
     isFavorite: Boolean? = null,
     onToggleFavorite: () -> Unit = {},
 ) {
@@ -1614,7 +1618,7 @@ private fun PremiumPlaylistRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (isCurrentlyPlaying) CurrentlyPlayingIndicator()
+                        if (isCurrentlyPlaying) CurrentlyPlayingIndicator(isPlaying = isPlaying)
                         Text(
                             text = playlist.name,
                             style = MaterialTheme.typography.titleMedium,
@@ -2109,17 +2113,6 @@ internal fun playlistRowsForDisplay(
     val used = orderedIds.mapNotNull(playlistsById::get)
     val usedIds = used.mapTo(mutableSetOf(), PlaylistSummary::id)
     return used + filtered.filterNot { it.id in usedIds }
-}
-
-@Composable
-private fun CurrentlyPlayingIndicator() {
-    Image(
-        painter = painterResource(id = R.drawable.currently_playing),
-        contentDescription = "Currently playing",
-        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-        modifier = Modifier.size(20.dp),
-        contentScale = ContentScale.Fit,
-    )
 }
 
 @Composable

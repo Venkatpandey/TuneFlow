@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -46,13 +45,13 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tuneflow.core.design.CurrentlyPlayingIndicator
 import com.tuneflow.core.design.HorizontalFocusDirection
 import com.tuneflow.core.design.TrackFavoriteButton
 import com.tuneflow.core.design.TrackRowFocusTarget
@@ -530,6 +529,7 @@ private fun QueuePanel(
                     title = track.title,
                     subtitle = track.artist,
                     isCurrent = index == currentIndex,
+                    isPlaying = state.isPlaying,
                     showDivider = index != state.queue.items.lastIndex,
                     favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
                     onClick = { onSelectTrack(index) },
@@ -556,6 +556,7 @@ private fun QueueRow(
     title: String,
     subtitle: String,
     isCurrent: Boolean,
+    isPlaying: Boolean,
     showDivider: Boolean,
     favoriteState: TrackFavoriteState,
     onClick: () -> Unit,
@@ -608,12 +609,9 @@ private fun QueueRow(
             onClick = onClick,
         ) {
             if (isCurrent) {
-                Image(
-                    painter = painterResource(id = R.drawable.currently_playing),
-                    contentDescription = "Currently playing",
-                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                CurrentlyPlayingIndicator(
+                    isPlaying = isPlaying,
                     modifier = Modifier.size(18.dp),
-                    contentScale = ContentScale.Fit,
                 )
             } else {
                 Spacer(modifier = Modifier.size(18.dp))
