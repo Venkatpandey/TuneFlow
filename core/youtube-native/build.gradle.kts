@@ -60,7 +60,7 @@ dependencies {
     implementation("com.localebro:okhttpprofiler:1.0.8")
     implementation("com.jakewharton:disklrucache:2.0.2")
     implementation("info.guardianproject.netcipher:netcipher:2.1.0")
-    implementation("dnsjava:dnsjava:2.1.9")
+    implementation("dnsjava:dnsjava:3.6.5")
     implementation("com.github.florianingerl.util:regex:1.1.11")
     implementation("com.grack:nanojson:1.10")
     implementation("com.google.protobuf:protobuf-javalite:4.36.2")
