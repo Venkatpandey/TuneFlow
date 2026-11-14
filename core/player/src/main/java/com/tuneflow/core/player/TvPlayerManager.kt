@@ -26,12 +26,14 @@ import kotlinx.coroutines.launch
 class TvPlayerManager(
     context: Context,
     private val queueStore: QueueStore,
+    scrobbleReporter: ScrobbleReporter = NoOpScrobbleReporter,
 ) : PlaybackController {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val appContext = context.applicationContext
     private var lastError: PlaybackException? = null
     private var expectedToPlay = false
     private var fallbackMonitorJob: Job? = null
+    private val listenSessionTracker = ListenSessionTracker(scope, scrobbleReporter)
 
     private val _queue = MutableStateFlow(PlaybackQueue())
     override val queue: StateFlow<PlaybackQueue> = _queue.asStateFlow()
@@ -68,10 +70,14 @@ class TvPlayerManager(
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             _isPlaying.value = isPlaying
                             if (isPlaying) {
+                                startCurrentListen()
                                 lastError = null
                                 cancelFallbackMonitor()
                             } else if (expectedToPlay) {
+                                pauseCurrentListen()
                                 scheduleFallbackMonitor()
+                            } else {
+                                pauseCurrentListen()
                             }
                             updatePlaybackStatus()
                         }
@@ -79,23 +85,28 @@ class TvPlayerManager(
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
                                 Player.STATE_BUFFERING -> {
+                                    pauseCurrentListen()
                                     if (expectedToPlay) scheduleFallbackMonitor()
                                 }
                                 Player.STATE_READY -> {
+                                    lastError = null
                                     if (exo.isPlaying) {
-                                        lastError = null
+                                        startCurrentListen()
                                         cancelFallbackMonitor()
                                     } else if (expectedToPlay) {
+                                        pauseCurrentListen()
                                         scheduleFallbackMonitor()
                                     }
                                 }
                                 Player.STATE_ENDED -> {
+                                    endCurrentListen()
                                     if (_playbackMode.value != PlaybackMode.Loop) {
                                         expectedToPlay = false
                                         cancelFallbackMonitor()
                                     }
                                 }
                                 Player.STATE_IDLE -> {
+                                    pauseCurrentListen()
                                     if (expectedToPlay) scheduleFallbackMonitor()
                                 }
                             }
@@ -108,6 +119,7 @@ class TvPlayerManager(
                             reason: Int,
                         ) {
                             if (!playWhenReady && !exo.isPlaying) {
+                                pauseCurrentListen()
                                 expectedToPlay = false
                                 cancelFallbackMonitor()
                             }
@@ -118,7 +130,18 @@ class TvPlayerManager(
                             mediaItem: MediaItem?,
                             reason: Int,
                         ) {
+                            lastError = null
+                            if (reason.isNaturalTransition()) {
+                                endCurrentListen()
+                            }
                             updateQueueIndex(exo.currentMediaItemIndex)
+                            listenSessionTracker.onMediaChanged(
+                                trackId = mediaItem?.mediaId,
+                                forceNewSession = reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED,
+                            )
+                            if (exo.isPlaying) {
+                                startCurrentListen()
+                            }
                             if (expectedToPlay) {
                                 scheduleFallbackMonitor()
                             }
@@ -140,6 +163,7 @@ class TvPlayerManager(
                         }
 
                         override fun onPlayerError(error: PlaybackException) {
+                            pauseCurrentListen()
                             lastError = error
                             if (!tryFallbackForCurrentItem()) {
                                 _isPlaying.value = false
@@ -169,23 +193,33 @@ class TvPlayerManager(
         }
     }
 
-    fun playQueue(
+    override fun playQueue(
         items: List<QueueItem>,
-        startIndex: Int = 0,
+        startIndex: Int,
+        sourcePlaylistId: String?,
+        sourcePlaylistName: String?,
+        playWhenReady: Boolean,
     ) {
         if (items.isEmpty()) return
 
-        val queue = PlaybackQueue().replace(items, startIndex)
+        listenSessionTracker.reset()
+        val queue = PlaybackQueue().replace(items, startIndex, sourcePlaylistId, sourcePlaylistName)
         _queue.value = queue
         lastError = null
-        expectedToPlay = true
+        expectedToPlay = playWhenReady
 
         val mediaItems = items.map { it.toMediaItem() }
+        player.playWhenReady = playWhenReady
+        if (!playWhenReady) player.stop()
         player.setMediaItems(mediaItems, queue.currentIndex, 0L)
-        player.prepare()
         player.repeatMode = Player.REPEAT_MODE_OFF
-        player.play()
-        scheduleFallbackMonitor()
+        if (playWhenReady) {
+            player.prepare()
+            player.play()
+            scheduleFallbackMonitor()
+        } else {
+            player.pause()
+        }
         updatePlaybackStatus()
         persist()
     }
@@ -194,12 +228,14 @@ class TvPlayerManager(
         if (_queue.value.items.isEmpty()) return
         lastError = null
         expectedToPlay = true
+        if (player.playbackState == Player.STATE_IDLE) player.prepare()
         player.play()
         scheduleFallbackMonitor()
         updatePlaybackStatus()
     }
 
     override fun pause() {
+        pauseCurrentListen()
         expectedToPlay = false
         player.pause()
         cancelFallbackMonitor()
@@ -213,21 +249,30 @@ class TvPlayerManager(
         updatePlaybackStatus()
     }
 
-    override fun playFromIndex(index: Int) {
+    override fun playFromIndex(
+        index: Int,
+        playWhenReady: Boolean,
+    ) {
         val queue = _queue.value
         if (queue.items.isEmpty()) return
 
         val clamped = index.coerceIn(0, queue.items.lastIndex)
+        listenSessionTracker.reset()
         lastError = null
-        expectedToPlay = true
+        expectedToPlay = playWhenReady
+        player.playWhenReady = playWhenReady
+        if (!playWhenReady) player.stop()
         player.seekToDefaultPosition(clamped)
-        player.playWhenReady = true
-        if (player.playbackState == Player.STATE_IDLE) {
+        if (playWhenReady && player.playbackState == Player.STATE_IDLE) {
             player.prepare()
         }
-        player.play()
+        if (playWhenReady) {
+            player.play()
+            scheduleFallbackMonitor()
+        } else {
+            player.pause()
+        }
         updateQueueIndex(clamped)
-        scheduleFallbackMonitor()
         updatePlaybackStatus()
         persist()
     }
@@ -246,6 +291,7 @@ class TvPlayerManager(
     }
 
     override fun stopAndClear() {
+        listenSessionTracker.reset()
         expectedToPlay = false
         lastError = null
         cancelFallbackMonitor()
@@ -262,6 +308,7 @@ class TvPlayerManager(
     }
 
     override fun next() {
+        listenSessionTracker.reset()
         lastError = null
         expectedToPlay = player.playWhenReady || _isPlaying.value
         player.seekToNextMediaItem()
@@ -272,6 +319,7 @@ class TvPlayerManager(
     }
 
     override fun previous() {
+        listenSessionTracker.reset()
         lastError = null
         expectedToPlay = player.playWhenReady || _isPlaying.value
         player.seekToPreviousMediaItem()
@@ -326,10 +374,33 @@ class TvPlayerManager(
     }
 
     fun release() {
+        listenSessionTracker.reset()
         cancelFallbackMonitor()
         persist()
         player.release()
     }
+
+    fun setScrobbleReporter(reporter: ScrobbleReporter) {
+        listenSessionTracker.setReporter(reporter)
+        if (player.isPlaying) startCurrentListen()
+    }
+
+    private fun startCurrentListen() {
+        val track = _queue.value.currentItem ?: return
+        listenSessionTracker.onPlaying(track.id, track.durationMs)
+    }
+
+    private fun pauseCurrentListen() {
+        _queue.value.currentItem?.let { listenSessionTracker.onPaused(it.id) }
+    }
+
+    private fun endCurrentListen() {
+        listenSessionTracker.onEnded()
+    }
+
+    private fun Int.isNaturalTransition(): Boolean =
+        this == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
+            this == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
 
     private fun scheduleFallbackMonitor() {
         cancelFallbackMonitor()
@@ -357,43 +428,18 @@ class TvPlayerManager(
 
     private fun tryFallbackForCurrentItem(): Boolean {
         val queue = _queue.value
-        val currentItem = queue.currentItem
-        val fallbackUrl = currentItem?.fallbackStreamUrl
-        val shouldFallback = currentItem != null && !fallbackUrl.isNullOrBlank() && currentItem.streamUrl != fallbackUrl
+        val fallbackItem = queue.currentItem?.audioFallback(expectedToPlay) ?: return false
+        val updatedItems = queue.items.mapIndexed { index, item -> if (index == queue.currentIndex) fallbackItem else item }
+        val updatedQueue = queue.copy(items = updatedItems, currentPositionMs = player.currentPosition.coerceAtLeast(0L))
 
-        if (shouldFallback) {
-            val resolvedFallbackUrl = checkNotNull(fallbackUrl)
-            val updatedItems =
-                queue.items.mapIndexed { index, item ->
-                    if (index == queue.currentIndex) {
-                        item.copy(
-                            streamUrl = resolvedFallbackUrl,
-                            fallbackStreamUrl = null,
-                            streamFormatLabel = "MP3",
-                            streamBitrateLabel = "Max",
-                            streamMimeType = MPEG_AUDIO_MIME_TYPE,
-                        )
-                    } else {
-                        item
-                    }
-                }
-
-            val updatedQueue =
-                queue.copy(
-                    items = updatedItems,
-                    currentPositionMs = player.currentPosition.coerceAtLeast(0L),
-                )
-
-            _queue.value = updatedQueue
-            lastError = null
-            player.setMediaItems(updatedItems.map { it.toMediaItem() }, updatedQueue.currentIndex, updatedQueue.currentPositionMs)
-            player.prepare()
-            player.play()
-            scheduleFallbackMonitor()
-            persist()
-        }
-
-        return shouldFallback
+        _queue.value = updatedQueue
+        lastError = null
+        player.setMediaItems(updatedItems.map { it.toMediaItem() }, updatedQueue.currentIndex, updatedQueue.currentPositionMs)
+        player.prepare()
+        if (expectedToPlay) player.play()
+        scheduleFallbackMonitor()
+        persist()
+        return true
     }
 
     private fun updateQueueIndex(index: Int) {
@@ -472,4 +518,15 @@ private suspend fun kotlinx.coroutines.flow.Flow<PlaybackQueue?>.mapNotNullOnce(
 
 internal fun shouldPersistOnPositionDiscontinuity(reason: Int): Boolean {
     return reason == Player.DISCONTINUITY_REASON_SEEK
+}
+
+internal fun QueueItem.audioFallback(expectedToPlay: Boolean): QueueItem? {
+    if (!expectedToPlay || fallbackStreamUrl.isNullOrBlank() || streamUrl == fallbackStreamUrl) return null
+    return copy(
+        streamUrl = fallbackStreamUrl,
+        fallbackStreamUrl = null,
+        streamFormatLabel = "MP3",
+        streamBitrateLabel = "Max",
+        streamMimeType = MPEG_AUDIO_MIME_TYPE,
+    )
 }

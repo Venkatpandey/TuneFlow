@@ -26,6 +26,16 @@ Confirmed app exit deliberately stops playback, clears the player, stops the pla
 - Focus restoration scrolls the containing list or grid before requesting focus.
 - If no restoration target exists, each screen uses its normal initial-focus behavior.
 
+## Incremental lists
+
+Home loads each library rail when its row enters the viewport. Rails start with five items; the D-pad-accessible **Load more** card appends five more without resetting the row's scroll state or replacing existing item keys. When the last page removes that card, focus moves to **Show all**. Loading failures leave existing cards available and expose a **Retry** action.
+
+Playlist detail starts with 50 displayed tracks and appends another 50 when scrolling within ten rows of the displayed end. Track keys include their occurrence index so repeated songs remain separate rows. Play, Shuffle, and track selection always use the full playlist, not the displayed prefix. Playlist-list artwork is requested only for visible rows, in batches of at most four.
+
+Albums use Subsonic's size/offset pagination. Artists, favorites, playlist summaries, and playlist detail use whole-response endpoints; their incremental display does not reduce the size of those responses.
+
+On a remote device, check that an existing card keeps focus while a page appends, **Load more** remains focused until exhaustion, and Back restores an item beyond the first page. For a playlist with over 100 tracks, scroll across both page boundaries, select a repeated song occurrence, and confirm playback continues beyond the displayed prefix.
+
 ## Test expectations
 
 Navigation changes should cover the affected stack transition with unit tests. Transient screen changes should also cover their escape decision or cancellation behavior. Remote-device verification should confirm that focus remains visible after every Back press.

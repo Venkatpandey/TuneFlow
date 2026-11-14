@@ -31,6 +31,7 @@ data class NowPlayingUiState(
     val durationMs: Long = 0L,
     val playbackStatus: PlaybackStatus = PlaybackStatus(),
     val statusMessage: String? = null,
+    val canRetry: Boolean = false,
     val playbackMode: PlaybackMode = PlaybackMode.Default,
 )
 
@@ -121,7 +122,10 @@ class PlaybackViewModel(
 
     fun seekTo(positionMs: Long) = playerManager.seekTo(positionMs)
 
-    fun playFromIndex(index: Int) = playerManager.playFromIndex(index)
+    fun playFromIndex(
+        index: Int,
+        playWhenReady: Boolean = true,
+    ) = playerManager.playFromIndex(index, playWhenReady)
 
     fun retry() = playerManager.retryCurrent()
 
@@ -151,7 +155,8 @@ private fun PlaybackSnapshot.toUiState(playerManager: PlaybackController): NowPl
         positionMs = playerManager.currentPositionMs(),
         durationMs = playerManager.durationMs().takeIf { it > 0L } ?: queue.currentItem?.durationMs ?: 0L,
         playbackStatus = playbackStatus,
-        statusMessage = buildStatusMessage(playbackStatus, isPlaying),
+        statusMessage = buildStatusMessage(playbackStatus, isPlaying).takeIf { queue.currentItem != null },
+        canRetry = queue.currentItem != null && !isPlaying && playbackStatus.errorCategory != null,
         playbackMode = playbackMode,
     )
 
@@ -159,9 +164,9 @@ private fun buildStatusMessage(
     playbackStatus: PlaybackStatus,
     isPlaying: Boolean,
 ): String? {
-    playbackStatus.errorMessage?.let { return it }
-
     return when {
+        isPlaying -> null
+        playbackStatus.errorMessage != null -> playbackStatus.errorMessage
         playbackStatus.expectedToPlay && !isPlaying && playbackStatus.phase == PlaybackPhase.Buffering ->
             "Buffering audio stream..."
         playbackStatus.expectedToPlay && !isPlaying && playbackStatus.phase == PlaybackPhase.Ready ->

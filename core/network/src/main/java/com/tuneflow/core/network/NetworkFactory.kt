@@ -15,6 +15,8 @@ object NetworkFactory {
             .build()
     }
 
+    internal fun sharedHttpClient(): OkHttpClient = sharedClient
+
     fun normalizeBaseUrl(baseUrl: String): String {
         val trimmed = baseUrl.trim()
         require(trimmed.isNotBlank()) { "Server URL is required." }

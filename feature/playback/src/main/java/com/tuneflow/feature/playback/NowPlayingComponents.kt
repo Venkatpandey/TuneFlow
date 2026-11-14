@@ -1,15 +1,22 @@
 package com.tuneflow.feature.playback
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +25,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,20 +38,31 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
+import com.tuneflow.core.design.LocalTuneFlowMotion
+import com.tuneflow.core.design.TrackFavoriteButton
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.design.animateTuneFlowFocusScale
+import com.tuneflow.core.network.TrackFavoriteState
 import com.tuneflow.core.player.PlaybackMode
 import com.tuneflow.core.player.QueueItem
 import com.tuneflow.feature.video.VideoActionButton
@@ -92,16 +112,22 @@ private fun VideoMiniViewport(onBoundsChanged: (IntRect) -> Unit) {
 internal fun NowPlayingPrimaryColumn(
     item: QueueItem?,
     state: NowPlayingUiState,
+    playlistName: String?,
     videoState: VideoUiState,
     artSize: Dp,
     artFrameHeight: Dp,
     streamModeLabel: String,
     activePanel: NowPlayingPanel,
     hasLyrics: Boolean,
+    videoPreferred: Boolean,
+    videoPreferenceEnabled: Boolean,
+    favoriteState: TrackFavoriteState,
     onCycleStreamMode: () -> Unit,
     onToggleQueue: () -> Unit,
     onToggleLyrics: () -> Unit,
     onVideoAction: () -> Unit,
+    onToggleVideoPreference: () -> Unit,
+    onToggleFavorite: () -> Unit,
     onEnterFullscreen: () -> Unit,
     onStopVideo: () -> Unit,
     onVideoViewportBoundsChanged: (IntRect?) -> Unit,
@@ -139,12 +165,15 @@ internal fun NowPlayingPrimaryColumn(
                 artFrameHeight = artFrameHeight,
             )
         }
-        TrackMetadata(item = item)
+        TrackMetadata(item = item, playlistName = playlistName)
         StreamControlRow(
             streamModeLabel = streamModeLabel,
             bitrateLabel = item?.streamBitrateLabel ?: "--",
             activePanel = activePanel,
             hasLyrics = hasLyrics,
+            videoPreferred = videoPreferred,
+            videoPreferenceEnabled = videoPreferenceEnabled,
+            favoriteState = favoriteState,
             videoState = videoState,
             videoEnabled = item != null,
             onCycleStreamMode = onCycleStreamMode,
@@ -153,6 +182,8 @@ internal fun NowPlayingPrimaryColumn(
             onToggleQueue = onToggleQueue,
             onToggleLyrics = onToggleLyrics,
             onVideoAction = onVideoAction,
+            onToggleVideoPreference = onToggleVideoPreference,
+            onToggleFavorite = onToggleFavorite,
             playbackMode = state.playbackMode,
             onCyclePlaybackMode = onCyclePlaybackMode,
             autoFocusQueue = autoFocusQueue,
@@ -174,10 +205,10 @@ internal fun NowPlayingPrimaryColumn(
             )
         }
 
-        state.statusMessage?.let {
+        state.audioStatusMessage(videoState)?.let {
             PlaybackStatusCard(
                 message = it,
-                onRetry = onRetry,
+                onRetry = onRetry.takeIf { state.canRetry },
             )
         }
 
@@ -213,6 +244,7 @@ internal fun ArtworkCard(
     artSize: Dp,
     artFrameHeight: Dp,
 ) {
+    val motion = LocalTuneFlowMotion.current
     Box(
         modifier =
             Modifier
@@ -224,54 +256,101 @@ internal fun ArtworkCard(
                 .padding(10.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(artSize)
-                    .clip(TuneFlowShapes.artwork)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            TuneFlowArtwork(
-                model = item?.artUrl,
-                contentDescription = item?.title,
-                width = artSize,
-                height = artSize,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                placeholderText = item?.title,
-                fallbackPainterResId = R.drawable.ic_tuneflow_brand,
-            )
+        AnimatedContent(
+            targetState = item,
+            transitionSpec = {
+                if (motion.enabled) {
+                    fadeIn(tween(320, easing = FastOutSlowInEasing)) togetherWith fadeOut(tween(180))
+                } else {
+                    fadeIn(snap()) togetherWith fadeOut(snap())
+                }
+            },
+            contentKey = { it?.id },
+            label = "now-playing-foreground-art",
+        ) { targetItem ->
+            Box(
+                modifier =
+                    Modifier
+                        .size(artSize)
+                        .clip(TuneFlowShapes.artwork)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.78f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                TuneFlowArtwork(
+                    model = targetItem?.artUrl,
+                    contentDescription = targetItem?.title,
+                    width = artSize,
+                    height = artSize,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = targetItem?.title,
+                    fallbackPainterResId = R.drawable.ic_tuneflow_brand,
+                )
+            }
         }
     }
 }
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-internal fun TrackMetadata(item: QueueItem?) {
-    Text(
-        text = item?.title ?: "Nothing playing",
-        style = MaterialTheme.typography.headlineLarge,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-    Text(
-        text = item?.artist ?: "",
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Clip,
-        modifier = Modifier.fillMaxWidth().basicMarquee(),
-    )
-    Text(
-        text = item?.album ?: "",
-        style = MaterialTheme.typography.bodyLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
+internal fun TrackMetadata(
+    item: QueueItem?,
+    playlistName: String?,
+) {
+    val motion = LocalTuneFlowMotion.current
+    AnimatedContent(
+        targetState = item,
+        transitionSpec = {
+            if (motion.enabled) {
+                fadeIn(tween(260, delayMillis = 80, easing = FastOutSlowInEasing)) togetherWith fadeOut(tween(140))
+            } else {
+                fadeIn(snap()) togetherWith fadeOut(snap())
+            }
+        },
+        contentKey = { it?.id },
+        label = "now-playing-metadata",
+    ) { targetItem ->
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = targetItem?.title ?: "Nothing playing",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = targetItem?.artist ?: "",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+                modifier = Modifier.fillMaxWidth().basicMarquee(),
+            )
+            Text(
+                text = targetItem?.album ?: "",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            playlistContextLabel(playlistName)?.let { label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
 }
+
+internal fun playlistContextLabel(playlistName: String?): String? =
+    playlistName
+        ?.trim()
+        ?.takeIf(String::isNotEmpty)
+        ?.let { "Playlist • $it" }
 
 @Composable
 internal fun StreamBadge(label: String) {
@@ -285,7 +364,6 @@ internal fun StreamModeButton(
     requestFocus: Boolean = false,
     onRequestedFocusApplied: () -> Unit = {},
 ) {
-    var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(requestFocus) {
@@ -295,33 +373,10 @@ internal fun StreamModeButton(
         }
     }
 
-    Box(
-        modifier =
-            Modifier
-                .size(44.dp)
-                .focusRequester(focusRequester)
-                .scale(if (focused) 1.01f else 1f)
-                .clip(TuneFlowShapes.button)
-                .background(
-                    if (focused) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f)
-                    },
-                )
-                .border(
-                    width = if (focused) 2.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = TuneFlowShapes.button,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick),
+    TuneFlowActionSurface(
+        onClick = onClick,
+        modifier = Modifier.size(44.dp).focusRequester(focusRequester),
+        contentPadding = PaddingValues(0.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -340,6 +395,9 @@ internal fun StreamControlRow(
     hasLyrics: Boolean,
     videoState: VideoUiState,
     videoEnabled: Boolean,
+    videoPreferred: Boolean,
+    videoPreferenceEnabled: Boolean,
+    favoriteState: TrackFavoriteState,
     playbackMode: PlaybackMode,
     onCycleStreamMode: () -> Unit,
     autoFocusStreamMode: Boolean,
@@ -347,6 +405,8 @@ internal fun StreamControlRow(
     onToggleQueue: () -> Unit,
     onToggleLyrics: () -> Unit,
     onVideoAction: () -> Unit,
+    onToggleVideoPreference: () -> Unit,
+    onToggleFavorite: () -> Unit,
     onCyclePlaybackMode: () -> Unit,
     autoFocusQueue: Boolean,
     autoFocusLyrics: Boolean,
@@ -367,6 +427,12 @@ internal fun StreamControlRow(
             playbackMode = playbackMode,
             onClick = onCyclePlaybackMode,
         )
+        TrackFavoriteButton(
+            isFavorite = favoriteState.isFavorite,
+            isPending = favoriteState.isPending,
+            onClick = onToggleFavorite,
+            modifier = Modifier.size(44.dp),
+        )
         QueueToggleIconButton(
             active = activePanel == NowPlayingPanel.TrackList,
             onClick = onToggleQueue,
@@ -381,17 +447,92 @@ internal fun StreamControlRow(
                 onRequestedFocusApplied = onLyricsFocusConsumed,
             )
         }
+        VideoPreferenceToggleButton(
+            checked = videoPreferred,
+            enabled = videoPreferenceEnabled,
+            onClick = onToggleVideoPreference,
+        )
         VideoActionButton(
             state = videoState,
             enabled =
                 videoEnabled &&
                     videoState !is VideoUiState.Unavailable &&
-                    videoState !is VideoUiState.Searching &&
                     videoState !is VideoUiState.Loading &&
                     videoState !is VideoUiState.ConsentRequired,
             requestFocus = autoFocusVideo,
             onRequestedFocusApplied = onVideoFocusConsumed,
             onClick = onVideoAction,
+        )
+    }
+}
+
+@Composable
+private fun VideoPreferenceToggleButton(
+    checked: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val scale =
+        animateTuneFlowFocusScale(
+            focused = focused,
+            focusedScale = LocalTuneFlowMotion.current.buttonFocusScale,
+            label = "video-preference-focus",
+        )
+    Row(
+        modifier =
+            Modifier
+                .width(82.dp)
+                .height(44.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .alpha(if (enabled) 1f else 0.45f)
+                .onFocusChanged { focused = it.hasFocus }
+                .focusable(enabled)
+                .clip(TuneFlowShapes.button)
+                .background(
+                    if (focused || checked) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
+                    },
+                )
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
+                        },
+                    shape = TuneFlowShapes.button,
+                )
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Prefer videos in playlist"
+                    stateDescription = if (checked) "On" else "Off"
+                }
+                .toggleable(
+                    value = checked,
+                    enabled = enabled,
+                    role = Role.Switch,
+                    onValueChange = { onClick() },
+                )
+                .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(VideoR.drawable.smarttube_ic_video),
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = if (checked) "ON" else "OFF",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
@@ -587,3 +728,6 @@ internal fun formatTime(ms: Long): String {
         "%02d:%02d".format(minutes, seconds)
     }
 }
+
+internal fun NowPlayingUiState.audioStatusMessage(videoState: VideoUiState): String? =
+    statusMessage.takeUnless { videoState.hasVisiblePlayer || isPlaying }

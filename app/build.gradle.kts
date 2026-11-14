@@ -1,14 +1,32 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
     id("io.gitlab.arturbosch.detekt")
     id("org.jlleitschuh.gradle.ktlint")
 }
 
-val releaseBuildRequested =
-    gradle.startParameter.taskNames.any {
-        it.contains("Release", ignoreCase = true)
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
     }
+}
+
+val stableReleaseBuildRequested =
+    gradle.startParameter.taskNames.any {
+        it.contains("Release", ignoreCase = true) &&
+            !it.contains("BetaRelease", ignoreCase = true)
+    }
+
+val tuneFlowVersionName =
+    providers.gradleProperty("tuneFlowVersionName")
+        .getOrElse("1.2.0")
+val tuneFlowVersionCode =
+    providers.gradleProperty("tuneFlowVersionCode")
+        .map(String::toInt)
+        .getOrElse(1_002_000)
 
 val preferredVideoServiceUrl =
     providers.gradleProperty("preferredVideoServiceUrl")
@@ -25,10 +43,12 @@ android {
         applicationId = "com.tuneflow.tv"
         minSdk = 25
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = tuneFlowVersionCode
+        versionName = tuneFlowVersionName
 
         buildConfigField("String", "PREFERRED_VIDEO_SERVICE_URL", "\"$preferredVideoServiceUrl\"")
+        buildConfigField("boolean", "APP_UPDATE_ENABLED", "true")
+        buildConfigField("boolean", "PREMIUM_FEATURES_ENABLED", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -40,7 +60,7 @@ android {
             val keyAliasValue = System.getenv("SIGNING_KEY_ALIAS")
             val keyPasswordValue = System.getenv("SIGNING_KEY_PASSWORD")
 
-            if (releaseBuildRequested) {
+            if (stableReleaseBuildRequested) {
                 require(!storeFilePath.isNullOrBlank()) {
                     "SIGNING_STORE_FILE is required for release builds."
                 }
@@ -67,6 +87,7 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
+            buildConfigField("boolean", "PREMIUM_FEATURES_ENABLED", "true")
         }
         release {
             isMinifyEnabled = false
@@ -76,6 +97,16 @@ android {
             )
             signingConfig = signingConfigs.getByName("release")
         }
+        create("betaRelease") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".beta"
+            versionNameSuffix = "-beta"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            resValue("string", "app_name", "TuneFlow Beta")
+            buildConfigField("boolean", "APP_UPDATE_ENABLED", "false")
+            buildConfigField("boolean", "PREMIUM_FEATURES_ENABLED", "true")
+        }
     }
 
     compileOptions {
@@ -83,17 +114,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14"
     }
 
     packaging {
@@ -119,6 +142,7 @@ dependencies {
     implementation(fileTree("$rootDir/core/youtube-native/libs"))
 
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.concurrent:concurrent-futures:1.2.0")
     implementation("androidx.activity:activity-compose:1.9.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")

@@ -19,30 +19,24 @@ TuneFlow is a native Android TV / Fire TV Navidrome client built for remote-firs
 
 ## Screenshots
 
+Charcoal and champagne theme, captured from TuneFlow Beta on Fire TV.
+
 <table>
   <tr>
-    <td><img src="docs/screenshots/home.png" alt="TuneFlow Home screen"></td>
-    <td><img src="docs/screenshots/albums.png" alt="TuneFlow Albums screen"></td>
+    <td><img src="docs/screenshots/albums.png" alt="TuneFlow album grid with an ivory focus border and champagne navigation accents"></td>
+    <td><img src="docs/screenshots/album-detail.png" alt="TuneFlow album detail with artwork, track list, and champagne playback buttons"></td>
   </tr>
   <tr>
-    <td align="center"><sub>Home</sub></td>
     <td align="center"><sub>Albums</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/now-playing-video.png" alt="TuneFlow Now Playing screen with video"></td>
-    <td><img src="docs/screenshots/now-playing-lyrics.png" alt="TuneFlow Now Playing screen with synchronized lyrics"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Now Playing video</sub></td>
-    <td align="center"><sub>Now Playing with lyrics</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/album-detail.png" alt="TuneFlow album detail screen"></td>
-    <td><img src="docs/screenshots/search.png" alt="TuneFlow Search screen"></td>
-  </tr>
-  <tr>
     <td align="center"><sub>Album detail</sub></td>
-    <td align="center"><sub>Search</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/now-playing.png" alt="TuneFlow Now Playing screen with album artwork and focused playback controls"></td>
+    <td><img src="docs/screenshots/login.png" alt="TuneFlow sign-in screen with charcoal surfaces and a champagne login button"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Now Playing</sub></td>
+    <td align="center"><sub>Sign in</sub></td>
   </tr>
 </table>
 
@@ -67,6 +61,12 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 3. Allow installs from unknown sources if your device asks.
 4. Install and launch TuneFlow.
 
+TuneFlow checks the latest stable GitHub release on every fresh app launch and once every 24 hours while it remains active. The update prompt shows the new version and release notes. Selecting **Update Now** downloads the signed release APK and opens the system package installer. The first in-app update may ask you to allow TuneFlow to install apps from this source. Selecting **Later** hides the prompt for 48 hours.
+
+The installed version is shown below the clock in the navigation rail. Focus the profile badge and hold Select to open **About TuneFlow**, where the app shows its build channel, package, latest release changelog, and a **Check for Updates** button.
+
+Local release testing uses a separate `TuneFlow Beta` package, launcher name, and badged icon/banner. Build it with `scripts/build-local-release.sh`; it can be installed beside stable TuneFlow without replacing stable app data. Automatic stable-release installation is disabled in this local beta package, but its About panel can check and display the latest stable release.
+
 ## Login
 
 1. Open TuneFlow.
@@ -80,6 +80,7 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 ## What You Can Do
 
 - Continue listening from the saved queue
+- Install newer stable TuneFlow releases from an in-app TV prompt
 - Browse newest albums
 - Open playlists with collage artwork
 - Open artists and drill into their albums
@@ -87,8 +88,9 @@ If you use the Downloader app on Fire TV / Android TV, enter code `1578499`.
 - Search with recent queries and live suggestions
 - Use play/pause/previous/next on the Now Playing screen
 - Browse up to 25 ranked YouTube matches for the current song, choose one, and play it full screen
-- Reopen the 5 most recent videos from Home or show the last 20
+- Reopen the 5 most recent videos from Home or show the last 100
 - Persist preferred track videos and recent playback through an optional LAN Go/SQLite service
+- Use **Video preferred** in Now Playing to continue a playlist with mapped videos and audio fallback
 - Press Back to keep the selected video playing inside the Now Playing rail widget while browsing TuneFlow
 - Logout to switch users on the same TV
 
@@ -100,7 +102,9 @@ Native search works without a Google API key.
 
 For durable preferred videos and recent history across app reinstall or TV replacement, deploy the LAN-only service, then enter its URL under **Home > Quick Actions > Video Service**. No APK rebuild is required. See [preferred-video service deployment](services/preferred-video/README.md). If the service is missing, disabled, or offline, the Video button immediately uses normal YouTube search and playback continues normally.
 
-Video search starts only after the user selects it and accepts the one-time disclosure. TuneFlow ranks matches using title, artist, duration, category, publisher, and view count. The native player defaults to the highest supported quality, preserves the video's aspect ratio, and exposes quality and caption controls. Stopping, finishing, or failing video leaves audio paused and returns control to audio. Playback pauses when TuneFlow leaves the foreground.
+Video search starts only after the user selects it and accepts the one-time disclosure. TuneFlow ranks matches using title, artist, duration, category, publisher, and view count. The native player defaults to the highest supported quality, preserves the video's aspect ratio, and exposes quality and caption controls.
+
+For playlist queues, the **Video preferred** toggle in Now Playing makes each track use its saved preferred video when one exists and fall back to audio otherwise. Selecting a video for the current playlist track enables this mode automatically. When a video finishes, TuneFlow advances the same queue; disabling the mode switches an active video back to the matching audio position. Explicitly stopping a video still leaves audio paused. Playback pauses when TuneFlow leaves the foreground.
 
 ## Streaming Quality
 

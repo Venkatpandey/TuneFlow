@@ -5,6 +5,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
+import com.tuneflow.core.player.ScrobbleReporter
 import com.tuneflow.core.player.TvPlayerManager
 import com.tuneflow.feature.auth.AuthRepository
 import com.tuneflow.feature.auth.AuthViewModel
@@ -78,6 +79,7 @@ fun videoViewModelFactory(
     context: Context,
     manager: TvPlayerManager,
     preferredVideoStore: PreferredVideoStore,
+    scrobbleReporter: ScrobbleReporter,
 ) = viewModelFactory {
     initializer {
         VideoViewModel(
@@ -85,6 +87,7 @@ fun videoViewModelFactory(
             consentStore = SharedPreferencesVideoConsentStore(context),
             nativeBackend = createNativeVideoBackend(context),
             preferredVideoStore = preferredVideoStore,
+            scrobbleReporter = scrobbleReporter,
         )
     }
 }

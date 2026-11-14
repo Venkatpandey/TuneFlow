@@ -16,6 +16,12 @@ data class VideoTrackQuery(
     val languageCode: String?,
 )
 
+data class VideoTrackDetails(
+    val title: String,
+    val artist: String,
+    val album: String,
+)
+
 data class VideoCandidate(
     val videoId: String,
     val title: String,
@@ -191,6 +197,7 @@ sealed interface VideoUiState {
         override val trackId: String,
         val generation: Long,
         val candidate: VideoCandidate,
+        val trackDetails: VideoTrackDetails,
         val presentation: VideoPresentationMode,
         val focusRequestId: Long = 0L,
     ) : VideoUiState
@@ -199,6 +206,7 @@ sealed interface VideoUiState {
         override val trackId: String,
         val generation: Long,
         val candidate: VideoCandidate,
+        val trackDetails: VideoTrackDetails,
         val presentation: VideoPresentationMode,
         val positionMs: Long,
         val durationMs: Long,
@@ -216,6 +224,14 @@ sealed interface VideoUiState {
 val VideoUiState.hasVisiblePlayer: Boolean
     get() = this is VideoUiState.Loading || this is VideoUiState.Playing
 
+val VideoUiState.activeSession: VideoSessionKey?
+    get() =
+        when (this) {
+            is VideoUiState.Loading -> VideoSessionKey(trackId, generation)
+            is VideoUiState.Playing -> VideoSessionKey(trackId, generation)
+            else -> null
+        }
+
 val VideoUiState.isFullscreen: Boolean
     get() =
         when (this) {
@@ -226,6 +242,22 @@ val VideoUiState.isFullscreen: Boolean
 
 val VideoUiState.isVideoSessionActive: Boolean
     get() = this is VideoUiState.Loading || this is VideoUiState.Playing
+
+val VideoUiState.activeTrackDetails: VideoTrackDetails?
+    get() =
+        when (this) {
+            is VideoUiState.Loading -> trackDetails
+            is VideoUiState.Playing -> trackDetails
+            else -> null
+        }
+
+val VideoUiState.activeCandidate: VideoCandidate?
+    get() =
+        when (this) {
+            is VideoUiState.Loading -> candidate
+            is VideoUiState.Playing -> candidate
+            else -> null
+        }
 
 fun QueueItem.toVideoTrackQuery(
     regionCode: String?,
@@ -239,4 +271,11 @@ fun QueueItem.toVideoTrackQuery(
         durationMs = durationMs,
         regionCode = regionCode,
         languageCode = languageCode,
+    )
+
+fun QueueItem.toVideoTrackDetails(): VideoTrackDetails =
+    VideoTrackDetails(
+        title = title,
+        artist = artist,
+        album = album,
     )

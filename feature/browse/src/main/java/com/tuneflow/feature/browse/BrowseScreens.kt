@@ -52,20 +52,23 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -75,16 +78,37 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tuneflow.core.design.CurrentlyPlayingIndicator
+import com.tuneflow.core.design.HorizontalFocusDirection
+import com.tuneflow.core.design.InitialFocusEffect
+import com.tuneflow.core.design.LocalTuneFlowMotion
+import com.tuneflow.core.design.TrackFavoriteButton
+import com.tuneflow.core.design.TrackRowFocusTarget
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.design.TuneFlowTrackRow
+import com.tuneflow.core.design.animateTuneFlowFocusScale
+import com.tuneflow.core.design.trackRowFocusDestination
 import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.ArtistSummary
+import com.tuneflow.core.network.FavoriteToggleResult
+import com.tuneflow.core.network.PlaylistFavoriteStore
 import com.tuneflow.core.network.PlaylistSummary
+import com.tuneflow.core.network.TrackFavoriteState
+import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.network.TrackSummary
+import kotlinx.coroutines.launch
 
 @Composable
 @Suppress("CyclomaticComplexMethod")
@@ -99,29 +123,37 @@ fun AlbumsScreen(
 
     val firstAlbumFocusRequester = remember { FocusRequester() }
     val restoredAlbumFocusRequester = remember { FocusRequester() }
-    var initialAlbumFocusRequested by rememberSaveable { mutableStateOf(false) }
     val albumGridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
     val restoredAlbumId = focusRestoreTarget?.takeIf { it.kind == BrowseFocusTargetKind.Album }?.id
 
-    LaunchedEffect(state.items.size) {
-        if (
-            restoredAlbumId == null &&
-            !initialAlbumFocusRequested &&
-            state.items.isNotEmpty() &&
-            albumGridState.firstVisibleItemIndex == 0
-        ) {
-            firstAlbumFocusRequester.requestFocus()
-            initialAlbumFocusRequested = true
-        }
-    }
+    InitialFocusEffect(
+        focusRequester = firstAlbumFocusRequester,
+        targetAvailable = state.items.isNotEmpty(),
+        restorationPending = restoredAlbumId != null,
+    )
 
-    LaunchedEffect(restoredAlbumId, state.items) {
+    LaunchedEffect(
+        restoredAlbumId,
+        state.items,
+        state.isLoading,
+        state.isLoadingMore,
+        state.hasMore,
+        state.error,
+    ) {
+        if (restoredAlbumId == null) return@LaunchedEffect
         val targetIndex = state.items.indexOfFirst { it.id == restoredAlbumId }
         if (targetIndex >= 0) {
             albumGridState.scrollToItem(targetIndex)
             withFrameNanos { }
             runCatching { restoredAlbumFocusRequester.requestFocus() }
-            initialAlbumFocusRequested = true
+            onFocusRestoreConsumed()
+        } else if (!state.isLoading && !state.isLoadingMore && state.hasMore && state.error == null) {
+            viewModel.loadMore()
+        } else if (!state.isLoading && !state.isLoadingMore) {
+            if (state.items.isNotEmpty()) {
+                withFrameNanos { }
+                runCatching { firstAlbumFocusRequester.requestFocus() }
+            }
             onFocusRestoreConsumed()
         }
     }
@@ -194,24 +226,25 @@ fun AlbumsScreen(
 fun AlbumDetailScreen(
     albumId: String,
     viewModel: AlbumDetailViewModel,
+    favoriteStore: TrackFavoriteStore,
     onPlayAlbum: (tracks: List<TrackSummary>, index: Int) -> Unit,
     onShuffleAlbum: (tracks: List<TrackSummary>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val favoriteStates by favoriteStore.states.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     val playAlbumFocusRequester = remember { FocusRequester() }
-    var initialAlbumFocusRequested by rememberSaveable(albumId) { mutableStateOf(false) }
 
     LaunchedEffect(albumId) {
         viewModel.load(albumId)
     }
 
-    LaunchedEffect(state.album?.id) {
-        if (!initialAlbumFocusRequested && state.album != null) {
-            playAlbumFocusRequester.requestFocus()
-            initialAlbumFocusRequested = true
-        }
-    }
+    InitialFocusEffect(
+        focusRequester = playAlbumFocusRequester,
+        targetAvailable = !state.isLoading && state.album != null,
+        resetKey = albumId,
+    )
 
     when {
         state.isLoading -> AlbumDetailSkeleton(modifier = modifier)
@@ -282,10 +315,14 @@ fun AlbumDetailScreen(
                     ) {
                         itemsIndexed(album.tracks, key = { _, track -> track.id }) { index, track ->
                             PremiumListRow(
+                                trackId = track.id,
                                 title = track.title,
                                 subtitle = track.artist,
                                 trailing = formatTrackDuration(track.durationSec),
+                                favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
+                                onToggleFavorite = { scope.launch { favoriteStore.toggle(track.id) } },
                                 onClick = { onPlayAlbum(album.tracks, index) },
+                                showDivider = index != album.tracks.lastIndex,
                                 modifier =
                                     Modifier.boundaryLockedVerticalItem(
                                         index = index,
@@ -313,27 +350,32 @@ fun ArtistDetailScreen(
     val firstArtistAlbumFocusRequester = remember { FocusRequester() }
     val restoredArtistAlbumFocusRequester = remember { FocusRequester() }
     val artistAlbumListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
-    var initialArtistFocusRequested by rememberSaveable(artistId) { mutableStateOf(false) }
     val restoredAlbumId = focusRestoreTarget?.takeIf { it.kind == BrowseFocusTargetKind.Album }?.id
 
     LaunchedEffect(artistId) {
         viewModel.load(artistId)
     }
 
-    LaunchedEffect(state.artist?.albums?.size) {
-        if (restoredAlbumId == null && !initialArtistFocusRequested && state.artist?.albums?.isNotEmpty() == true) {
-            firstArtistAlbumFocusRequester.requestFocus()
-            initialArtistFocusRequested = true
-        }
-    }
+    InitialFocusEffect(
+        focusRequester = firstArtistAlbumFocusRequester,
+        targetAvailable = state.artist?.albums?.isNotEmpty() == true,
+        restorationPending = restoredAlbumId != null,
+        resetKey = artistId,
+    )
 
     LaunchedEffect(restoredAlbumId, state.artist?.albums) {
+        if (restoredAlbumId == null) return@LaunchedEffect
         val targetIndex = state.artist?.albums?.indexOfFirst { it.id == restoredAlbumId } ?: -1
         if (targetIndex >= 0) {
             artistAlbumListState.scrollToItem(targetIndex)
             withFrameNanos { }
             runCatching { restoredArtistAlbumFocusRequester.requestFocus() }
-            initialArtistFocusRequested = true
+            onFocusRestoreConsumed()
+        } else if (!state.isLoading && state.artist != null) {
+            if (state.artist?.albums?.isNotEmpty() == true) {
+                withFrameNanos { }
+                runCatching { firstArtistAlbumFocusRequester.requestFocus() }
+            }
             onFocusRestoreConsumed()
         }
     }
@@ -348,7 +390,6 @@ fun ArtistDetailScreen(
                 modifier = modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                if (restoredAlbumId == null) ScreenInitialFocusAnchor()
                 Box(
                     modifier =
                         Modifier
@@ -415,22 +456,56 @@ fun ArtistDetailScreen(
 @Suppress("CyclomaticComplexMethod")
 fun PlaylistsScreen(
     viewModel: PlaylistsViewModel,
+    favoriteStore: TrackFavoriteStore,
+    playlistFavoriteStore: PlaylistFavoriteStore,
+    recentPlaylistIds: List<String> = emptyList(),
     preselectedPlaylistId: String? = null,
     onPreselectedPlaylistConsumed: () -> Unit = {},
     currentTrackId: String? = null,
-    onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
-    onShuffleTracks: (tracks: List<TrackSummary>) -> Unit,
+    currentPlaylistId: String? = null,
+    currentPlaylistName: String? = null,
+    isPlaying: Boolean = false,
+    onPlayTracks: (playlistId: String, playlistName: String, tracks: List<TrackSummary>, index: Int) -> Unit,
+    onShuffleTracks: (playlistId: String, playlistName: String, tracks: List<TrackSummary>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val firstPlaylistFocusRequester = remember { FocusRequester() }
+    val favoriteStates by favoriteStore.states.collectAsStateWithLifecycle()
+    val favoritePlaylistIds by
+        playlistFavoriteStore.favoritePlaylistIds.collectAsStateWithLifecycle(initialValue = emptySet())
+    val scope = rememberCoroutineScope()
+    val playlistSearchFocusRequester = remember { FocusRequester() }
     val playPlaylistFocusRequester = remember { FocusRequester() }
     val playlistReturnFocusRequester = remember { FocusRequester() }
     val playlistListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
-    var initialPlaylistFocusRequested by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var editingQuery by remember { mutableStateOf(false) }
+    var favoritesOnly by rememberSaveable { mutableStateOf(false) }
+    var requestSearchFocus by rememberSaveable { mutableStateOf(preselectedPlaylistId == null) }
     var detailActionFocusRequested by rememberSaveable(state.selected?.id) { mutableStateOf(false) }
     var returnFocusPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     var restorePlaylistFocus by rememberSaveable { mutableStateOf(false) }
+    val resolvedCurrentPlaylistId =
+        resolveCurrentPlaylistId(
+            playlists = state.playlists,
+            currentPlaylistId = currentPlaylistId,
+            currentPlaylistName = currentPlaylistName,
+        )
+    val displayedPlaylists =
+        playlistRowsForDisplay(
+            playlists = state.playlists,
+            query = query,
+            favoritePlaylistIds = favoritePlaylistIds,
+            favoritesOnly = favoritesOnly,
+            currentPlaylistId = resolvedCurrentPlaylistId,
+            recentPlaylistIds = recentPlaylistIds,
+        )
+
+    LaunchedEffect(playlistListState, state.playlists.map { it.id }, state.isLoading, viewModel) {
+        if (state.isLoading) return@LaunchedEffect
+        snapshotFlow { playlistListState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? String } }
+            .collect { viewModel.loadVisiblePlaylistArtwork(it) }
+    }
 
     LaunchedEffect(preselectedPlaylistId) {
         if (preselectedPlaylistId != null) {
@@ -440,24 +515,22 @@ fun PlaylistsScreen(
         }
     }
 
-    LaunchedEffect(state.playlists.size) {
-        if (!initialPlaylistFocusRequested && state.playlists.isNotEmpty() && preselectedPlaylistId == null) {
-            firstPlaylistFocusRequester.requestFocus()
-            initialPlaylistFocusRequested = true
-        }
-    }
-
-    LaunchedEffect(state.playlists, state.selected?.id, preselectedPlaylistId) {
+    LaunchedEffect(displayedPlaylists.map { it.id }, state.selected?.id, preselectedPlaylistId) {
         val targetPlaylistId = state.selected?.id ?: preselectedPlaylistId ?: return@LaunchedEffect
-        val targetIndex = state.playlists.indexOfFirst { it.id == targetPlaylistId }
+        val targetIndex = displayedPlaylists.indexOfFirst { it.id == targetPlaylistId }
         if (targetIndex >= 0) {
             playlistListState.scrollToItem(targetIndex)
-            initialPlaylistFocusRequested = true
         }
     }
 
     val hasPlaylistDetailLayer = state.selectedPlaylistId != null
     val showDetail = state.selected != null
+
+    LaunchedEffect(resolvedCurrentPlaylistId) {
+        if (resolvedCurrentPlaylistId != null && !hasPlaylistDetailLayer && displayedPlaylists.isNotEmpty()) {
+            playlistListState.scrollToItem(0)
+        }
+    }
 
     fun closePlaylistDetail() {
         restorePlaylistFocus = true
@@ -466,12 +539,14 @@ fun PlaylistsScreen(
 
     BackHandler(enabled = hasPlaylistDetailLayer, onBack = ::closePlaylistDetail)
 
-    LaunchedEffect(hasPlaylistDetailLayer, restorePlaylistFocus, state.playlists) {
+    LaunchedEffect(hasPlaylistDetailLayer, restorePlaylistFocus, displayedPlaylists) {
         if (!hasPlaylistDetailLayer && restorePlaylistFocus) {
-            val targetIndex = state.playlists.indexOfFirst { it.id == returnFocusPlaylistId }
+            val targetIndex = displayedPlaylists.indexOfFirst { it.id == returnFocusPlaylistId }
             if (targetIndex >= 0) {
                 playlistListState.scrollToItem(targetIndex)
                 runCatching { playlistReturnFocusRequester.requestFocus() }
+            } else {
+                requestSearchFocus = true
             }
             restorePlaylistFocus = false
         }
@@ -508,6 +583,37 @@ fun PlaylistsScreen(
         ) {
             SectionTitle(title = "Playlists")
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SearchField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Filter playlists") },
+                    placeholder = { Text("Playlist name") },
+                    emptyDisplayText = "Playlist name",
+                    editing = editingQuery,
+                    onEditingChange = { editingQuery = it },
+                    requestFocusOnDisplay = requestSearchFocus,
+                    onRequestFocusConsumed = { requestSearchFocus = false },
+                    displayFocusRequesterOverride = playlistSearchFocusRequester,
+                    modifier = Modifier.weight(1f),
+                )
+                PlaylistFavoriteButton(
+                    isFavorite = favoritesOnly,
+                    contentDescription =
+                        if (favoritesOnly) {
+                            "Show all playlists"
+                        } else {
+                            "Show favorite playlists"
+                        },
+                    onClick = { favoritesOnly = !favoritesOnly },
+                    modifier = Modifier.size(64.dp),
+                )
+            }
+
             if (state.isLoading && state.playlists.isEmpty()) {
                 PlaylistListSkeleton()
             } else {
@@ -516,29 +622,46 @@ fun PlaylistsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 32.dp),
                 ) {
-                    itemsIndexed(state.playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
+                    if (displayedPlaylists.isEmpty()) {
+                        item {
+                            Text(
+                                text =
+                                    if (favoritesOnly) {
+                                        "No favorite playlists match your filter."
+                                    } else {
+                                        "No playlists match your filter."
+                                    },
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(8.dp),
+                            )
+                        }
+                    }
+                    itemsIndexed(displayedPlaylists, key = { _, playlist -> playlist.id }) { index, playlist ->
+                        val isFavorite = playlist.id in favoritePlaylistIds
                         PremiumPlaylistRow(
                             playlist = playlist,
+                            isCurrentlyPlaying = playlist.id == resolvedCurrentPlaylistId,
+                            isPlaying = isPlaying,
+                            isFavorite = isFavorite,
+                            onToggleFavorite = {
+                                if (favoritesOnly && isFavorite) requestSearchFocus = true
+                                scope.launch { playlistFavoriteStore.toggle(playlist.id) }
+                            },
                             onClick = {
                                 returnFocusPlaylistId = playlist.id
                                 viewModel.loadPlaylistDetail(playlist.id)
                             },
+                            containerModifier =
+                                Modifier.boundaryLockedVerticalItem(
+                                    index = index + 1,
+                                    lastIndex = displayedPlaylists.size,
+                                ),
                             modifier =
                                 Modifier
-                                    .boundaryLockedVerticalItem(
-                                        index = index,
-                                        lastIndex = state.playlists.lastIndex,
-                                    )
                                     .then(
                                         if (playlist.id == returnFocusPlaylistId) {
                                             Modifier.focusRequester(playlistReturnFocusRequester)
-                                        } else {
-                                            Modifier
-                                        },
-                                    )
-                                    .then(
-                                        if (index == 0) {
-                                            Modifier.focusRequester(firstPlaylistFocusRequester)
                                         } else {
                                             Modifier
                                         },
@@ -565,47 +688,63 @@ fun PlaylistsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 val selected = state.selected ?: return@AnimatedVisibility
+                val trackListState = rememberSaveable(selected.id, saver = LazyListState.Saver) { LazyListState() }
+                val visibleTracks = remember(selected, state.visibleTrackCount) { state.visibleTracks }
+                LaunchedEffect(trackListState, state.visibleTrackCount, state.hasMoreTracks) {
+                    if (!state.hasMoreTracks) return@LaunchedEffect
+                    snapshotFlow { trackListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
+                        .collect { index ->
+                            if (index >= state.visibleTrackCount - 10) viewModel.loadMoreTracks()
+                        }
+                }
                 Text(
                     text = selected.name,
                     style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "${selected.tracks.size} tracks • ${formatTotalDuration(selected.tracks.sumOf { it.durationSec })}",
+                    text = "${selected.tracks.size} tracks • ${formatTotalDuration(state.selectedDurationSec)}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     BrowseActionButton(
-                        onClick = { onPlayTracks(selected.tracks, 0) },
+                        onClick = { onPlayTracks(selected.id, selected.name, selected.tracks, 0) },
                         modifier = Modifier.focusRequester(playPlaylistFocusRequester),
                     ) {
                         BrowsePlayIcon()
                     }
-                    BrowseActionButton(onClick = { onShuffleTracks(selected.tracks) }) {
+                    BrowseActionButton(onClick = { onShuffleTracks(selected.id, selected.name, selected.tracks) }) {
                         BrowseShuffleIcon()
                     }
                 }
                 LazyColumn(
+                    state = trackListState,
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     contentPadding = PaddingValues(bottom = 32.dp),
                 ) {
-                    itemsIndexed(selected.tracks, key = { _, track -> track.id }) { index, track ->
+                    itemsIndexed(visibleTracks, key = { index, track -> "$index:${track.id}" }) { index, track ->
                         PremiumListRow(
+                            trackId = track.id,
                             title = track.title,
                             subtitle = track.artist,
                             trailing = formatTrackDuration(track.durationSec),
+                            favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
+                            onToggleFavorite = { scope.launch { favoriteStore.toggle(track.id) } },
                             leadingContent = {
                                 if (track.id == currentTrackId) {
-                                    CurrentlyPlayingIndicator()
+                                    CurrentlyPlayingIndicator(isPlaying = isPlaying)
                                 }
                             },
                             onClick = {
                                 onPlayTracks(
+                                    selected.id,
+                                    selected.name,
                                     selected.tracks,
                                     index,
                                 )
                             },
+                            showDivider = index != selected.tracks.lastIndex,
                             modifier =
                                 Modifier.boundaryLockedVerticalItem(
                                     index = index,
@@ -646,6 +785,7 @@ fun PlaylistsScreen(
 @Suppress("CyclomaticComplexMethod")
 fun SearchScreen(
     viewModel: SearchViewModel,
+    favoriteStore: TrackFavoriteStore,
     focusRestoreTarget: BrowseFocusTarget? = null,
     onFocusRestoreConsumed: () -> Unit = {},
     onOpenArtist: (String) -> Unit,
@@ -654,9 +794,11 @@ fun SearchScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val favoriteStates by favoriteStore.states.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf(state.query) }
     var editingQuery by remember { mutableStateOf(false) }
-    var requestSearchFocus by rememberSaveable { mutableStateOf(focusRestoreTarget == null) }
+    val searchFocusRequester = remember { FocusRequester() }
     val restoredResultFocusRequester = remember { FocusRequester() }
     val searchResultsListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val searchArtistRowState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
@@ -666,9 +808,22 @@ fun SearchScreen(
         query = state.query
     }
 
+    InitialFocusEffect(
+        focusRequester = searchFocusRequester,
+        targetAvailable = true,
+        restorationPending = focusRestoreTarget != null,
+    )
+
     LaunchedEffect(focusRestoreTarget, state.result, state.suggestions, state.recentQueries, query) {
         val target = focusRestoreTarget ?: return@LaunchedEffect
-        val sectionIndex = searchFocusSectionIndex(state, query, target) ?: return@LaunchedEffect
+        val sectionIndex = searchFocusSectionIndex(state, query, target)
+        if (sectionIndex == null) {
+            if (state.isLoading) return@LaunchedEffect
+            withFrameNanos { }
+            runCatching { searchFocusRequester.requestFocus() }
+            onFocusRestoreConsumed()
+            return@LaunchedEffect
+        }
         searchResultsListState.scrollToItem(sectionIndex)
         when (target.kind) {
             BrowseFocusTargetKind.Artist -> {
@@ -691,7 +846,6 @@ fun SearchScreen(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (focusRestoreTarget == null) ScreenInitialFocusAnchor()
         SectionTitle(title = "Search")
 
         SearchField(
@@ -704,8 +858,7 @@ fun SearchScreen(
             placeholder = { Text("Artist, album, or track") },
             editing = editingQuery,
             onEditingChange = { editingQuery = it },
-            requestFocusOnDisplay = requestSearchFocus,
-            onRequestFocusConsumed = { requestSearchFocus = false },
+            displayFocusRequesterOverride = searchFocusRequester,
         )
 
         if (state.isLoading) {
@@ -808,10 +961,14 @@ fun SearchScreen(
                 item { SectionTitle(title = "Tracks") }
                 itemsIndexed(state.result.tracks, key = { _, track -> track.id }) { index, track ->
                     PremiumListRow(
+                        trackId = track.id,
                         title = track.title,
                         subtitle = "${track.artist} • ${track.album}",
                         trailing = formatTrackDuration(track.durationSec),
+                        favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false),
+                        onToggleFavorite = { scope.launch { favoriteStore.toggle(track.id) } },
                         onClick = { onPlayTracks(state.result.tracks, index) },
+                        showDivider = index != state.result.tracks.lastIndex,
                         modifier =
                             Modifier.boundaryLockedVerticalItem(
                                 index = index,
@@ -863,6 +1020,7 @@ private data class SearchFocusSection(
 fun HomeCategoryScreen(
     category: HomeCategoryKind,
     viewModel: HomeCategoryViewModel,
+    favoriteStore: TrackFavoriteStore,
     focusRestoreTarget: BrowseFocusTarget? = null,
     onFocusRestoreConsumed: () -> Unit = {},
     onOpenArtist: (String) -> Unit,
@@ -872,10 +1030,12 @@ fun HomeCategoryScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val favoriteStates by favoriteStore.states.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var editingQuery by remember { mutableStateOf(false) }
     val categoryFocusTarget = focusRestoreTarget?.takeIf { it.matches(category) }
-    var requestSearchFocus by rememberSaveable(category) { mutableStateOf(categoryFocusTarget == null) }
+    val searchFocusRequester = remember(category) { FocusRequester() }
 
     LaunchedEffect(category) {
         viewModel.load(category)
@@ -885,11 +1045,26 @@ fun HomeCategoryScreen(
         query = state.query
     }
 
+    InitialFocusEffect(
+        focusRequester = searchFocusRequester,
+        targetAvailable = true,
+        restorationPending = focusRestoreTarget != null,
+        resetKey = category,
+    )
+
+    LaunchedEffect(focusRestoreTarget, categoryFocusTarget, state) {
+        if (focusRestoreTarget == null) return@LaunchedEffect
+        if (categoryFocusTarget != null && state.isLoading) return@LaunchedEffect
+        if (categoryFocusTarget != null && state.containsFocusTarget(categoryFocusTarget)) return@LaunchedEffect
+        withFrameNanos { }
+        runCatching { searchFocusRequester.requestFocus() }
+        onFocusRestoreConsumed()
+    }
+
     Column(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (categoryFocusTarget == null) ScreenInitialFocusAnchor()
         SectionTitle(title = state.title)
 
         SearchField(
@@ -902,8 +1077,7 @@ fun HomeCategoryScreen(
             placeholder = { Text(searchPlaceholderFor(category)) },
             editing = editingQuery,
             onEditingChange = { editingQuery = it },
-            requestFocusOnDisplay = requestSearchFocus,
-            onRequestFocusConsumed = { requestSearchFocus = false },
+            displayFocusRequesterOverride = searchFocusRequester,
         )
 
         when {
@@ -918,6 +1092,10 @@ fun HomeCategoryScreen(
                     onOpenAlbum = onOpenAlbum,
                     onOpenPlaylist = onOpenPlaylist,
                     onPlayTracks = onPlayTracks,
+                    favoriteStates = favoriteStates,
+                    onToggleFavorite = { trackId, onResult ->
+                        scope.launch { onResult(favoriteStore.toggle(trackId)) }
+                    },
                 )
             }
         }
@@ -933,6 +1111,8 @@ private fun HomeCategoryResults(
     onOpenAlbum: (String) -> Unit,
     onOpenPlaylist: (String?) -> Unit,
     onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
+    favoriteStates: Map<String, TrackFavoriteState>,
+    onToggleFavorite: (String, (FavoriteToggleResult) -> Unit) -> Unit,
 ) {
     when (state.category) {
         HomeCategoryKind.Favorites ->
@@ -942,6 +1122,8 @@ private fun HomeCategoryResults(
                 onFocusRestoreConsumed = onFocusRestoreConsumed,
                 onOpenAlbum = onOpenAlbum,
                 onPlayTracks = onPlayTracks,
+                favoriteStates = favoriteStates,
+                onToggleFavorite = onToggleFavorite,
             )
         HomeCategoryKind.Artists ->
             ArtistCategoryResults(
@@ -968,17 +1150,26 @@ private fun HomeCategoryResults(
 }
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 private fun FavoritesCategoryResults(
     state: HomeCategoryUiState,
     focusRestoreTarget: BrowseFocusTarget?,
     onFocusRestoreConsumed: () -> Unit,
     onOpenAlbum: (String) -> Unit,
     onPlayTracks: (tracks: List<TrackSummary>, index: Int) -> Unit,
+    favoriteStates: Map<String, TrackFavoriteState>,
+    onToggleFavorite: (String, (FavoriteToggleResult) -> Unit) -> Unit,
 ) {
     val albums = state.filteredFavorites.albums
-    val tracks = state.filteredFavorites.tracks
+    val tracks =
+        state.filteredFavorites.tracks.filter { track ->
+            val favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false)
+            favoriteState.isFavorite || favoriteState.isPending
+        }
     val restoredAlbumFocusRequester = remember { FocusRequester() }
+    val removalFocusRequester = remember { FocusRequester() }
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    var focusAfterRemovalId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(focusRestoreTarget, albums) {
         val targetIndex = albums.indexOfFirst { it.id == focusRestoreTarget?.id }
@@ -987,6 +1178,14 @@ private fun FavoritesCategoryResults(
             withFrameNanos { }
             runCatching { restoredAlbumFocusRequester.requestFocus() }
             onFocusRestoreConsumed()
+        }
+    }
+
+    LaunchedEffect(focusAfterRemovalId, tracks.map { it.id }) {
+        val targetId = focusAfterRemovalId ?: return@LaunchedEffect
+        if (tracks.any { it.id == targetId }) {
+            withFrameNanos { }
+            runCatching { removalFocusRequester.requestFocus() }
         }
     }
 
@@ -1024,11 +1223,25 @@ private fun FavoritesCategoryResults(
         if (tracks.isNotEmpty()) {
             item { SectionTitle(title = "Tracks") }
             itemsIndexed(tracks, key = { _, track -> track.id }) { index, track ->
+                val favoriteState = favoriteStates[track.id] ?: TrackFavoriteState(isFavorite = false)
                 PremiumListRow(
+                    trackId = track.id,
                     title = track.title,
                     subtitle = "${track.artist} • ${track.album}",
                     trailing = formatTrackDuration(track.durationSec),
+                    favoriteState = favoriteState,
+                    onToggleFavorite = {
+                        val nextFocusId = focusAfterFavoriteRemoval(tracks, track.id)
+                        onToggleFavorite(track.id) { result ->
+                            if (favoriteState.isFavorite && result == FavoriteToggleResult.Success) {
+                                focusAfterRemovalId = nextFocusId
+                            }
+                        }
+                    },
                     onClick = { onPlayTracks(tracks, index) },
+                    showDivider = index != tracks.lastIndex,
+                    rowFocusRequester =
+                        removalFocusRequester.takeIf { track.id == focusAfterRemovalId },
                     modifier =
                         Modifier.boundaryLockedVerticalItem(
                             index = if (albums.isNotEmpty()) albums.size + index else index,
@@ -1226,6 +1439,14 @@ private fun BrowseFocusTarget.matches(category: HomeCategoryKind): Boolean =
         HomeCategoryKind.Playlists -> kind == BrowseFocusTargetKind.Playlist
     }
 
+private fun HomeCategoryUiState.containsFocusTarget(target: BrowseFocusTarget): Boolean =
+    when (category) {
+        HomeCategoryKind.Favorites -> filteredFavorites.albums.any { it.id == target.id }
+        HomeCategoryKind.Artists -> filteredArtists.any { it.id == target.id }
+        HomeCategoryKind.Albums -> filteredAlbums.any { it.id == target.id }
+        HomeCategoryKind.Playlists -> filteredPlaylists.any { it.id == target.id }
+    }
+
 @Composable
 private fun PremiumArtistRow(
     artist: ArtistSummary,
@@ -1341,42 +1562,111 @@ private fun PremiumPlaylistRow(
     playlist: PlaylistSummary,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    containerModifier: Modifier = Modifier,
+    isCurrentlyPlaying: Boolean = false,
+    isPlaying: Boolean = false,
+    isFavorite: Boolean? = null,
+    onToggleFavorite: () -> Unit = {},
 ) {
-    FocusScaleCard(
-        modifier = modifier.fillMaxWidth(),
-        shape = TuneFlowShapes.row,
-        onClick = onClick,
+    val rowBodyFocusRequester = remember(playlist.id) { FocusRequester() }
+    val favoriteFocusRequester = remember(playlist.id) { FocusRequester() }
+
+    Row(
+        modifier = containerModifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        FocusScaleCard(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .focusRequester(rowBodyFocusRequester)
+                    .then(modifier)
+                    .onPreviewKeyEvent { event ->
+                        if (
+                            isFavorite != null &&
+                            event.type == KeyEventType.KeyDown &&
+                            event.key == Key.DirectionRight
+                        ) {
+                            favoriteFocusRequester.requestFocus()
+                            true
+                        } else {
+                            false
+                        }
+                    },
+            shape = TuneFlowShapes.row,
+            onClick = onClick,
         ) {
-            PlaylistArtworkGrid(
-                artUrls = playlist.artUrls,
-                label = playlist.name,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PlaylistArtworkGrid(
+                    artUrls = playlist.artUrls,
+                    label = playlist.name,
+                    modifier =
+                        Modifier
+                            .size(58.dp)
+                            .clip(TuneFlowShapes.artwork),
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (isCurrentlyPlaying) CurrentlyPlayingIndicator(isPlaying = isPlaying)
+                        Text(
+                            text = playlist.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Text(
+                        text = "${playlist.songCount} tracks • ${formatTotalDuration(playlist.durationSec)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color =
+                            if (isCurrentlyPlaying) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                    )
+                }
+            }
+        }
+
+        isFavorite?.let {
+            PlaylistFavoriteButton(
+                isFavorite = it,
+                contentDescription =
+                    if (it) {
+                        "Remove ${playlist.name} from favorites"
+                    } else {
+                        "Add ${playlist.name} to favorites"
+                    },
+                onClick = onToggleFavorite,
                 modifier =
                     Modifier
-                        .size(58.dp)
-                        .clip(TuneFlowShapes.artwork),
+                        .size(48.dp)
+                        .focusRequester(favoriteFocusRequester)
+                        .onPreviewKeyEvent { event ->
+                            if (
+                                event.type == KeyEventType.KeyDown &&
+                                event.key == Key.DirectionLeft
+                            ) {
+                                rowBodyFocusRequester.requestFocus()
+                                true
+                            } else {
+                                false
+                            }
+                        },
             )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = playlist.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "${playlist.songCount} tracks • ${formatTotalDuration(playlist.durationSec)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
@@ -1392,11 +1682,14 @@ private fun SearchField(
     requestFocusOnDisplay: Boolean = false,
     onRequestFocusConsumed: () -> Unit = {},
     displayFocusRequesterOverride: FocusRequester? = null,
+    emptyDisplayText: String = "Artist, album, or track",
+    modifier: Modifier = Modifier,
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val editFocusRequester = remember { FocusRequester() }
-    val displayFocusRequester = displayFocusRequesterOverride ?: remember { FocusRequester() }
+    val defaultDisplayFocusRequester = remember { FocusRequester() }
+    val displayFocusRequester = displayFocusRequesterOverride ?: defaultDisplayFocusRequester
     var focused by remember { mutableStateOf(false) }
     var restoreDisplayFocus by remember { mutableStateOf(false) }
     var pendingExitDirection by remember { mutableStateOf<FocusDirection?>(null) }
@@ -1438,6 +1731,7 @@ private fun SearchField(
             placeholder = placeholder,
             focusRequester = editFocusRequester,
             onKeyExit = ::stopEditing,
+            modifier = modifier,
         )
     } else {
         SearchDisplayField(
@@ -1447,6 +1741,8 @@ private fun SearchField(
             focusRequester = displayFocusRequester,
             onFocusedChange = { focused = it },
             onClick = { onEditingChange(true) },
+            emptyDisplayText = emptyDisplayText,
+            modifier = modifier,
         )
     }
 }
@@ -1485,6 +1781,7 @@ private fun EditingSearchField(
     placeholder: @Composable () -> Unit,
     focusRequester: FocusRequester,
     onKeyExit: (FocusDirection?) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     OutlinedTextField(
         value = value,
@@ -1497,7 +1794,7 @@ private fun EditingSearchField(
         visualTransformation = VisualTransformation.None,
         shape = TuneFlowShapes.field,
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
                 .onPreviewKeyEvent {
@@ -1527,13 +1824,24 @@ private fun SearchDisplayField(
     focusRequester: FocusRequester,
     onFocusedChange: (Boolean) -> Unit,
     onClick: () -> Unit,
+    emptyDisplayText: String,
+    modifier: Modifier = Modifier,
 ) {
+    val scale =
+        animateTuneFlowFocusScale(
+            focused = focused,
+            focusedScale = LocalTuneFlowMotion.current.fieldFocusScale,
+            label = "search-display-focus",
+        )
     Box(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
-                .scale(if (focused) 1.005f else 1f)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
                 .clip(TuneFlowShapes.field)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
                 .border(
@@ -1554,7 +1862,7 @@ private fun SearchDisplayField(
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Box { label() }
             Text(
-                text = if (value.isNotBlank()) value else "Artist, album, or track",
+                text = if (value.isNotBlank()) value else emptyDisplayText,
                 style = MaterialTheme.typography.bodyLarge,
                 color =
                     if (value.isNotBlank()) {
@@ -1607,23 +1915,6 @@ private fun searchFieldColors() =
     )
 
 @Composable
-private fun ScreenInitialFocusAnchor() {
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    Box(
-        modifier =
-            Modifier
-                .size(1.dp)
-                .focusRequester(focusRequester)
-                .focusable(),
-    )
-}
-
-@Composable
 private fun PremiumAlbumCard(
     album: AlbumSummary,
     onClick: () -> Unit,
@@ -1672,66 +1963,189 @@ private fun PremiumAlbumCard(
 
 @Composable
 private fun PremiumListRow(
+    trackId: String,
     title: String,
     subtitle: String,
     trailing: String? = null,
     leadingContent: (@Composable () -> Unit)? = null,
+    favoriteState: TrackFavoriteState,
+    onToggleFavorite: () -> Unit,
     onClick: () -> Unit,
+    showDivider: Boolean,
+    rowFocusRequester: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
-    FocusScaleCard(
+    val rowBodyFocusRequester = remember(trackId) { FocusRequester() }
+    val favoriteFocusRequester = remember(trackId) { FocusRequester() }
+
+    Row(
         modifier = modifier.fillMaxWidth(),
-        shape = TuneFlowShapes.row,
-        onClick = onClick,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        TuneFlowTrackRow(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .focusRequester(rowBodyFocusRequester)
+                    .then(rowFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                    .onPreviewKeyEvent { event ->
+                        if (
+                            event.type == KeyEventType.KeyDown &&
+                            event.key == Key.DirectionRight &&
+                            trackRowFocusDestination(
+                                TrackRowFocusTarget.RowBody,
+                                HorizontalFocusDirection.Right,
+                            ) == TrackRowFocusTarget.FavoriteButton
+                        ) {
+                            favoriteFocusRequester.requestFocus()
+                            true
+                        } else {
+                            false
+                        }
+                    },
+            showDivider = showDivider,
+            onClick = onClick,
         ) {
-            if (leadingContent != null) {
-                leadingContent()
-                Spacer(modifier = Modifier.width(10.dp))
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (trailing != null) {
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = trailing,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (leadingContent != null) {
+                    leadingContent()
+                    Spacer(modifier = Modifier.width(10.dp))
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (trailing != null) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = trailing,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
+        TrackFavoriteButton(
+            isFavorite = favoriteState.isFavorite,
+            isPending = favoriteState.isPending,
+            onClick = onToggleFavorite,
+            modifier =
+                Modifier
+                    .focusRequester(favoriteFocusRequester)
+                    .onPreviewKeyEvent { event ->
+                        if (
+                            event.type == KeyEventType.KeyDown &&
+                            event.key == Key.DirectionLeft &&
+                            trackRowFocusDestination(
+                                TrackRowFocusTarget.FavoriteButton,
+                                HorizontalFocusDirection.Left,
+                            ) == TrackRowFocusTarget.RowBody
+                        ) {
+                            rowBodyFocusRequester.requestFocus()
+                            true
+                        } else {
+                            false
+                        }
+                    },
+        )
     }
 }
 
+internal fun focusAfterFavoriteRemoval(
+    tracks: List<TrackSummary>,
+    removedTrackId: String,
+): String? {
+    val removedIndex = tracks.indexOfFirst { it.id == removedTrackId }
+    if (removedIndex < 0) return null
+    return tracks.getOrNull(removedIndex + 1)?.id ?: tracks.getOrNull(removedIndex - 1)?.id
+}
+
+internal fun resolveCurrentPlaylistId(
+    playlists: List<PlaylistSummary>,
+    currentPlaylistId: String?,
+    currentPlaylistName: String?,
+): String? {
+    val exactId = currentPlaylistId?.takeIf { id -> playlists.any { it.id == id } }
+    val normalizedName = currentPlaylistName?.trim()?.takeIf(String::isNotEmpty)
+    return exactId ?: normalizedName?.let { name ->
+        playlists.firstOrNull { it.name.equals(name, ignoreCase = true) }?.id
+    }
+}
+
+internal fun playlistRowsForDisplay(
+    playlists: List<PlaylistSummary>,
+    query: String,
+    favoritePlaylistIds: Set<String>,
+    favoritesOnly: Boolean,
+    currentPlaylistId: String?,
+    recentPlaylistIds: List<String> = emptyList(),
+): List<PlaylistSummary> {
+    val normalizedQuery = query.trim()
+    val filtered =
+        playlists.filter { playlist ->
+            (!favoritesOnly || playlist.id in favoritePlaylistIds) &&
+                (normalizedQuery.isEmpty() || playlist.name.contains(normalizedQuery, ignoreCase = true))
+        }
+    val orderedIds = (listOfNotNull(currentPlaylistId) + recentPlaylistIds).distinct()
+    if (orderedIds.isEmpty()) return filtered
+
+    val playlistsById = filtered.associateBy(PlaylistSummary::id)
+    val used = orderedIds.mapNotNull(playlistsById::get)
+    val usedIds = used.mapTo(mutableSetOf(), PlaylistSummary::id)
+    return used + filtered.filterNot { it.id in usedIds }
+}
+
 @Composable
-private fun CurrentlyPlayingIndicator() {
-    Image(
-        painter = painterResource(id = R.drawable.currently_playing),
-        contentDescription = "Currently playing",
-        modifier = Modifier.size(20.dp),
-        contentScale = ContentScale.Fit,
-    )
+private fun PlaylistFavoriteButton(
+    isFavorite: Boolean,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier.size(48.dp),
+) {
+    TuneFlowActionSurface(
+        onClick = onClick,
+        modifier =
+            modifier.semantics {
+                role = Role.Button
+                this.contentDescription = contentDescription
+                stateDescription = if (isFavorite) "Selected" else "Not selected"
+            },
+        selected = isFavorite,
+        contentPadding = PaddingValues(0.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = if (isFavorite) "★" else "☆",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color =
+                if (isFavorite) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+        )
+    }
 }
 
 @Composable
@@ -1818,29 +2232,11 @@ private fun BrowseActionButton(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
-
-    Box(
-        modifier =
-            modifier
-                .scale(if (focused) 1.01f else 1f)
-                .clip(TuneFlowShapes.button)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = if (focused) 0.94f else 0.84f))
-                .border(
-                    width = if (focused) 3.dp else 1.dp,
-                    color =
-                        if (focused) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = TuneFlowShapes.button,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 18.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center,
+    TuneFlowActionSurface(
+        modifier = modifier,
+        accent = true,
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+        onClick = onClick,
     ) {
         androidx.compose.runtime.CompositionLocalProvider(
             androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onPrimary,
@@ -1887,6 +2283,7 @@ private fun BrowseActionIcon(
     Image(
         painter = painter,
         contentDescription = contentDescription,
+        colorFilter = ColorFilter.tint(androidx.compose.material3.LocalContentColor.current),
         modifier = modifier.size(iconSize),
     )
 }
@@ -2033,7 +2430,6 @@ private fun AlbumDetailSkeleton(modifier: Modifier = Modifier) {
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            ScreenInitialFocusAnchor()
             TextLineSkeleton(widthFraction = 0.52f, height = 34.dp)
             TextLineSkeleton(widthFraction = 0.34f, height = 28.dp)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2059,7 +2455,6 @@ private fun ArtistDetailSkeleton(modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        ScreenInitialFocusAnchor()
         Box(
             modifier =
                 Modifier
@@ -2122,6 +2517,7 @@ private fun SearchResultsSkeleton() {
 
 @Composable
 private fun Modifier.shimmerEffect(): Modifier {
+    if (!LocalTuneFlowMotion.current.enabled) return background(MaterialTheme.colorScheme.surfaceVariant)
     val transition = rememberInfiniteTransition(label = "shimmer")
     val translateAnim by transition.animateFloat(
         initialValue = 0f,
@@ -2139,9 +2535,9 @@ private fun Modifier.shimmerEffect(): Modifier {
             Brush.linearGradient(
                 colors =
                     listOf(
-                        Color(0xFF141420),
-                        Color(0xFF1E1E2E),
-                        Color(0xFF141420),
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        MaterialTheme.colorScheme.surface,
                     ),
                 start = Offset(translateAnim - 500f, 0f),
                 end = Offset(translateAnim, 0f),

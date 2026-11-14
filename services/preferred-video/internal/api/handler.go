@@ -19,21 +19,23 @@ import (
 )
 
 const (
-	apiVersion      = "v1"
-	defaultLimit    = 5
-	maximumLimit    = 20
-	maximumBodySize = 64 * 1024
+	apiVersion                   = "v1"
+	defaultLimit                 = 0
+	maximumLimit                 = 10000
+	maximumBodySize              = 64 * 1024
+	maximumTrackText             = 512
+	maximumTrackDurationMS int64 = 24 * 60 * 60 * 1000
 )
 
 var youtubeVideoIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{11}$`)
 
 type VideoStore interface {
 	Health(context.Context) error
-	Get(context.Context, string) (model.PreferredVideo, error)
-	Put(context.Context, string, model.UpsertPreferredVideo) (model.PreferredVideo, error)
+	Resolve(context.Context, string, *model.TrackIdentity) (model.PreferredVideo, error)
+	Put(context.Context, string, model.UpsertPreferredVideo, *model.TrackIdentity) (model.PreferredVideo, error)
 	Delete(context.Context, string) error
 	MarkPlayed(context.Context, string) (model.PreferredVideo, error)
-	Recent(context.Context, int) ([]model.PreferredVideo, error)
+	Recent(context.Context, int, int) ([]model.PreferredVideo, error)
 }
 
 type Handler struct {
@@ -49,6 +51,7 @@ type videoResponse struct {
 type recentResponse struct {
 	APIVersion string                 `json:"apiVersion"`
 	Videos     []model.PreferredVideo `json:"videos"`
+	NextOffset *int                   `json:"nextOffset,omitempty"`
 }
 
 type errorBody struct {
@@ -87,7 +90,11 @@ func (h *Handler) getPreferredVideo(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	video, err := h.store.Get(r.Context(), trackID)
+	identity, ok := validatedTrackIdentity(w, r)
+	if !ok {
+		return
+	}
+	video, err := h.store.Resolve(r.Context(), trackID, identity)
 	if errors.Is(err, storage.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "not_found", "preferred video was not found")
 		return
@@ -113,12 +120,40 @@ func (h *Handler) putPreferredVideo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_input", message)
 		return
 	}
-	video, err := h.store.Put(r.Context(), trackID, input)
+	identity, ok := validatedTrackIdentity(w, r)
+	if !ok {
+		return
+	}
+	video, err := h.store.Put(r.Context(), trackID, input, identity)
 	if err != nil {
 		h.internalError(w, "put preferred video", err)
 		return
 	}
 	writeVideo(w, http.StatusOK, video)
+}
+
+func validatedTrackIdentity(w http.ResponseWriter, r *http.Request) (*model.TrackIdentity, bool) {
+	query := r.URL.Query()
+	title := strings.TrimSpace(query.Get("trackTitle"))
+	artist := strings.TrimSpace(query.Get("trackArtist"))
+	durationRaw := strings.TrimSpace(query.Get("trackDurationMs"))
+	if title == "" && artist == "" && durationRaw == "" {
+		return nil, true
+	}
+	if title == "" || artist == "" || durationRaw == "" {
+		writeError(w, http.StatusBadRequest, "invalid_track_identity", "trackTitle, trackArtist, and trackDurationMs must be provided together")
+		return nil, false
+	}
+	if len(title) > maximumTrackText || len(artist) > maximumTrackText {
+		writeError(w, http.StatusBadRequest, "invalid_track_identity", "trackTitle and trackArtist must not exceed 512 characters")
+		return nil, false
+	}
+	durationMS, err := strconv.ParseInt(durationRaw, 10, 64)
+	if err != nil || durationMS <= 0 || durationMS > maximumTrackDurationMS {
+		writeError(w, http.StatusBadRequest, "invalid_track_identity", "trackDurationMs must be between 1 and 86400000")
+		return nil, false
+	}
+	return &model.TrackIdentity{Title: title, Artist: artist, DurationMS: durationMS}, true
 }
 
 func (h *Handler) deletePreferredVideo(w http.ResponseWriter, r *http.Request) {
@@ -159,18 +194,41 @@ func (h *Handler) recentVideos(w http.ResponseWriter, r *http.Request) {
 	limit := defaultLimit
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 1 {
-			writeError(w, http.StatusBadRequest, "invalid_input", "limit must be a positive integer")
+		if err != nil || parsed < 0 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "limit must be a non-negative integer")
 			return
 		}
-		limit = min(parsed, maximumLimit)
+		if parsed > 0 {
+			limit = min(parsed, maximumLimit)
+		} else {
+			limit = 0
+		}
 	}
-	videos, err := h.store.Recent(r.Context(), limit)
+	offset := 0
+	if raw := r.URL.Query().Get("offset"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 || parsed > int(^uint(0)>>1)-maximumLimit {
+			writeError(w, http.StatusBadRequest, "invalid_input", "offset must be a non-negative integer within range")
+			return
+		}
+		offset = parsed
+	}
+	queryLimit := limit
+	if queryLimit > 0 {
+		queryLimit++ // Fetch one extra row to determine whether another page exists.
+	}
+	videos, err := h.store.Recent(r.Context(), queryLimit, offset)
 	if err != nil {
 		h.internalError(w, "list recent videos", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, recentResponse{APIVersion: apiVersion, Videos: videos})
+	response := recentResponse{APIVersion: apiVersion, Videos: videos}
+	if limit > 0 && len(videos) > limit {
+		nextOffset := offset + limit
+		response.NextOffset = &nextOffset
+		response.Videos = videos[:limit]
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (h *Handler) internalError(w http.ResponseWriter, operation string, err error) {

@@ -3,15 +3,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEFAULT_OUTPUT_PATH="$ROOT_DIR/dist/tuneflow-tv.apk"
+DEFAULT_BETA_OUTPUT_PATH="$ROOT_DIR/dist/tuneflow-tv-beta.apk"
+DEFAULT_STABLE_OUTPUT_PATH="$ROOT_DIR/dist/tuneflow-tv.apk"
 DEFAULT_KEYSTORE_PATH="$ROOT_DIR/release.keystore"
 
-output_path="${OUTPUT_PATH:-$DEFAULT_OUTPUT_PATH}"
+output_path="${OUTPUT_PATH:-}"
 keystore_path="${SIGNING_STORE_FILE:-${KEYSTORE_PATH:-$DEFAULT_KEYSTORE_PATH}}"
 store_password="${SIGNING_STORE_PASSWORD:-${KEYSTORE_PASSWORD:-}}"
 key_alias="${SIGNING_KEY_ALIAS:-tuneflow}"
 key_password="${SIGNING_KEY_PASSWORD:-${SIGNING_STORE_PASSWORD:-${KEYSTORE_PASSWORD:-}}}"
 do_clean="false"
+stable_build="false"
 
 usage() {
     cat <<'EOF'
@@ -19,12 +21,13 @@ Usage:
   scripts/build-local-release.sh [options]
 
 Options:
-  --keystore PATH         Path to the release keystore file.
+  --stable                Build the production app instead of TuneFlow Beta.
+  --keystore PATH         Path to the production release keystore file.
   --store-password VALUE  Keystore password.
   --key-alias VALUE       Key alias. Default: tuneflow
   --key-password VALUE    Key password. Defaults to store password.
-  --output PATH           Output APK path. Default: dist/tuneflow-tv.apk
-  --clean                 Run ./gradlew clean before assembleRelease.
+  --output PATH           Output APK path. Default: dist/tuneflow-tv-beta.apk
+  --clean                 Run ./gradlew clean before assembly.
   -h, --help              Show this help.
 
 Environment variables also supported:
@@ -35,7 +38,10 @@ Environment variables also supported:
   OUTPUT_PATH
 
 Example:
-  scripts/build-local-release.sh \
+  scripts/build-local-release.sh
+
+Stable production build:
+  scripts/build-local-release.sh --stable \
     --keystore /Users/me/keys/release.keystore \
     --store-password 'secret123' \
     --key-alias tuneflow \
@@ -45,6 +51,10 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --stable)
+            stable_build="true"
+            shift
+            ;;
         --keystore)
             keystore_path="$2"
             shift 2
@@ -81,30 +91,39 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ ! -f "$keystore_path" ]]; then
-    echo "Keystore not found: $keystore_path" >&2
-    exit 1
-fi
+if [[ "$stable_build" == "true" ]]; then
+    if [[ ! -f "$keystore_path" ]]; then
+        echo "Keystore not found: $keystore_path" >&2
+        exit 1
+    fi
 
-if [[ -z "$store_password" ]]; then
-    echo "Missing keystore password. Use --store-password or SIGNING_STORE_PASSWORD." >&2
-    exit 1
-fi
+    if [[ -z "$store_password" ]]; then
+        echo "Missing keystore password. Use --store-password or SIGNING_STORE_PASSWORD." >&2
+        exit 1
+    fi
 
-if [[ -z "$key_alias" ]]; then
-    echo "Missing key alias. Use --key-alias or SIGNING_KEY_ALIAS." >&2
-    exit 1
-fi
+    if [[ -z "$key_alias" ]]; then
+        echo "Missing key alias. Use --key-alias or SIGNING_KEY_ALIAS." >&2
+        exit 1
+    fi
 
-if [[ -z "$key_password" ]]; then
-    echo "Missing key password. Use --key-password or SIGNING_KEY_PASSWORD." >&2
-    exit 1
-fi
+    if [[ -z "$key_password" ]]; then
+        echo "Missing key password. Use --key-password or SIGNING_KEY_PASSWORD." >&2
+        exit 1
+    fi
 
-export SIGNING_STORE_FILE="$keystore_path"
-export SIGNING_STORE_PASSWORD="$store_password"
-export SIGNING_KEY_ALIAS="$key_alias"
-export SIGNING_KEY_PASSWORD="$key_password"
+    export SIGNING_STORE_FILE="$keystore_path"
+    export SIGNING_STORE_PASSWORD="$store_password"
+    export SIGNING_KEY_ALIAS="$key_alias"
+    export SIGNING_KEY_PASSWORD="$key_password"
+    build_task=":app:assembleRelease"
+    apk_directory="release"
+    output_path="${output_path:-$DEFAULT_STABLE_OUTPUT_PATH}"
+else
+    build_task=":app:assembleBetaRelease"
+    apk_directory="betaRelease"
+    output_path="${output_path:-$DEFAULT_BETA_OUTPUT_PATH}"
+fi
 
 cd "$ROOT_DIR"
 
@@ -112,12 +131,12 @@ if [[ "$do_clean" == "true" ]]; then
     ./gradlew clean
 fi
 
-./gradlew :app:assembleRelease --stacktrace
+./gradlew "$build_task" --stacktrace
 
-apk_path="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' ! -name '*-unsigned.apk' | head -n1)"
+apk_path="$(find "app/build/outputs/apk/$apk_directory" -maxdepth 1 -type f -name '*.apk' ! -name '*-unsigned.apk' | head -n1)"
 
 if [[ -z "$apk_path" ]]; then
-    echo "Signed APK not found under app/build/outputs/apk/release" >&2
+    echo "Signed APK not found under app/build/outputs/apk/$apk_directory" >&2
     exit 1
 fi
 

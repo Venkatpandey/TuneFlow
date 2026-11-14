@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -29,16 +31,22 @@ fun rememberArtworkRequest(
     data: Any?,
     width: Dp,
     height: Dp = width,
+    requestSizePx: Int? = null,
 ): ImageRequest {
     val context = LocalContext.current
     val widthPx = remember(width) { width.roundToPxSize() }
     val heightPx = remember(height) { height.roundToPxSize() }
 
-    return remember(data, context, widthPx, heightPx) {
+    return remember(data, context, widthPx, heightPx, requestSizePx) {
         ImageRequest.Builder(context)
             .data(data)
             .crossfade(true)
-            .size(Size(widthPx, heightPx))
+            .size(
+                Size(
+                    width = requestSizePx ?: widthPx,
+                    height = requestSizePx ?: heightPx,
+                ),
+            )
             .build()
     }
 }
@@ -54,8 +62,15 @@ fun TuneFlowArtwork(
     alpha: Float = 1f,
     placeholderText: String? = null,
     fallbackPainterResId: Int? = null,
+    requestSizePx: Int? = null,
 ) {
-    val request = rememberArtworkRequest(data = model, width = width, height = height)
+    val request =
+        rememberArtworkRequest(
+            data = model,
+            width = width,
+            height = height,
+            requestSizePx = requestSizePx,
+        )
 
     SubcomposeAsyncImage(
         model = request,
@@ -97,6 +112,7 @@ fun BoxScope.ArtworkPlaceholder(
                     painter = painterResource(id = fallbackPainterResId),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
+                    colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }),
                     modifier = Modifier.fillMaxSize().padding(18.dp),
                 )
             }

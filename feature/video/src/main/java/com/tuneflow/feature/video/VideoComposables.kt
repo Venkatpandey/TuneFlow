@@ -5,6 +5,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +34,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,7 +47,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -59,12 +64,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.tuneflow.core.design.LocalTuneFlowMotion
+import com.tuneflow.core.design.TuneFlowActionSurface
 import kotlinx.coroutines.delay
 import java.text.NumberFormat
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 fun NativeVideoPlayerSurface(
     player: NativeVideoPlayer,
+    trackDetails: VideoTrackDetails,
     host: FrameLayout,
     bounds: IntRect,
     requestFocus: Boolean,
@@ -77,18 +86,27 @@ fun NativeVideoPlayerSurface(
     val colorScheme = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
     val shapes = MaterialTheme.shapes
+    val motion = LocalTuneFlowMotion.current
     val controlsView =
-        remember(player, host, requestFocus, colorScheme, typography, shapes) {
+        remember(player, trackDetails, host, requestFocus, colorScheme, typography, shapes, motion) {
             if (requestFocus) {
                 ComposeView(host.context).apply {
                     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
                     setContent {
-                        MaterialTheme(
-                            colorScheme = colorScheme,
-                            typography = typography,
-                            shapes = shapes,
-                        ) {
-                            NativeVideoControlsOverlay(player, onExitFullscreen, onChooseAnother, onStop)
+                        CompositionLocalProvider(LocalTuneFlowMotion provides motion) {
+                            MaterialTheme(
+                                colorScheme = colorScheme,
+                                typography = typography,
+                                shapes = shapes,
+                            ) {
+                                NativeVideoControlsOverlay(
+                                    player = player,
+                                    trackDetails = trackDetails,
+                                    onExitFullscreen = onExitFullscreen,
+                                    onChooseAnother = onChooseAnother,
+                                    onStop = onStop,
+                                )
+                            }
                         }
                     }
                 }
@@ -97,41 +115,52 @@ fun NativeVideoPlayerSurface(
             }
         }
     val currentOnKeyEvent = rememberUpdatedState(onKeyEvent)
-    DisposableEffect(player, host, view, controlsView) {
+    DisposableEffect(player, host, view) {
         (view.parent as? ViewGroup)?.removeView(view)
-        host.removeAllViews()
         host.addView(
             view,
+            0,
             FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             ),
         )
-        controlsView?.let { overlay ->
-            host.addView(
-                overlay,
-                FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                ),
-            )
-        }
         host.visibility = View.VISIBLE
         host.bringToFront()
         view.setOnKeyListener { _, _, event -> currentOnKeyEvent.value(event) }
-        controlsView?.setOnKeyListener { _, _, event -> currentOnKeyEvent.value(event) }
         view.onFocusChangeListener =
             View.OnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) player.focusPlayer() else player.clearPlayerFocus()
             }
         onDispose {
             view.setOnKeyListener(null)
-            controlsView?.setOnKeyListener(null)
             view.onFocusChangeListener = null
             host.removeView(view)
-            controlsView?.let(host::removeView)
-            host.visibility = View.GONE
+            if (host.childCount == 0) {
+                host.visibility = View.GONE
+            }
             player.disposeSurfaceView(view)
+        }
+    }
+
+    DisposableEffect(host, controlsView) {
+        if (controlsView != null) {
+            (controlsView.parent as? ViewGroup)?.removeView(controlsView)
+            host.addView(
+                controlsView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            controlsView.bringToFront()
+            controlsView.setOnKeyListener { _, _, event -> currentOnKeyEvent.value(event) }
+        }
+        onDispose {
+            controlsView?.setOnKeyListener(null)
+            if (controlsView != null) {
+                host.removeView(controlsView)
+            }
         }
     }
 
@@ -160,7 +189,7 @@ fun NativeVideoPlayerSurface(
         onDispose { }
     }
 
-    DisposableEffect(view, requestFocus) {
+    DisposableEffect(view, requestFocus, controlsView) {
         val focusView = controlsView ?: view
         focusView.isFocusable = requestFocus
         focusView.isFocusableInTouchMode = requestFocus
@@ -179,6 +208,7 @@ fun NativeVideoPlayerSurface(
 @Suppress("CyclomaticComplexMethod")
 private fun NativeVideoControlsOverlay(
     player: NativeVideoPlayer,
+    trackDetails: VideoTrackDetails,
     onExitFullscreen: () -> Unit,
     onChooseAnother: () -> Unit,
     onStop: () -> Unit,
@@ -289,6 +319,7 @@ private fun NativeVideoControlsOverlay(
                         .padding(horizontal = 34.dp, vertical = 22.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                VideoTrackDetailsBlock(trackDetails)
                 LinearProgressIndicator(
                     progress = { if (durationMs > 0L) positionMs.toFloat() / durationMs else 0f },
                     modifier = Modifier.fillMaxWidth().height(6.dp).progressSemantics(),
@@ -448,6 +479,30 @@ private fun NativeVideoControlsOverlay(
     }
 }
 
+@Composable
+private fun VideoTrackDetailsBlock(trackDetails: VideoTrackDetails) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(
+            text = trackDetails.title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text =
+                listOf(trackDetails.artist, trackDetails.album)
+                    .filter(String::isNotBlank)
+                    .joinToString(" • "),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.78f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 internal enum class NativeControlAction {
     ShowControls,
     HideControls,
@@ -538,6 +593,101 @@ fun VideoActionButton(
 }
 
 @Composable
+fun VideoCandidateLoadingPanel(modifier: Modifier = Modifier) {
+    val motion = LocalTuneFlowMotion.current
+    val placeholderAlpha =
+        if (motion.enabled) {
+            val transition = rememberInfiniteTransition(label = "video-search-skeleton")
+            val alpha by
+                transition.animateFloat(
+                    initialValue = 0.32f,
+                    targetValue = 0.72f,
+                    animationSpec =
+                        infiniteRepeatable(
+                            animation = tween(durationMillis = 800),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                    label = "video-search-skeleton-alpha",
+                )
+            alpha
+        } else {
+            0.52f
+        }
+    val placeholderColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = placeholderAlpha)
+
+    Column(
+        modifier =
+            modifier
+                .width(360.dp)
+                .fillMaxHeight()
+                .progressSemantics()
+                .clip(MaterialTheme.shapes.large)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f), MaterialTheme.shapes.large)
+                .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = "Finding YouTube videos",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = "Searching for the best matches…",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        repeat(VIDEO_CANDIDATE_SKELETON_COUNT) {
+            VideoCandidateSkeletonRow(color = placeholderColor)
+        }
+    }
+}
+
+@Composable
+private fun VideoCandidateSkeletonRow(color: Color) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(82.dp)
+                .clip(MaterialTheme.shapes.medium)
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f), MaterialTheme.shapes.medium)
+                .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(width = 112.dp, height = 63.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(color),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth(0.92f)
+                        .height(14.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .background(color),
+            )
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth(0.58f)
+                        .height(10.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .background(color),
+            )
+        }
+    }
+}
+
+@Composable
 fun VideoCandidatePicker(
     candidates: List<VideoCandidate>,
     onSelect: (VideoCandidate) -> Unit,
@@ -587,6 +737,8 @@ fun VideoCandidatePicker(
         }
     }
 }
+
+private const val VIDEO_CANDIDATE_SKELETON_COUNT = 5
 
 @Composable
 fun VideoDisclosureOverlay(
@@ -740,7 +892,6 @@ private fun VideoTextButton(
     requestFocus: Boolean = false,
     onRequestedFocusApplied: () -> Unit = {},
 ) {
-    var focused by remember { mutableStateOf(false) }
     val requester = remember { FocusRequester() }
     LaunchedEffect(requestFocusId, requestFocus) {
         if (requestFocusId > 0L || requestFocus) {
@@ -748,34 +899,18 @@ private fun VideoTextButton(
             if (requestFocus) onRequestedFocusApplied()
         }
     }
-    Box(
+    TuneFlowActionSurface(
+        onClick = onClick,
+        accent = accent,
+        enabled = enabled,
         modifier =
             modifier
-                .focusRequester(requester)
-                .scale(if (focused) 1.03f else 1f)
-                .alpha(if (enabled) 1f else 0.45f)
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable(enabled)
-                .clip(MaterialTheme.shapes.medium)
-                .background(
-                    if (focused || accent) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
-                    },
-                )
-                .border(
-                    if (focused) 2.dp else 1.dp,
-                    if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                    MaterialTheme.shapes.medium,
-                )
-                .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
+                .focusRequester(requester),
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = if (accent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -794,7 +929,6 @@ fun VideoControlIconButton(
     requestFocus: Boolean = false,
     onRequestedFocusApplied: () -> Unit = {},
 ) {
-    var focused by remember { mutableStateOf(false) }
     val requester = remember { FocusRequester() }
     val requestsOwnFocus = requestFocusId > 0L || requestFocus
     LaunchedEffect(requestFocusId, requestFocus) {
@@ -803,36 +937,21 @@ fun VideoControlIconButton(
             if (requestFocus) onRequestedFocusApplied()
         }
     }
-    Box(
+    TuneFlowActionSurface(
+        onClick = onClick,
+        accent = accent,
+        enabled = enabled,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
         modifier =
             modifier
                 .size(width = 56.dp, height = 46.dp)
-                .scale(if (focused) 1.06f else 1f)
-                .alpha(if (enabled) 1f else 0.45f)
-                .then(if (requestsOwnFocus) Modifier.focusRequester(requester) else Modifier)
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable(enabled)
-                .clip(MaterialTheme.shapes.medium)
-                .background(
-                    if (focused || accent) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
-                    },
-                )
-                .border(
-                    if (focused) 2.dp else 1.dp,
-                    if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                    MaterialTheme.shapes.medium,
-                )
-                .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
+                .then(if (requestsOwnFocus) Modifier.focusRequester(requester) else Modifier),
     ) {
         Icon(
             painter = painterResource(iconResId),
             contentDescription = contentDescription,
             modifier = Modifier.size(30.dp),
-            tint = MaterialTheme.colorScheme.onSurface,
+            tint = if (accent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
         )
     }
 }

@@ -28,15 +28,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -46,16 +45,21 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.network.PlaylistFavoriteStore
 import com.tuneflow.core.network.ScreenScaleOption
+import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.player.PlaybackQueue
 import com.tuneflow.core.player.QueueItem
 import com.tuneflow.feature.playback.Lyrics
@@ -64,6 +68,8 @@ import com.tuneflow.feature.playback.LyricsUiState
 import com.tuneflow.feature.video.NativeVideoPlayerSurface
 import com.tuneflow.feature.video.VideoUiState
 import com.tuneflow.feature.video.VideoViewModel
+import com.tuneflow.feature.video.activeSession
+import com.tuneflow.feature.video.activeTrackDetails
 import com.tuneflow.feature.video.hasVisiblePlayer
 import com.tuneflow.feature.video.isFullscreen
 import com.tuneflow.feature.video.isVideoSessionActive
@@ -76,14 +82,20 @@ internal const val NOW_PLAYING_WIDGET_HEIGHT_DP = 224
 internal fun TuneFlowShellLayout(
     currentSection: NavSection,
     currentDestination: ShellDestination,
+    navigationDepth: Int,
+    premiumFeaturesEnabled: Boolean,
     showNowPlaying: Boolean,
     username: String,
     currentTimeText: String,
+    appVersionName: String,
     playbackQueue: PlaybackQueue,
     playbackPositionMs: Long,
     screensaverActive: Boolean,
     lyricsState: LyricsUiState,
     homeViewModel: HomeViewModel,
+    favoriteStore: TrackFavoriteStore,
+    playlistFavoriteStore: PlaylistFavoriteStore,
+    recentPlaylistIds: List<String>,
     albumsViewModel: com.tuneflow.feature.browse.AlbumsViewModel,
     homeCategoryViewModel: com.tuneflow.feature.browse.HomeCategoryViewModel,
     albumDetailViewModel: com.tuneflow.feature.browse.AlbumDetailViewModel,
@@ -114,9 +126,13 @@ internal fun TuneFlowShellLayout(
     onPlayVideo: (com.tuneflow.feature.video.VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
     onShuffleTracks: (List<com.tuneflow.core.network.TrackSummary>) -> Unit,
+    onPlayPlaylistTracks: (String, String, List<com.tuneflow.core.network.TrackSummary>, Int) -> Unit,
+    onShufflePlaylistTracks: (String, String, List<com.tuneflow.core.network.TrackSummary>) -> Unit,
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
     showExitPrompt: Boolean,
+    favoriteErrorMessage: String?,
+    onOpenAbout: () -> Unit,
 ) {
     val videoSurfacePlayer by videoViewModel.surfacePlayer.collectAsState()
     var videoViewportBounds by remember { mutableStateOf<IntRect?>(null) }
@@ -137,40 +153,17 @@ internal fun TuneFlowShellLayout(
                         handleVideoModeMediaKey(
                             event.nativeKeyEvent.keyCode,
                             videoViewModel,
-                            playbackViewModel,
                         )
                 }
                 .background(MaterialTheme.colorScheme.background),
     ) {
-        androidx.compose.foundation.Image(
-            painter = painterResource(id = R.drawable.login_background),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-            alpha = 0.16f,
-        )
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.radialGradient(
-                            colors =
-                                listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.96f),
-                                ),
-                        ),
-                    ),
-        )
-
         TuneFlowSafeArea {
             Box(
                 modifier =
                     Modifier
                         .fillMaxSize()
                         .clip(TuneFlowShapes.surface)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
                         .border(
                             width = 1.dp,
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
@@ -193,6 +186,8 @@ internal fun TuneFlowShellLayout(
                             isNowPlayingActive = showNowPlaying,
                             username = username,
                             currentTimeText = currentTimeText,
+                            appVersionName = appVersionName,
+                            onOpenAbout = onOpenAbout,
                         )
 
                         Spacer(Modifier.width(22.dp))
@@ -205,11 +200,16 @@ internal fun TuneFlowShellLayout(
                         ) {
                             ShellContent(
                                 currentDestination = currentDestination,
+                                navigationDepth = navigationDepth,
+                                premiumFeaturesEnabled = premiumFeaturesEnabled,
                                 preselectedPlaylistId = preselectedPlaylistId,
                                 focusRestoreTarget = focusRestoreTarget,
                                 playbackQueue = playbackQueue,
                                 playbackPositionMs = playbackPositionMs,
                                 homeViewModel = homeViewModel,
+                                favoriteStore = favoriteStore,
+                                playlistFavoriteStore = playlistFavoriteStore,
+                                recentPlaylistIds = recentPlaylistIds,
                                 albumsViewModel = albumsViewModel,
                                 homeCategoryViewModel = homeCategoryViewModel,
                                 albumDetailViewModel = albumDetailViewModel,
@@ -235,6 +235,8 @@ internal fun TuneFlowShellLayout(
                                 onPlayVideo = onPlayVideo,
                                 onPlayTracks = onPlayTracks,
                                 onShuffleTracks = onShuffleTracks,
+                                onPlayPlaylistTracks = onPlayPlaylistTracks,
+                                onShufflePlaylistTracks = onShufflePlaylistTracks,
                                 preferredVideoServiceUrl = preferredVideoServiceUrl,
                                 onPreferredVideoServiceUrlChanged = onPreferredVideoServiceUrlChanged,
                             )
@@ -252,11 +254,21 @@ internal fun TuneFlowShellLayout(
                     .padding(bottom = 28.dp),
         )
 
+        FavoriteFeedbackBanner(
+            message = favoriteErrorMessage,
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = if (showExitPrompt) 84.dp else 28.dp),
+        )
+
         if (screensaverActive) {
             PlaybackScreensaverOverlay(
                 playbackQueue = playbackQueue,
                 playbackPositionMs = playbackPositionMs,
                 lyricsState = lyricsState,
+                premiumFeaturesEnabled = premiumFeaturesEnabled,
+                currentTimeText = currentTimeText,
             )
         }
 
@@ -282,18 +294,21 @@ internal fun TuneFlowShellLayout(
                     playerModifier
                         .background(Color.Black),
             )
-            NativeVideoPlayerSurface(
-                player = videoSurfacePlayer,
-                host = videoOverlayHost,
-                bounds = playerBounds,
-                requestFocus = videoState.isFullscreen,
-                onKeyEvent = { event ->
-                    handleVideoOverlayMediaKey(event, videoViewModel, playbackViewModel)
-                },
-                onExitFullscreen = videoViewModel::exitFullscreen,
-                onChooseAnother = videoViewModel::chooseAnother,
-                onStop = videoViewModel::stopVideo,
-            )
+            key(videoState.activeSession) {
+                NativeVideoPlayerSurface(
+                    player = videoSurfacePlayer,
+                    trackDetails = requireNotNull(videoState.activeTrackDetails),
+                    host = videoOverlayHost,
+                    bounds = playerBounds,
+                    requestFocus = videoState.isFullscreen,
+                    onKeyEvent = { event ->
+                        handleVideoOverlayMediaKey(event, videoViewModel)
+                    },
+                    onExitFullscreen = videoViewModel::exitFullscreen,
+                    onChooseAnother = videoViewModel::chooseAnother,
+                    onStop = videoViewModel::stopVideo,
+                )
+            }
         }
     }
 }
@@ -333,16 +348,14 @@ private const val YOUTUBE_PLAYER_ASPECT_HEIGHT = 9L
 private fun handleVideoOverlayMediaKey(
     event: AndroidKeyEvent,
     videoViewModel: VideoViewModel,
-    playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
 ): Boolean {
     if (event.action != AndroidKeyEvent.ACTION_DOWN || isYouTubeProviderKey(event.keyCode)) return false
-    return handleVideoModeMediaKey(event.keyCode, videoViewModel, playbackViewModel)
+    return handleVideoModeMediaKey(event.keyCode, videoViewModel)
 }
 
 internal fun handleVideoModeMediaKey(
     keyCode: Int,
     videoViewModel: VideoViewModel,
-    playbackViewModel: com.tuneflow.feature.playback.PlaybackViewModel,
 ): Boolean {
     if (!videoViewModel.uiState.value.isVideoSessionActive) return false
     return when (keyCode) {
@@ -358,14 +371,10 @@ internal fun handleVideoModeMediaKey(
         AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> videoViewModel.seekBy(10_000L)
         AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> videoViewModel.seekBy(-10_000L)
         AndroidKeyEvent.KEYCODE_MEDIA_NEXT -> {
-            videoViewModel.closeForQueueChange()
-            playbackViewModel.next()
-            true
+            videoViewModel.nextTrack()
         }
         AndroidKeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-            videoViewModel.closeForQueueChange()
-            playbackViewModel.previous()
-            true
+            videoViewModel.previousTrack()
         }
         else -> false
     }
@@ -393,6 +402,8 @@ private fun NavRail(
     isNowPlayingActive: Boolean,
     username: String,
     currentTimeText: String,
+    appVersionName: String,
+    onOpenAbout: () -> Unit,
 ) {
     Column(
         modifier =
@@ -400,47 +411,17 @@ private fun NavRail(
                 .width(148.dp)
                 .fillMaxHeight()
                 .clip(TuneFlowShapes.container)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.82f))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
-                    shape = TuneFlowShapes.container,
-                )
+                .background(MaterialTheme.colorScheme.background)
                 .padding(vertical = 20.dp, horizontal = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .size(52.dp)
-                        .clip(TuneFlowShapes.avatar)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                            TuneFlowShapes.avatar,
-                        ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = username.ifBlank { "TuneFlow" }.take(1).uppercase(),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-            Text(
-                text = currentTimeText,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-        }
+        ProfileHeader(
+            username = username,
+            currentTimeText = currentTimeText,
+            appVersionName = appVersionName,
+            onOpenAbout = onOpenAbout,
+        )
 
         NavRailItem(
             label = "Home",
@@ -478,6 +459,136 @@ private fun NavRail(
 }
 
 @Composable
+private fun ProfileHeader(
+    username: String,
+    currentTimeText: String,
+    appVersionName: String,
+    onOpenAbout: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    var longPressHandled by remember { mutableStateOf(false) }
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(TuneFlowShapes.row)
+                .background(
+                    if (focused) {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    } else {
+                        Color.Transparent
+                    },
+                )
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+                        },
+                    shape = TuneFlowShapes.row,
+                )
+                .onPreviewKeyEvent { event ->
+                    when (
+                        profileAboutKeyAction(
+                            keyCode = event.nativeKeyEvent.keyCode,
+                            action = event.nativeKeyEvent.action,
+                            repeatCount = event.nativeKeyEvent.repeatCount,
+                            longPressHandled = longPressHandled,
+                        )
+                    ) {
+                        ProfileAboutKeyAction.Ignore -> false
+                        ProfileAboutKeyAction.Consume -> true
+                        ProfileAboutKeyAction.Reset -> {
+                            longPressHandled = false
+                            true
+                        }
+                        ProfileAboutKeyAction.OpenAbout -> {
+                            longPressHandled = true
+                            onOpenAbout()
+                            true
+                        }
+                    }
+                }
+                .onFocusChanged { focusState -> focused = focusState.isFocused }
+                .semantics {
+                    contentDescription = "User profile. Hold select for app information."
+                    onLongClick {
+                        onOpenAbout()
+                        true
+                    }
+                }
+                .focusable()
+                .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(44.dp)
+                    .clip(TuneFlowShapes.avatar)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.outlineVariant,
+                        TuneFlowShapes.avatar,
+                    ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = username.ifBlank { "TuneFlow" }.take(1).uppercase(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = currentTimeText,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            Text(
+                text = "v$appVersionName",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+internal enum class ProfileAboutKeyAction {
+    Ignore,
+    Consume,
+    Reset,
+    OpenAbout,
+}
+
+internal fun profileAboutKeyAction(
+    keyCode: Int,
+    action: Int,
+    repeatCount: Int,
+    longPressHandled: Boolean,
+): ProfileAboutKeyAction {
+    val isSelectKey =
+        keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER ||
+            keyCode == AndroidKeyEvent.KEYCODE_ENTER ||
+            keyCode == AndroidKeyEvent.KEYCODE_NUMPAD_ENTER
+    return when {
+        !isSelectKey -> ProfileAboutKeyAction.Ignore
+        action == AndroidKeyEvent.ACTION_UP -> ProfileAboutKeyAction.Reset
+        action != AndroidKeyEvent.ACTION_DOWN -> ProfileAboutKeyAction.Consume
+        repeatCount == 0 -> ProfileAboutKeyAction.Reset
+        longPressHandled -> ProfileAboutKeyAction.Consume
+        else -> ProfileAboutKeyAction.OpenAbout
+    }
+}
+
+@Composable
 private fun NavRailItem(
     label: String,
     selected: Boolean,
@@ -486,39 +597,18 @@ private fun NavRailItem(
     var focused by remember { mutableStateOf(false) }
     val active = selected || focused
 
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .onFocusChanged { focusState -> focused = focusState.isFocused }
-                .focusable()
-                .clip(TuneFlowShapes.row)
-                .background(
-                    if (active) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.34f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
-                    },
-                )
-                .border(
-                    width = if (active) 3.dp else 1.dp,
-                    color =
-                        if (active) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
-                        },
-                    shape = TuneFlowShapes.row,
-                )
-                .clickable(onClick = onClick)
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-        contentAlignment = Alignment.Center,
+    TuneFlowActionSurface(
+        modifier = Modifier.fillMaxWidth(),
+        selected = selected,
+        shape = TuneFlowShapes.row,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+        onFocusedChange = { focused = it },
+        onClick = onClick,
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
             color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.scale(if (focused) 1.05f else 1f),
         )
     }
 }
@@ -563,18 +653,18 @@ internal fun NowPlayingRailWidget(
                 .clip(TuneFlowShapes.card)
                 .background(
                     if (active) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                        MaterialTheme.colorScheme.surfaceVariant
                     } else {
                         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
                     },
                 )
                 .border(
-                    width = if (active) 3.dp else 1.dp,
+                    width = if (focused) 2.dp else 1.dp,
                     color =
-                        if (active) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                        when {
+                            focused -> MaterialTheme.colorScheme.onSurface
+                            selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+                            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
                         },
                     shape = TuneFlowShapes.card,
                 )
@@ -641,7 +731,18 @@ private fun PlaybackScreensaverOverlay(
     playbackQueue: PlaybackQueue,
     playbackPositionMs: Long,
     lyricsState: LyricsUiState,
+    premiumFeaturesEnabled: Boolean,
+    currentTimeText: String,
 ) {
+    if (premiumFeaturesEnabled) {
+        CinematicPlaybackScreensaverOverlay(
+            playbackQueue = playbackQueue,
+            playbackPositionMs = playbackPositionMs,
+            lyricsState = lyricsState,
+            currentTimeText = currentTimeText,
+        )
+        return
+    }
     val currentItem = playbackQueue.currentItem ?: return
     val lyrics = resolveScreensaverLyrics(lyricsState, currentItem.id)
 

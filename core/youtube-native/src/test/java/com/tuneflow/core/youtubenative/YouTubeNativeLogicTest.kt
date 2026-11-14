@@ -1,14 +1,76 @@
 package com.tuneflow.core.youtubenative
 
+import com.google.android.exoplayer2.ExoPlaybackException
 import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.upstream.HttpDataSource
+import com.liskovsoft.mediaserviceinterfaces.data.MediaGroup
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 class YouTubeNativeLogicTest {
+    @Test
+    fun collectsSearchContinuationsUpToPageBudget() {
+        val first = FakeMediaGroup("page-2")
+        val second = FakeMediaGroup("page-3")
+        val third = FakeMediaGroup("page-4")
+        val fourth = FakeMediaGroup(null)
+        val requestedPageKeys = mutableListOf<String>()
+
+        val groups =
+            collectSmartTubeSearchGroups(listOf(first), maximumPagesPerGroup = 3) { group ->
+                val pageKey = group.nextPageKey
+                if (pageKey != null) requestedPageKeys += pageKey
+                when (pageKey) {
+                    "page-2" -> second
+                    "page-3" -> third
+                    "page-4" -> fourth
+                    else -> null
+                }
+            }
+
+        assertEquals(listOf(first, second, third), groups)
+        assertEquals(listOf("page-2", "page-3"), requestedPageKeys)
+    }
+
+    @Test
+    fun stopsWhenSearchContinuationTokenRepeats() {
+        val first = FakeMediaGroup("same-page")
+        val repeated = FakeMediaGroup("same-page")
+        var continuationCalls = 0
+
+        val groups =
+            collectSmartTubeSearchGroups(listOf(first), maximumPagesPerGroup = 3) {
+                continuationCalls += 1
+                repeated
+            }
+
+        assertEquals(listOf(first, repeated), groups)
+        assertEquals(1, continuationCalls)
+    }
+
+    @Test
+    fun buildsFocusedOfficialVideoQueryWithoutAudioMetadata() {
+        assertEquals(
+            "Depeche Mode Enjoy the Silence official music video",
+            buildSmartTubeVideoSearchQuery(
+                artist = "Depeche Mode",
+                title = "Enjoy the Silence (2011 Remastered) [Explicit]",
+            ),
+        )
+        assertEquals(
+            "Artist Song official music video",
+            buildSmartTubeVideoSearchQuery(
+                artist = "Artist",
+                title = "Song - 2009 Remaster (feat. Guest)",
+            ),
+        )
+    }
+
     @Test
     fun mapsSmartTubeSearchMetadata() {
         val mapped =
@@ -26,6 +88,20 @@ class YouTubeNativeLogicTest {
         assertEquals("Artist VEVO", mapped?.channel)
         assertEquals(1_200_000L, mapped?.viewCount)
         assertEquals(180_000L, mapped?.durationMs)
+
+        val fallbackMapped =
+            mapSmartTubeFields(
+                videoId = "def",
+                title = "Artist - Song",
+                author = "Official Artist Channel",
+                secondTitle = "10M views • 2 years ago",
+                thumbnailUrl = "https://example.test/thumb.jpg",
+                durationMs = 180_000L,
+                isLive = false,
+                isShort = false,
+            )
+        assertEquals("Official Artist Channel", fallbackMapped?.channel)
+        assertEquals(10_000_000L, fallbackMapped?.viewCount)
     }
 
     @Test
@@ -46,6 +122,42 @@ class YouTubeNativeLogicTest {
         assertEquals(YouTubeSourceKind.Hls, selectSourceKind(false, false, true, true))
         assertEquals(YouTubeSourceKind.Direct, selectSourceKind(false, false, false, true))
         assertNull(selectSourceKind(false, false, false, false))
+    }
+
+    @Test
+    fun refreshesForbiddenVideoSourceAtMostTwice() {
+        val forbidden =
+            ExoPlaybackException.createForSource(
+                IOException("segment failed", HttpDataSource.InvalidResponseCodeException(403, emptyMap(), null)),
+            )
+        val missing =
+            ExoPlaybackException.createForSource(
+                HttpDataSource.InvalidResponseCodeException(404, emptyMap(), null),
+            )
+
+        assertTrue(shouldRefreshSource(forbidden, 0))
+        assertTrue(shouldRefreshSource(forbidden, 1))
+        assertFalse(shouldRefreshSource(forbidden, 2))
+        assertFalse(shouldRefreshSource(missing, 0))
+    }
+
+    @Test
+    fun rejectedDashSourcePrefersHlsAndSkipsStalledSabr() {
+        assertEquals(
+            YouTubeSourceKind.Hls,
+            selectRecoverySourceKind(
+                listOf(YouTubeSourceKind.Dash, YouTubeSourceKind.Sabr, YouTubeSourceKind.Hls, YouTubeSourceKind.Direct),
+                YouTubeSourceKind.Dash,
+            ),
+        )
+        assertEquals(
+            YouTubeSourceKind.Direct,
+            selectRecoverySourceKind(
+                listOf(YouTubeSourceKind.Dash, YouTubeSourceKind.Sabr, YouTubeSourceKind.Direct),
+                YouTubeSourceKind.Dash,
+            ),
+        )
+        assertNull(selectRecoverySourceKind(listOf(YouTubeSourceKind.Dash, YouTubeSourceKind.Sabr), YouTubeSourceKind.Dash))
     }
 
     @Test
@@ -113,4 +225,26 @@ class YouTubeNativeLogicTest {
         codec: String,
         hardware: Boolean,
     ) = YouTubeVideoFormat(id, width, height, 30f, 1_000, "video/$codec", codec, hardware)
+}
+
+private data class FakeMediaGroup(
+    private val pageKey: String?,
+) : MediaGroup {
+    override fun getType(): Int = MediaGroup.TYPE_SEARCH
+
+    override fun getMediaItems(): List<MediaItem> = emptyList()
+
+    override fun getTitle(): String = "Search"
+
+    override fun getChannelId(): String? = null
+
+    override fun getParams(): String? = null
+
+    override fun getReloadPageKey(): String? = null
+
+    override fun getNextPageKey(): String? = pageKey
+
+    override fun getChannelUrl(): String? = null
+
+    override fun isEmpty(): Boolean = false
 }

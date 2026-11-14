@@ -20,8 +20,19 @@ object VideoCandidateRanker {
             "fan edit",
             "lyric video",
             "lyrics video",
+            "lyrics",
+            "lyric",
             "sped up",
             "slowed",
+            "nightcore",
+            "bass boosted",
+            "8d audio",
+            "pitch shifted",
+            "reverb",
+            "status",
+            "tiktok",
+            "mashup",
+            "parody",
             "shorts",
         )
     private val variants = setOf("live", "remix", "acoustic", "instrumental")
@@ -46,54 +57,68 @@ object VideoCandidateRanker {
             (runnerUp == null || top.score - runnerUp.score >= MIN_AUTOPLAY_MARGIN)
     }
 
-    @Suppress("CyclomaticComplexMethod")
+    @Suppress("CyclomaticComplexMethod", "ReturnCount", "LongMethod")
     fun score(
         query: VideoTrackQuery,
         candidate: VideoCandidate,
     ): Double {
-        val trackTitle = normalizeVideoText(query.title)
-        val trackArtist = normalizeVideoText(query.artist)
+        val trackTitle = normalizeTrackTitleForMatching(query.title)
+        val artistAliases = videoArtistAliases(query.artist)
         val candidateTitle = normalizeVideoText(candidate.title)
         val candidatePublisher = normalizeVideoText(candidate.publisher)
-        if (trackTitle.isBlank() || trackArtist.isBlank()) return 0.0
+        if (trackTitle.isBlank() || artistAliases.isEmpty()) return 0.0
+
+        val titleSimilarity = tokenSimilarity(trackTitle, candidateTitle)
+        if (titleSimilarity < MIN_TITLE_MATCH) return 0.0
+
+        val isOfficialArtist = isOfficialArtistPublisher(artistAliases, candidatePublisher)
+        val titleArtistSimilarity = artistAliases.maxOf { tokenSimilarity(it, candidateTitle) }
+        val isRecordLabel =
+            !isOfficialArtist &&
+                isOfficialRecordLabel(candidatePublisher) &&
+                (artistAliases.any(candidateTitle::containsPhrase) || titleArtistSimilarity >= MIN_ARTIST_MATCH)
+        val isFanOrLyricChannel = isThirdPartyFanOrLyricChannel(candidatePublisher)
+
+        val publisherMatch = isOfficialArtist || isRecordLabel
+        if (!publisherMatch && titleArtistSimilarity < MIN_ARTIST_MATCH) return 0.0
 
         var matchScore = 0.0
-        matchScore += if (candidateTitle.contains(trackTitle)) 0.38 else tokenSimilarity(trackTitle, candidateTitle) * 0.34
+        matchScore += if (candidateTitle.containsPhrase(trackTitle)) 0.38 else titleSimilarity * 0.38
         matchScore +=
             when {
-                publisherMatchesArtist(trackArtist, candidatePublisher) -> 0.34
-                candidateTitle.contains(trackArtist) -> 0.26
-                else ->
-                    max(
-                        tokenSimilarity(trackArtist, candidateTitle),
-                        tokenSimilarity(trackArtist, candidatePublisher),
-                    ) * 0.22
+                isOfficialArtist -> 0.35
+                isRecordLabel -> 0.28
+                artistAliases.any(candidateTitle::containsPhrase) -> 0.16
+                else -> titleArtistSimilarity * 0.14
             }
+
+        if (isFanOrLyricChannel && !isOfficialArtist) {
+            matchScore -= 0.25
+        }
 
         if (query.durationMs > 0L && candidate.durationMs > 0L) {
             val tolerance = max(DURATION_TOLERANCE_MS, (query.durationMs * DURATION_TOLERANCE_RATIO).toLong())
             val difference = abs(query.durationMs - candidate.durationMs)
-            matchScore += if (difference <= tolerance) 0.18 else -0.16
+            matchScore += if (difference <= tolerance) 0.05 else -0.08
         }
-        if (candidate.musicCategory) matchScore += 0.08
-        if (candidateTitle.contains("official music video") || candidateTitle.contains("official video")) {
-            matchScore += 0.04
+        if (candidate.musicCategory) matchScore += 0.03
+        if (isOfficialVideoTitle(candidateTitle)) {
+            val hasVerifiedOfficialStanding =
+                isOfficialArtist || isRecordLabel || candidate.viewCount >= MIN_HIGH_VIEW_COUNT
+            matchScore += if (hasVerifiedOfficialStanding) 0.14 else 0.04
         }
 
         unwantedTerms.forEach { term ->
-            if (candidateTitle.contains(term) && !trackTitle.contains(term)) matchScore -= 0.30
+            if (candidateTitle.containsPhrase(term) && !trackTitle.containsPhrase(term)) matchScore -= 0.30
         }
         variants.forEach { variant ->
-            if (candidateTitle.contains(variant) && !trackTitle.contains(variant)) matchScore -= 0.24
+            if (candidateTitle.containsPhrase(variant) && !trackTitle.containsPhrase(variant)) matchScore -= 0.24
         }
 
         val popularityScore =
             (log10(candidate.viewCount.coerceAtLeast(0L).toDouble() + 1.0) / MAX_VIEW_COUNT_LOG10)
                 .coerceIn(0.0, 1.0)
-        return (
-            matchScore.coerceIn(0.0, 1.0) * MATCH_WEIGHT +
-                popularityScore * POPULARITY_WEIGHT
-        ).coerceIn(0.0, 1.0)
+        return (matchScore + popularityScore * POPULARITY_WEIGHT).coerceIn(0.0, 1.0)
     }
 
     private fun tokenSimilarity(
@@ -106,23 +131,101 @@ object VideoCandidateRanker {
         return expectedTokens.intersect(actualTokens).size.toDouble() / expectedTokens.size.toDouble()
     }
 
-    private fun publisherMatchesArtist(
-        artist: String,
+    private fun isOfficialArtistPublisher(
+        artistAliases: List<String>,
         publisher: String,
     ): Boolean {
-        if (publisher.contains(artist)) return true
-        val compactArtist = artist.replace(" ", "")
-        val compactPublisher = publisher.replace(" ", "")
-        return compactArtist.length >= MIN_COMPACT_ARTIST_LENGTH && compactPublisher.startsWith(compactArtist)
+        if (isThirdPartyFanOrLyricChannel(publisher)) return false
+        val compactPublisher =
+            publisher
+                .replace(" ", "")
+                .replace("official", "")
+                .replace("vevo", "")
+                .replace("topic", "")
+                .replace("music", "")
+                .replace("channel", "")
+        return artistAliases.any { artist ->
+            val compactArtist = artist.replace(" ", "")
+            compactArtist.length >= MIN_COMPACT_ARTIST_LENGTH &&
+                (
+                    compactPublisher == compactArtist ||
+                        compactArtist.length >= MIN_PARTIAL_ARTIST_LENGTH && compactPublisher.contains(compactArtist)
+                )
+        }
     }
 
-    private const val DURATION_TOLERANCE_MS = 20_000L
-    private const val DURATION_TOLERANCE_RATIO = 0.10
+    private fun isOfficialRecordLabel(publisher: String): Boolean {
+        val normalized = normalizeVideoText(publisher)
+        return OFFICIAL_RECORD_LABELS.any { label -> normalized.containsPhrase(label) || normalized == label }
+    }
+
+    private fun isThirdPartyFanOrLyricChannel(publisher: String): Boolean {
+        val normalized = normalizeVideoText(publisher)
+        return FAN_OR_LYRIC_CHANNEL_TERMS.any { term -> normalized.containsPhrase(term) }
+    }
+
+    private fun isOfficialVideoTitle(title: String): Boolean {
+        val tokens = title.split(' ').toSet()
+        return "official" in tokens && ("video" in tokens || "mv" in tokens)
+    }
+
+    private const val DURATION_TOLERANCE_MS = 45_000L
+    private const val DURATION_TOLERANCE_RATIO = 0.15
     private const val MIN_AUTOPLAY_MARGIN = 0.08
-    private const val MIN_COMPACT_ARTIST_LENGTH = 4
-    private const val MATCH_WEIGHT = 0.94
-    private const val POPULARITY_WEIGHT = 0.06
-    private const val MAX_VIEW_COUNT_LOG10 = 10.5
+    private const val MIN_COMPACT_ARTIST_LENGTH = 3
+    private const val MIN_PARTIAL_ARTIST_LENGTH = 5
+    private const val MIN_TITLE_MATCH = 0.60
+    private const val MIN_ARTIST_MATCH = 0.60
+    private const val POPULARITY_WEIGHT = 0.22
+    private const val MAX_VIEW_COUNT_LOG10 = 8.5
+    private const val MIN_HIGH_VIEW_COUNT = 1_000_000L
+
+    private val OFFICIAL_RECORD_LABELS =
+        setOf(
+            "warner records",
+            "warner music",
+            "atlantic records",
+            "columbia records",
+            "sony music",
+            "universal music",
+            "universal music group",
+            "umg",
+            "interscope records",
+            "republic records",
+            "def jam",
+            "def jam recordings",
+            "epic records",
+            "rca records",
+            "fueled by ramen",
+            "spinnin records",
+            "ultra records",
+            "ultra music",
+            "armada music",
+            "monstercat",
+            "rhino",
+            "sub pop",
+            "matador records",
+            "domino recording co",
+            "xl recordings",
+            "ninja tune",
+            "4ad",
+            "bmg",
+            "epitaph records",
+            "nuclear blast",
+            "napalm records",
+            "fearless records",
+            "sumerian records",
+            "hopeless records",
+            "dirty hit",
+            "awal",
+            "hollywood records",
+            "virgin music",
+            "capitol records",
+            "island records",
+        )
+
+    private val FAN_OR_LYRIC_CHANNEL_TERMS =
+        setOf("fan", "lyrics", "lyric", "edits", "edit", "status", "covers", "chill", "vibes")
 }
 
 internal fun normalizeVideoText(value: String): String =
@@ -132,6 +235,21 @@ internal fun normalizeVideoText(value: String): String =
         .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
         .trim()
         .replace(Regex("\\s+"), " ")
+
+internal fun normalizeTrackTitleForMatching(value: String): String {
+    val withoutFeatureCredit = value.replace(FEATURE_CREDIT_SUFFIX, "")
+    val withoutBracketedMetadata = withoutFeatureCredit.replace(BRACKETED_AUDIO_METADATA, "")
+    return normalizeVideoText(withoutBracketedMetadata.replace(TRAILING_AUDIO_METADATA, ""))
+        .ifBlank { normalizeVideoText(value) }
+}
+
+internal fun videoArtistAliases(value: String): List<String> {
+    val fullCredit = normalizeVideoText(value)
+    val individualArtists = value.split(ARTIST_CREDIT_SEPARATOR).map(::normalizeVideoText)
+    return (listOf(fullCredit) + individualArtists)
+        .filter { it.length >= MIN_ARTIST_ALIAS_LENGTH }
+        .distinct()
+}
 
 internal fun filterUnwantedVideoCandidates(
     query: VideoTrackQuery,
@@ -151,3 +269,21 @@ private fun String.containsPhrase(phrase: String): Boolean = " $this ".contains(
 
 private val HARD_EXCLUDED_TERMS = setOf("karaoke", "reaction", "cover", "shorts")
 private val CONDITIONAL_VARIANTS = setOf("remix", "live", "acoustic")
+private val ARTIST_CREDIT_SEPARATOR =
+    Regex(
+        """\s*(?:,|&|/|;|\bfeat(?:uring)?\.?\b|\bft\.?\b|\bx\b|\band\b)\s*""",
+        RegexOption.IGNORE_CASE,
+    )
+private val FEATURE_CREDIT_SUFFIX =
+    Regex("""\s*(?:[\[(]\s*)?(?:feat(?:uring)?|ft)\.?\s+.*$""", RegexOption.IGNORE_CASE)
+private val BRACKETED_AUDIO_METADATA =
+    Regex(
+        """\s*[\[(][^)\]]*(?:remaster(?:ed)?|album version|single version|radio edit|explicit|clean|mono|stereo|bonus track|original mix)[^)\]]*[)\]]""",
+        RegexOption.IGNORE_CASE,
+    )
+private val TRAILING_AUDIO_METADATA =
+    Regex(
+        """\s*[-–—]\s*(?:\d{4}\s*)?(?:remaster(?:ed)?|album version|single version|radio edit|explicit|clean|mono|stereo|bonus track|original mix).*$""",
+        RegexOption.IGNORE_CASE,
+    )
+private const val MIN_ARTIST_ALIAS_LENGTH = 3

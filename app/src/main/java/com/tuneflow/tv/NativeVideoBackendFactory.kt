@@ -114,7 +114,7 @@ private class SmartTubeNativePlayerAdapter(context: Context) : NativeVideoPlayer
 
     override fun createSurfaceView(context: Context): View = delegate.createView(context)
 
-    override fun disposeSurfaceView(view: View) = Unit
+    override fun disposeSurfaceView(view: View) = delegate.disposeView(view)
 
     override fun focusPlayer() = Unit
 

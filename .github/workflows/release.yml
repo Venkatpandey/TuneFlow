@@ -43,7 +43,25 @@ jobs:
           test -n "$SIGNING_STORE_PASSWORD" || { echo "SIGNING_STORE_PASSWORD is required"; exit 1; }
           test -n "$SIGNING_KEY_ALIAS" || { echo "SIGNING_KEY_ALIAS is required"; exit 1; }
           test -n "$SIGNING_KEY_PASSWORD" || { echo "SIGNING_KEY_PASSWORD is required"; exit 1; }
-          ./gradlew :app:assembleRelease --stacktrace
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          echo "$VERSION_NAME" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || {
+            echo "Release tag must use semantic versioning, for example v1.3.0"
+            exit 1
+          }
+          IFS='.' read -r VERSION_MAJOR VERSION_MINOR VERSION_PATCH <<< "$VERSION_NAME"
+          test "$VERSION_MINOR" -le 999 && test "$VERSION_PATCH" -le 999 || {
+            echo "Minor and patch versions must be 999 or lower"
+            exit 1
+          }
+          VERSION_CODE=$((VERSION_MAJOR * 1000000 + VERSION_MINOR * 1000 + VERSION_PATCH))
+          test "$VERSION_CODE" -gt 0 && test "$VERSION_CODE" -le 2100000000 || {
+            echo "Generated Android version code is outside the supported range"
+            exit 1
+          }
+          ./gradlew :app:assembleRelease \
+            -PtuneFlowVersionName="$VERSION_NAME" \
+            -PtuneFlowVersionCode="$VERSION_CODE" \
+            --stacktrace
 
       - name: Verify and rename APK
         run: |

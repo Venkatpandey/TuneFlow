@@ -1,8 +1,16 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
     id("io.gitlab.arturbosch.detekt")
     id("org.jlleitschuh.gradle.ktlint")
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
+    }
 }
 
 val smartTubeAars = fileTree("libs") { include("*.aar") }
@@ -20,10 +28,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
@@ -35,7 +39,7 @@ dependencies {
     compileOnly(smartTubeAars)
     testImplementation(smartTubeAars)
 
-    implementation("androidx.annotation:annotation:1.8.2")
+    implementation("androidx.annotation:annotation:1.11.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.preference:preference:1.2.1")
     implementation("androidx.webkit:webkit:1.14.0")
@@ -50,16 +54,16 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
     implementation("com.squareup.okhttp3:okhttp-brotli:5.5.0")
     implementation("com.google.code.gson:gson:2.14.0")
-    implementation("com.jayway.jsonpath:json-path:2.9.0")
-    implementation("com.google.net.cronet:cronet-okhttp:0.1.1")
-    implementation("org.chromium.net:cronet-api:105.5195.68")
+    implementation("com.jayway.jsonpath:json-path:3.0.0")
+    implementation("com.google.net.cronet:cronet-okhttp:0.1.2")
+    implementation("org.chromium.net:cronet-api:500.1.0")
     implementation("com.localebro:okhttpprofiler:1.0.8")
     implementation("com.jakewharton:disklrucache:2.0.2")
     implementation("info.guardianproject.netcipher:netcipher:2.1.0")
     implementation("dnsjava:dnsjava:2.1.9")
     implementation("com.github.florianingerl.util:regex:1.1.11")
     implementation("com.grack:nanojson:1.10")
-    implementation("com.google.protobuf:protobuf-javalite:3.17.3")
+    implementation("com.google.protobuf:protobuf-javalite:4.36.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")

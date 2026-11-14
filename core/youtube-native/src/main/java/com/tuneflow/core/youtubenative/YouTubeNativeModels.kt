@@ -19,7 +19,6 @@ interface YouTubeNativeSearchClient {
     suspend fun search(
         artist: String,
         title: String,
-        limit: Int = 25,
     ): List<YouTubeNativeSearchResult>
 }
 
@@ -123,6 +122,8 @@ interface YouTubeNativePlayer {
     val selectedCaptionId: StateFlow<String?>
 
     fun createView(context: Context): View
+
+    fun disposeView(view: View) = Unit
 
     fun prepare(videoId: String)
 

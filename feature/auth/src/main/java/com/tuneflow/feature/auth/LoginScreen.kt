@@ -1,9 +1,5 @@
 package com.tuneflow.feature.auth
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,11 +32,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -58,7 +57,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tuneflow.core.design.InitialFocusEffect
+import com.tuneflow.core.design.LocalTuneFlowMotion
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.design.animateTuneFlowFocusScale
 
 private enum class LoginFieldKey { ServerUrl, Username, Password }
 
@@ -72,6 +75,12 @@ fun LoginScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var editingField by remember { mutableStateOf<LoginFieldKey?>(null) }
+    val initialFocusRequester = remember { FocusRequester() }
+
+    InitialFocusEffect(
+        focusRequester = initialFocusRequester,
+        targetAvailable = true,
+    )
 
     Box(
         modifier =
@@ -84,7 +93,8 @@ fun LoginScreen(
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
-            alpha = 0.42f,
+            alpha = 0.18f,
+            colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }),
         )
         Box(
             modifier =
@@ -107,6 +117,7 @@ fun LoginScreen(
                         Image(
                             painter = painterResource(id = logoResId),
                             contentDescription = "TuneFlow logo",
+                            colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }),
                             modifier =
                                 Modifier
                                     .size(112.dp)
@@ -140,7 +151,6 @@ fun LoginScreen(
                             style = MaterialTheme.typography.headlineMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        ScreenInitialFocusAnchor()
 
                         LoginField(
                             value = state.serverUrl,
@@ -151,6 +161,7 @@ fun LoginScreen(
                             onEditingChange = { isEditing ->
                                 editingField = if (isEditing) LoginFieldKey.ServerUrl else null
                             },
+                            displayFocusRequesterOverride = initialFocusRequester,
                         )
 
                         LoginField(
@@ -236,11 +247,13 @@ private fun LoginField(
     obscure: Boolean = false,
     editing: Boolean,
     onEditingChange: (Boolean) -> Unit,
+    displayFocusRequesterOverride: FocusRequester? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val editFocusRequester = remember { FocusRequester() }
-    val displayFocusRequester = remember { FocusRequester() }
+    val defaultDisplayFocusRequester = remember { FocusRequester() }
+    val displayFocusRequester = displayFocusRequesterOverride ?: defaultDisplayFocusRequester
     var focused by remember { mutableStateOf(false) }
     var restoreDisplayFocus by remember { mutableStateOf(false) }
     var pendingExitDirection by remember { mutableStateOf<FocusDirection?>(null) }
@@ -358,12 +371,21 @@ private fun DisplayLoginField(
     onFocusedChange: (Boolean) -> Unit,
     onClick: () -> Unit,
 ) {
+    val scale =
+        animateTuneFlowFocusScale(
+            focused = focused,
+            focusedScale = LocalTuneFlowMotion.current.fieldFocusScale,
+            label = "login-field-focus",
+        )
     Box(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
-                .scale(if (focused) 1.01f else 1f)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
                 .clip(TuneFlowShapes.field)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f))
                 .border(
@@ -409,23 +431,6 @@ private fun DisplayLoginField(
 }
 
 @Composable
-private fun ScreenInitialFocusAnchor() {
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
-
-    Box(
-        modifier =
-            Modifier
-                .size(1.dp)
-                .focusRequester(focusRequester)
-                .focusable(),
-    )
-}
-
-@Composable
 private fun loginFieldColors() =
     OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -447,46 +452,12 @@ private fun LoginActionButton(
     enabled: Boolean,
     content: @Composable () -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (focused && enabled) 1.08f else 1f,
-        animationSpec =
-            tween(
-                durationMillis = if (focused && enabled) 150 else 100,
-                easing = if (focused && enabled) FastOutSlowInEasing else LinearOutSlowInEasing,
-            ),
-        label = "loginActionScale",
-    )
-
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .scale(scale)
-                .clip(TuneFlowShapes.button)
-                .background(
-                    if (enabled) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f)
-                    },
-                )
-                .border(
-                    width = if (focused && enabled) 3.dp else 1.dp,
-                    color =
-                        if (focused && enabled) {
-                            MaterialTheme.colorScheme.onSurface
-                        } else if (enabled) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.88f)
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                        },
-                    shape = TuneFlowShapes.button,
-                )
-                .onFocusChanged { focused = it.hasFocus }
-                .focusable(enabled = enabled)
-                .clickable(enabled = enabled, onClick = onClick)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+    TuneFlowActionSurface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        accent = true,
+        enabled = enabled,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         CompositionLocalProvider(

@@ -10,6 +10,22 @@ import org.junit.Test
 
 class TuneFlowShellStateTransitionsTest {
     @Test
+    fun shellMotion_usesDepthAndNowPlayingHierarchy() {
+        val home = ShellContentTransitionState(ShellDestination.Home, depth = 1)
+        val album = ShellContentTransitionState(ShellDestination.Album("album-1"), depth = 2)
+        val nowPlaying = ShellContentTransitionState(ShellDestination.NowPlaying, depth = 3)
+
+        assertEquals(ShellMotionDirection.Forward, resolveShellMotionDirection(home, album))
+        assertEquals(ShellMotionDirection.Back, resolveShellMotionDirection(album, home))
+        assertEquals(ShellMotionDirection.OpenNowPlaying, resolveShellMotionDirection(album, nowPlaying))
+        assertEquals(ShellMotionDirection.CloseNowPlaying, resolveShellMotionDirection(nowPlaying, album))
+        assertEquals(
+            ShellMotionDirection.Fade,
+            resolveShellMotionDirection(home, ShellContentTransitionState(ShellDestination.Search, depth = 1)),
+        )
+    }
+
+    @Test
     fun searchArtistAlbum_backPopsOneLayerAtATime() {
         val albumState =
             TuneFlowShellState()
