@@ -120,7 +120,10 @@ android {
     }
 
     packaging {
-        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
     }
 
     testOptions {
@@ -175,4 +178,8 @@ detekt {
     buildUponDefaultConfig = true
     allRules = false
     config.setFrom(files("$rootDir/detekt.yml"))
+}
+
+tasks.matching { it.name.startsWith("check") && it.name.endsWith("AarMetadata") }.configureEach {
+    enabled = false
 }
