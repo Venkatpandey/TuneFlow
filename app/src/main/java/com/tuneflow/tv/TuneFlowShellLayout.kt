@@ -46,6 +46,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -501,7 +502,18 @@ private fun ProfileHeader(
                         ProfileAboutKeyAction.Ignore -> false
                         ProfileAboutKeyAction.Consume -> true
                         ProfileAboutKeyAction.Reset -> {
+                            val shouldOpenOnTap =
+                                event.nativeKeyEvent.action == AndroidKeyEvent.ACTION_UP &&
+                                    !longPressHandled &&
+                                    (
+                                        event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER ||
+                                            event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_ENTER ||
+                                            event.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_NUMPAD_ENTER
+                                    )
                             longPressHandled = false
+                            if (shouldOpenOnTap) {
+                                onOpenAbout()
+                            }
                             true
                         }
                         ProfileAboutKeyAction.OpenAbout -> {
@@ -513,7 +525,11 @@ private fun ProfileHeader(
                 }
                 .onFocusChanged { focusState -> focused = focusState.isFocused }
                 .semantics {
-                    contentDescription = "User profile. Hold select for app information."
+                    contentDescription = "User profile. Select or hold for app information and log out."
+                    onClick {
+                        onOpenAbout()
+                        true
+                    }
                     onLongClick {
                         onOpenAbout()
                         true

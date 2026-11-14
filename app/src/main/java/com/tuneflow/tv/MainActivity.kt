@@ -156,6 +156,7 @@ class MainActivity : ComponentActivity() {
                         factory = authViewModelFactory(authRepository, sessionStore),
                     )
                 val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+                val currentSession by sessionStore.sessionFlow.collectAsStateWithLifecycle(initialValue = null)
                 LaunchedEffect(Unit) {
                     sessionStore.sessionFlow.collect { session ->
                         browseRepository.synchronizeSession(session)
@@ -206,9 +207,17 @@ class MainActivity : ComponentActivity() {
                 if (showAboutDialog) {
                     AppAboutDialog(
                         buildInfo = buildInfo,
+                        accountUsername = currentSession?.username,
+                        accountServerUrl = currentSession?.serverUrl,
                         updateCheckState = updateCheckState,
                         updatesEnabled = BuildConfig.APP_UPDATE_ENABLED,
                         onCheckForUpdates = appUpdateCoordinator::checkNow,
+                        onLogout = {
+                            showAboutDialog = false
+                            playerManager.stopAndClear()
+                            stopService(playbackServiceIntent)
+                            authViewModel.logout()
+                        },
                         onDismiss = { showAboutDialog = false },
                     )
                 }
