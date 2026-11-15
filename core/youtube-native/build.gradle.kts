@@ -49,7 +49,7 @@ dependencies {
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
-    implementation("com.squareup.okhttp3:okhttp:5.5.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.1")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:5.5.1")
     implementation("com.squareup.okhttp3:logging-interceptor:5.5.1")
     implementation("com.squareup.okhttp3:okhttp-brotli:5.5.1")
