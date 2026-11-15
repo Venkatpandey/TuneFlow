@@ -1132,7 +1132,10 @@ private fun HomeCategoryResults(
                 onFocusRestoreConsumed = onFocusRestoreConsumed,
                 onOpenArtist = onOpenArtist,
             )
-        HomeCategoryKind.Albums ->
+        HomeCategoryKind.Albums,
+        HomeCategoryKind.RecentlyPlayed,
+        HomeCategoryKind.RecentlyAdded,
+        ->
             AlbumCategoryResults(
                 albums = state.filteredAlbums,
                 focusRestoreTarget = focusRestoreTarget,
@@ -1425,7 +1428,10 @@ private fun searchPlaceholderFor(category: HomeCategoryKind): String {
     return when (category) {
         HomeCategoryKind.Favorites -> "Album, artist, or track"
         HomeCategoryKind.Artists -> "Artist name"
-        HomeCategoryKind.Albums -> "Album or artist"
+        HomeCategoryKind.Albums,
+        HomeCategoryKind.RecentlyPlayed,
+        HomeCategoryKind.RecentlyAdded,
+        -> "Album or artist"
         HomeCategoryKind.Playlists -> "Playlist name"
     }
 }
@@ -1434,6 +1440,8 @@ private fun BrowseFocusTarget.matches(category: HomeCategoryKind): Boolean =
     when (category) {
         HomeCategoryKind.Favorites,
         HomeCategoryKind.Albums,
+        HomeCategoryKind.RecentlyPlayed,
+        HomeCategoryKind.RecentlyAdded,
         -> kind == BrowseFocusTargetKind.Album
         HomeCategoryKind.Artists -> kind == BrowseFocusTargetKind.Artist
         HomeCategoryKind.Playlists -> kind == BrowseFocusTargetKind.Playlist
@@ -1443,7 +1451,10 @@ private fun HomeCategoryUiState.containsFocusTarget(target: BrowseFocusTarget): 
     when (category) {
         HomeCategoryKind.Favorites -> filteredFavorites.albums.any { it.id == target.id }
         HomeCategoryKind.Artists -> filteredArtists.any { it.id == target.id }
-        HomeCategoryKind.Albums -> filteredAlbums.any { it.id == target.id }
+        HomeCategoryKind.Albums,
+        HomeCategoryKind.RecentlyPlayed,
+        HomeCategoryKind.RecentlyAdded,
+        -> filteredAlbums.any { it.id == target.id }
         HomeCategoryKind.Playlists -> filteredPlaylists.any { it.id == target.id }
     }
 

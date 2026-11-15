@@ -70,6 +70,28 @@ class BrowseRepository(
         }
     }
 
+    suspend fun getRecentlyAddedAlbums(
+        size: Int,
+        offset: Int,
+    ): Result<List<AlbumSummary>> {
+        val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
+        return when (val result = sessionClient.client.getRecentlyAddedAlbums(size, offset)) {
+            is NetworkResult.Success -> Result.success(result.data.map { it.toSummary().withArtwork(sessionClient.session) })
+            is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
+        }
+    }
+
+    suspend fun getRecentlyPlayedAlbums(
+        size: Int,
+        offset: Int,
+    ): Result<List<AlbumSummary>> {
+        val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
+        return when (val result = sessionClient.client.getRecentlyPlayedAlbums(size, offset)) {
+            is NetworkResult.Success -> Result.success(result.data.map { it.toSummary().withArtwork(sessionClient.session) })
+            is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
+        }
+    }
+
     suspend fun getAlbumDetail(albumId: String): Result<AlbumDetail> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
         val detail =

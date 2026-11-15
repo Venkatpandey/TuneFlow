@@ -217,15 +217,18 @@ class HomeViewModelTest {
         val albums = (0 until 10).map { AlbumSummary(id = "album-$it", title = "Album $it", artist = "Artist", coverArtId = null) }
         val state =
             HomeUiState(
-                recentAlbums = albums,
-                rails = mapOf(HomeCategoryKind.Albums to HomeRailUiState(isLoaded = true, hasMore = true)),
+                recentlyAddedAlbums = albums,
+                rails = mapOf(HomeCategoryKind.RecentlyAdded to HomeRailUiState(isLoaded = true, hasMore = true)),
             )
         val appendedItem = state.focusLocation(BrowseFocusTarget(BrowseFocusTargetKind.Album, "album-8"))
         assertEquals(8, appendedItem?.rowItemIndex)
         assertEquals(8, appendedItem?.sectionRowIndex)
-        val showAll = state.focusLocation(BrowseFocusTarget(BrowseFocusTargetKind.HomeCategory, HomeCategoryKind.Albums.name))
+        val showAll = state.focusLocation(BrowseFocusTarget(BrowseFocusTargetKind.HomeCategory, HomeCategoryKind.RecentlyAdded.name))
         assertEquals(11, showAll?.rowItemIndex)
         assertEquals(8, showAll?.sectionRowIndex)
+        val showAllAlbumsAlias = state.focusLocation(BrowseFocusTarget(BrowseFocusTargetKind.HomeCategory, HomeCategoryKind.Albums.name))
+        assertEquals(11, showAllAlbumsAlias?.rowItemIndex)
+        assertEquals(8, showAllAlbumsAlias?.sectionRowIndex)
         assertEquals(
             0,
             HomeUiState().focusLocation(
@@ -233,12 +236,49 @@ class HomeViewModelTest {
             )?.rowItemIndex,
         )
         assertEquals(
-            11,
+            14,
             HomeUiState().focusLocation(
                 BrowseFocusTarget(BrowseFocusTargetKind.HomeCategory, HomeCategoryKind.Playlists.name),
             )?.sectionRowIndex,
         )
     }
+
+    @Test
+    fun recentlyPlayedAlbumsAppendAndLoadMore() =
+        runTest(dispatcher) {
+            val client = PagedHomeClient()
+            val viewModel = HomeViewModel(browseRepository(client), SlowPreferredVideoStore())
+            viewModel.loadRail(HomeCategoryKind.RecentlyPlayed)
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value.rail(HomeCategoryKind.RecentlyPlayed).isLoaded)
+            assertEquals(5, viewModel.uiState.value.recentlyPlayedAlbums.size)
+            assertTrue(viewModel.uiState.value.rail(HomeCategoryKind.RecentlyPlayed).hasMore)
+
+            viewModel.loadMoreRail(HomeCategoryKind.RecentlyPlayed)
+            runCurrent()
+
+            assertEquals(8, viewModel.uiState.value.recentlyPlayedAlbums.size)
+            assertFalse(viewModel.uiState.value.rail(HomeCategoryKind.RecentlyPlayed).hasMore)
+        }
+
+    @Test
+    fun recentlyAddedAlbumsAppendAndLoadMore() =
+        runTest(dispatcher) {
+            val client = PagedHomeClient()
+            val viewModel = HomeViewModel(browseRepository(client), SlowPreferredVideoStore())
+            viewModel.loadRail(HomeCategoryKind.RecentlyAdded)
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value.rail(HomeCategoryKind.RecentlyAdded).isLoaded)
+            assertEquals(5, viewModel.uiState.value.recentlyAddedAlbums.size)
+            assertTrue(viewModel.uiState.value.rail(HomeCategoryKind.RecentlyAdded).hasMore)
+
+            viewModel.loadMoreRail(HomeCategoryKind.RecentlyAdded)
+            runCurrent()
+
+            assertEquals(10, viewModel.uiState.value.recentlyAddedAlbums.size)
+        }
 
     @Test
     fun refreshResetsPaginationAndDefersReloadUntilVisible() =
@@ -351,6 +391,19 @@ private class PagedHomeClient : NavidromeClient(SessionData("https://demo", "use
             emptyRandomSongs -> NetworkResult.Success(emptyList())
             else -> NetworkResult.Success((0 until minOf(size, 10)).map { SongDto("rand-$it", "Random Song $it") })
         }
+    }
+
+    override suspend fun getRecentlyAddedAlbums(
+        size: Int,
+        offset: Int,
+    ): NetworkResult<List<AlbumDto>> = getAlbums(size, offset)
+
+    override suspend fun getRecentlyPlayedAlbums(
+        size: Int,
+        offset: Int,
+    ): NetworkResult<List<AlbumDto>> {
+        totalCalls++
+        return NetworkResult.Success((offset until minOf(offset + size, 8)).map { AlbumDto("recent-$it", "Recent $it") })
     }
 
     override suspend fun getAlbums(

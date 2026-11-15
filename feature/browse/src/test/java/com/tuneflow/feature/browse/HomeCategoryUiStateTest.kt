@@ -79,4 +79,28 @@ class HomeCategoryUiStateTest {
 
         assertEquals(listOf("p1"), state.filteredPlaylists.map { it.id })
     }
+
+    @Test
+    fun titles_recentlyPlayedAndRecentlyAdded() {
+        assertEquals("Recently Played", HomeCategoryUiState(category = HomeCategoryKind.RecentlyPlayed).title)
+        assertEquals("Recently Added", HomeCategoryUiState(category = HomeCategoryKind.RecentlyAdded).title)
+    }
+
+    @Test
+    fun filteredAlbums_matchesTitleAndArtistForRecentKinds() {
+        val albums =
+            listOf(
+                AlbumSummary(id = "a1", title = "Discovery", artist = "Daft Punk", coverArtId = null),
+                AlbumSummary(id = "a2", title = "Homework", artist = "Daft Punk", coverArtId = null),
+                AlbumSummary(id = "a3", title = "Random Access Memories", artist = "Daft Punk", coverArtId = null),
+            )
+        val state =
+            HomeCategoryUiState(
+                category = HomeCategoryKind.RecentlyPlayed,
+                query = "disco",
+                albums = albums,
+            )
+
+        assertEquals(listOf("a1"), state.filteredAlbums.map { it.id })
+    }
 }
