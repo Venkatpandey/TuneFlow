@@ -215,7 +215,6 @@ class MainActivity : ComponentActivity() {
                         onLogout = {
                             showAboutDialog = false
                             playerManager.stopAndClear()
-                            stopService(playbackServiceIntent)
                             authViewModel.logout()
                         },
                         onDismiss = { showAboutDialog = false },
