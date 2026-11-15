@@ -56,6 +56,21 @@ class AuthRepositoryTest {
             assertTrue(result.isFailure)
             assertEquals("Invalid credentials", result.exceptionOrNull()?.message)
         }
+
+    @Test
+    fun logout_clearsSession() =
+        runTest {
+            var cleared = false
+            val repository =
+                AuthRepository(
+                    saveSession = {},
+                    clearSession = { cleared = true },
+                )
+
+            repository.logout()
+
+            assertTrue(cleared)
+        }
 }
 
 private class FakeClient(

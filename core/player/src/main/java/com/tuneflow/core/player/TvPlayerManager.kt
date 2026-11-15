@@ -295,6 +295,7 @@ class TvPlayerManager(
         expectedToPlay = false
         lastError = null
         cancelFallbackMonitor()
+        player.pause()
         player.stop()
         player.clearMediaItems()
         _queue.value = PlaybackQueue()

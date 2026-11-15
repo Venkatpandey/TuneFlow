@@ -327,9 +327,47 @@ class VideoViewModelTest {
             viewModel.stopVideo()
 
             assertTrue(viewModel.uiState.value is VideoUiState.Idle)
+            assertFalse(viewModel.videoPreferred.value)
             assertFalse(audio.isPlaying.value)
             assertEquals(0, audio.playCalls)
             assertEquals(Unit, viewModel.returnToNowPlayingEvents.first())
+        }
+
+    @Test
+    fun stoppingVideoAndNavigatingHomeDoesNotRestartVideoPlayback() =
+        runTest {
+            val audio = VideoViewModelFakeAudio(playlistQueue("track", "next"))
+            val nativePlayer = FakeNativePlayer()
+            val store =
+                FakePreferredVideoStore(
+                    lookupResult = PreferredVideoLookupResult.Found(historyEntry("track", "mappedvid01")),
+                )
+            val viewModel = createViewModel(audio, backgroundScope, FakeNativeBackend(nativePlayer), store)
+            runCurrent()
+
+            viewModel.setNowPlayingVisible(true)
+            runCurrent()
+
+            val candidate = (viewModel.preferredVideoState.value as PreferredVideoState.Mapped).candidate
+            viewModel.selectCandidate(candidate)
+            runCurrent()
+            assertTrue(viewModel.videoPreferred.value)
+            assertTrue(viewModel.uiState.value is VideoUiState.Loading || viewModel.uiState.value is VideoUiState.Playing)
+
+            viewModel.stopVideo()
+            runCurrent()
+            assertTrue(viewModel.uiState.value is VideoUiState.Idle)
+            assertFalse(viewModel.videoPreferred.value)
+
+            audio.play()
+            runCurrent()
+            assertTrue(audio.isPlaying.value)
+
+            viewModel.setNowPlayingVisible(false)
+            runCurrent()
+
+            assertTrue(viewModel.uiState.value is VideoUiState.Idle)
+            assertTrue(audio.isPlaying.value)
         }
 
     @Test

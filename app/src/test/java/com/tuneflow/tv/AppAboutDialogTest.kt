@@ -26,6 +26,26 @@ class AppAboutDialogTest {
             ),
         )
     }
+
+    @Test
+    fun logoutConfirmationMessageIncludesUsernameWhenAvailable() {
+        assertEquals(
+            "Are you sure you want to log out of demo_user? Playback will stop and you will return to the sign-in screen.",
+            aboutLogoutConfirmationMessage("demo_user"),
+        )
+    }
+
+    @Test
+    fun logoutConfirmationMessageHandlesBlankOrNullUsername() {
+        assertEquals(
+            "Are you sure you want to log out? Playback will stop and you will return to the sign-in screen.",
+            aboutLogoutConfirmationMessage(null),
+        )
+        assertEquals(
+            "Are you sure you want to log out? Playback will stop and you will return to the sign-in screen.",
+            aboutLogoutConfirmationMessage("   "),
+        )
+    }
 }
 
 private val RELEASE =

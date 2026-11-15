@@ -91,7 +91,11 @@ class VideoViewModel(
             generation += 1
             _uiState.value = availableIdleState()
         }
-        preferredLookup.restart(audio.queue.value.toVideoQueuePosition())
+        if (visible) {
+            preferredLookup.restart(audio.queue.value.toVideoQueuePosition())
+        } else if (!_videoPreferred.value) {
+            preferredLookup.cancelAndReset()
+        }
     }
 
     @Suppress("ReturnCount")
@@ -347,17 +351,14 @@ class VideoViewModel(
 
     fun stopVideo() {
         val hadActiveSession = _uiState.value.isVideoSessionActive
-        releaseVideoPlayer()
-        activeCandidate = null
-        sessionAudioTrackId = null
-        sessionQueuePosition = null
-        automaticVideoSession = false
-        recordedVideoIdForSession = null
-        playbackPersistenceAction = PlaybackPersistenceAction.None
-        lastCandidates = emptyList()
-        pendingVideoRequest = null
-        generation += 1
-        _uiState.value = availableIdleState()
+        _videoPreferred.value = false
+        resumeAudioForNextQueuePosition = false
+        clearVideoSession()
+        if (nowPlayingVisible) {
+            preferredLookup.restart(audio.queue.value.toVideoQueuePosition())
+        } else {
+            preferredLookup.cancelAndReset()
+        }
         if (hadActiveSession) returnToNowPlayingChannel.trySend(Unit)
     }
 

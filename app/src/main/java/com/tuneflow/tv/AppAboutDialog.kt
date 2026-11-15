@@ -7,18 +7,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,9 +50,15 @@ internal fun AppAboutDialog(
     updatesEnabled: Boolean,
     onCheckForUpdates: () -> Unit,
     onDismiss: () -> Unit,
+    accountUsername: String? = null,
+    accountServerUrl: String? = null,
+    onLogout: () -> Unit = {},
 ) {
     val checking = updateCheckState == AppUpdateCheckUiState.Checking
     val primaryFocusRequester = remember { FocusRequester() }
+    val cancelLogoutFocusRequester = remember { FocusRequester() }
+    var showLogoutConfirmation by remember { mutableStateOf(false) }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -68,45 +79,112 @@ internal fun AppAboutDialog(
                         .padding(28.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Text(
-                    text = "About ${buildInfo.appName}",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                AppBuildDetails(buildInfo)
-                Text(
-                    text = aboutUpdateStatus(updateCheckState, updatesEnabled),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (checking) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                LatestReleaseNotes(updateCheckState)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        shape = TuneFlowShapes.row,
-                        modifier = if (checking) Modifier.focusRequester(primaryFocusRequester) else Modifier,
+                if (showLogoutConfirmation) {
+                    Text(
+                        text = "Log Out of TuneFlow?",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = aboutLogoutConfirmationMessage(accountUsername),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
                     ) {
-                        Text("Close")
+                        OutlinedButton(
+                            onClick = { showLogoutConfirmation = false },
+                            shape = TuneFlowShapes.row,
+                            modifier = Modifier.focusRequester(cancelLogoutFocusRequester),
+                        ) {
+                            Text("Cancel")
+                        }
+                        Button(
+                            onClick = onLogout,
+                            shape = TuneFlowShapes.row,
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError,
+                                ),
+                        ) {
+                            Text("Log Out")
+                        }
                     }
-                    Button(
-                        onClick = onCheckForUpdates,
-                        enabled = !checking,
-                        shape = TuneFlowShapes.row,
-                        modifier = if (checking) Modifier else Modifier.focusRequester(primaryFocusRequester),
+                } else {
+                    Text(
+                        text = "About ${buildInfo.appName}",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    AppBuildDetails(buildInfo)
+                    if (!accountUsername.isNullOrBlank() || !accountServerUrl.isNullOrBlank()) {
+                        AppAccountDetails(accountUsername, accountServerUrl)
+                    }
+                    Text(
+                        text = aboutUpdateStatus(updateCheckState, updatesEnabled),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (checking) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    LatestReleaseNotes(updateCheckState)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(if (checking) "Checking…" else "Check for Updates")
+                        OutlinedButton(
+                            onClick = { showLogoutConfirmation = true },
+                            shape = TuneFlowShapes.row,
+                        ) {
+                            Text("Log Out")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            shape = TuneFlowShapes.row,
+                            modifier = if (checking) Modifier.focusRequester(primaryFocusRequester) else Modifier,
+                        ) {
+                            Text("Close")
+                        }
+                        Button(
+                            onClick = onCheckForUpdates,
+                            enabled = !checking,
+                            shape = TuneFlowShapes.row,
+                            modifier = if (checking) Modifier else Modifier.focusRequester(primaryFocusRequester),
+                        ) {
+                            Text(if (checking) "Checking…" else "Check for Updates")
+                        }
                     }
                 }
             }
         }
     }
-    LaunchedEffect(checking) {
-        primaryFocusRequester.requestFocus()
+    LaunchedEffect(checking, showLogoutConfirmation) {
+        if (showLogoutConfirmation) {
+            cancelLogoutFocusRequester.requestFocus()
+        } else {
+            primaryFocusRequester.requestFocus()
+        }
+    }
+}
+
+@Composable
+private fun AppAccountDetails(
+    username: String?,
+    serverUrl: String?,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (!username.isNullOrBlank()) {
+            AppBuildDetailRow("Account", username)
+        }
+        if (!serverUrl.isNullOrBlank()) {
+            AppBuildDetailRow("Server", serverUrl)
+        }
     }
 }
 
@@ -154,6 +232,13 @@ private fun LatestReleaseNotes(updateCheckState: AppUpdateCheckUiState) {
         AppReleaseNotes(notes)
     }
 }
+
+internal fun aboutLogoutConfirmationMessage(accountUsername: String?): String =
+    if (!accountUsername.isNullOrBlank()) {
+        "Are you sure you want to log out of $accountUsername? Playback will stop and you will return to the sign-in screen."
+    } else {
+        "Are you sure you want to log out? Playback will stop and you will return to the sign-in screen."
+    }
 
 internal fun aboutUpdateStatus(
     state: AppUpdateCheckUiState,

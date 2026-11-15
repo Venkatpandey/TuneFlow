@@ -28,9 +28,15 @@ class AuthViewModel(
 
     init {
         viewModelScope.launch {
-            val hasSession = sessionStore.sessionFlow.first() != null
-            if (hasSession) {
-                _uiState.update { it.copy(isLoggedIn = true) }
+            val session = sessionStore.sessionFlow.first()
+            if (session != null) {
+                _uiState.update {
+                    it.copy(
+                        isLoggedIn = true,
+                        serverUrl = session.serverUrl,
+                        username = session.username,
+                    )
+                }
             }
         }
     }
@@ -63,9 +69,13 @@ class AuthViewModel(
     }
 
     fun logout() {
+        val lastServerUrl =
+            _uiState.value.serverUrl.ifBlank {
+                sessionStore.sessionState.value?.serverUrl.orEmpty()
+            }
         viewModelScope.launch {
             repository.logout()
-            _uiState.value = AuthUiState()
+            _uiState.value = AuthUiState(serverUrl = lastServerUrl)
         }
     }
 }
