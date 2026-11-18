@@ -50,6 +50,35 @@ class BrowseRepositoryTest {
         }
 
     @Test
+    fun getRandomSongs_mapsTracks() =
+        runTest {
+            val repository =
+                BrowseRepository(
+                    sessionProvider = SessionProvider { session },
+                    clientProvider =
+                        NavidromeClientProvider {
+                            object : NavidromeClient(it) {
+                                override suspend fun getRandomSongs(size: Int): NetworkResult<List<SongDto>> {
+                                    return NetworkResult.Success(
+                                        listOf(
+                                            SongDto(id = "s1", title = "Random 1", artist = "Artist 1", duration = 180),
+                                            SongDto(id = "s2", title = "Random 2", artist = "Artist 2", duration = 240),
+                                        ),
+                                    )
+                                }
+                            }
+                        },
+                )
+
+            val result = repository.getRandomSongs(size = 50)
+            assertTrue(result.isSuccess)
+            val tracks = result.getOrNull().orEmpty()
+            assertEquals(2, tracks.size)
+            assertEquals("Random 1", tracks[0].title)
+            assertEquals("Random 2", tracks[1].title)
+        }
+
+    @Test
     fun getPlaylistDetail_mapsTracks() =
         runTest {
             val repository =

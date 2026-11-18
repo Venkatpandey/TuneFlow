@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -66,6 +67,7 @@ import com.tuneflow.feature.browse.BrowseFocusTarget
 import com.tuneflow.feature.browse.BrowseFocusTargetKind
 import com.tuneflow.feature.browse.HomeCategoryKind
 import com.tuneflow.feature.video.VideoHistoryEntry
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import android.view.KeyEvent as AndroidKeyEvent
 
@@ -87,6 +89,7 @@ fun HomeScreen(
     onOpenVideoHistory: () -> Unit,
     onPlayVideo: (VideoHistoryEntry) -> Unit,
     onPlayTracks: (List<TrackSummary>, Int) -> Unit,
+    onShuffleLibrary: () -> Unit = {},
     preferredVideoServiceUrl: String,
     onPreferredVideoServiceUrlChanged: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -159,6 +162,13 @@ fun HomeScreen(
         onFocusRestoreConsumed()
     }
 
+    LaunchedEffect(state.shuffleError) {
+        if (state.shuffleError != null) {
+            delay(4000L)
+            viewModel.clearShuffleError()
+        }
+    }
+
     LazyColumn(
         state = homeListState,
         modifier = modifier.fillMaxSize(),
@@ -170,8 +180,19 @@ fun HomeScreen(
                 playbackQueue = playbackQueue,
                 onPrimaryAction = if (playbackQueue.items.isNotEmpty()) onOpenNowPlaying else onOpenSearch,
                 onSecondaryAction = onOpenAlbums,
+                onShuffleLibrary = onShuffleLibrary,
+                isShuffling = state.isShufflingLibrary,
                 primaryActionModifier = Modifier.focusRequester(initialFocusRequester),
             )
+        }
+
+        if (state.shuffleError != null) {
+            item(key = "shuffle-error") {
+                FavoriteFeedbackBanner(
+                    message = state.shuffleError,
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                )
+            }
         }
 
         if (state.videoHistory.isNotEmpty()) {
@@ -539,6 +560,8 @@ private fun HomeHero(
     playbackQueue: PlaybackQueue,
     onPrimaryAction: () -> Unit,
     onSecondaryAction: () -> Unit,
+    onShuffleLibrary: () -> Unit,
+    isShuffling: Boolean = false,
     primaryActionModifier: Modifier = Modifier,
 ) {
     val currentItem = playbackQueue.currentItem
@@ -614,6 +637,11 @@ private fun HomeHero(
                         modifier = primaryActionModifier,
                     )
                     HeroActionButton(
+                        label = if (isShuffling) "Shuffling…" else "Shuffle Library",
+                        enabled = !isShuffling,
+                        onClick = onShuffleLibrary,
+                    )
+                    HeroActionButton(
                         label = "Browse Albums",
                         onClick = onSecondaryAction,
                     )
@@ -655,12 +683,14 @@ private fun HomeHero(
 private fun HeroActionButton(
     label: String,
     accent: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     TuneFlowActionSurface(
-        modifier = modifier.width(184.dp),
+        modifier = modifier.widthIn(min = 160.dp),
         accent = accent,
+        enabled = enabled,
         onClick = onClick,
     ) {
         Text(
@@ -671,7 +701,7 @@ private fun HeroActionButton(
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

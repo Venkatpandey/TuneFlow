@@ -256,6 +256,76 @@ class HomeViewModelTest {
             assertEquals(listOf(0, 0), client.albumOffsets)
         }
 
+    @Test
+    fun shuffleLibrary_loadsTracksAndInvokesCallback() =
+        runTest(dispatcher) {
+            val client = PagedHomeClient()
+            val viewModel = HomeViewModel(browseRepository(client), SlowPreferredVideoStore())
+            var loadedTracks = emptyList<com.tuneflow.core.network.TrackSummary>()
+
+            viewModel.shuffleLibrary { tracks ->
+                loadedTracks = tracks
+            }
+            assertTrue(viewModel.uiState.value.isShufflingLibrary)
+
+            runCurrent()
+
+            assertFalse(viewModel.uiState.value.isShufflingLibrary)
+            assertEquals(10, loadedTracks.size)
+            assertEquals("Random Song 0", loadedTracks.first().title)
+        }
+
+    @Test
+    fun shuffleLibrary_handlesError() =
+        runTest(dispatcher) {
+            val client = PagedHomeClient().apply { failRandomSongs = true }
+            val viewModel = HomeViewModel(browseRepository(client), SlowPreferredVideoStore())
+            var callbackInvoked = false
+
+            viewModel.shuffleLibrary {
+                callbackInvoked = true
+            }
+            runCurrent()
+
+            assertFalse(viewModel.uiState.value.isShufflingLibrary)
+            assertFalse(callbackInvoked)
+            assertEquals("Network error", viewModel.uiState.value.shuffleError)
+
+            viewModel.clearShuffleError()
+            assertEquals(null, viewModel.uiState.value.shuffleError)
+        }
+
+    @Test
+    fun shuffleLibrary_handlesEmptyLibrary() =
+        runTest(dispatcher) {
+            val client = PagedHomeClient().apply { emptyRandomSongs = true }
+            val viewModel = HomeViewModel(browseRepository(client), SlowPreferredVideoStore())
+            var callbackInvoked = false
+
+            viewModel.shuffleLibrary {
+                callbackInvoked = true
+            }
+            runCurrent()
+
+            assertFalse(viewModel.uiState.value.isShufflingLibrary)
+            assertFalse(callbackInvoked)
+            assertEquals("No songs found in library.", viewModel.uiState.value.shuffleError)
+        }
+
+    @Test
+    fun shuffleLibrary_ignoresConcurrentRequests() =
+        runTest(dispatcher) {
+            val client = PagedHomeClient()
+            val viewModel = HomeViewModel(browseRepository(client), SlowPreferredVideoStore())
+            var callCount = 0
+
+            viewModel.shuffleLibrary { callCount++ }
+            viewModel.shuffleLibrary { callCount++ }
+            runCurrent()
+
+            assertEquals(1, callCount)
+        }
+
     private fun browseRepository(client: NavidromeClient): BrowseRepository {
         val session = SessionData("https://demo", "user", "token", "salt")
         return BrowseRepository(
@@ -268,9 +338,20 @@ class HomeViewModelTest {
 private class PagedHomeClient : NavidromeClient(SessionData("https://demo", "user", "token", "salt")) {
     var totalCalls = 0
     var failAlbums = false
+    var failRandomSongs = false
+    var emptyRandomSongs = false
     var pendingAlbums: CompletableDeferred<NetworkResult<List<AlbumDto>>>? = null
     val albumOffsets = mutableListOf<Int>()
     val detailIds = mutableListOf<String>()
+
+    override suspend fun getRandomSongs(size: Int): NetworkResult<List<SongDto>> {
+        totalCalls++
+        return when {
+            failRandomSongs -> NetworkResult.Error("Network error")
+            emptyRandomSongs -> NetworkResult.Success(emptyList())
+            else -> NetworkResult.Success((0 until minOf(size, 10)).map { SongDto("rand-$it", "Random Song $it") })
+        }
+    }
 
     override suspend fun getAlbums(
         size: Int,

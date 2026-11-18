@@ -6,6 +6,7 @@ import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.ArtistSummary
 import com.tuneflow.core.network.FavoritesBundle
 import com.tuneflow.core.network.PlaylistSummary
+import com.tuneflow.core.network.TrackSummary
 import com.tuneflow.feature.browse.BrowseRepository
 import com.tuneflow.feature.browse.HomeCategoryKind
 import com.tuneflow.feature.video.PreferredVideoStore
@@ -37,6 +38,8 @@ data class HomeUiState(
     val videoHistory: List<VideoHistoryEntry> = emptyList(),
     val visibleVideoHistoryCount: Int = HOME_VIDEO_HISTORY_PAGE_SIZE,
     val rails: Map<HomeCategoryKind, HomeRailUiState> = emptyMap(),
+    val isShufflingLibrary: Boolean = false,
+    val shuffleError: String? = null,
 ) {
     fun rail(category: HomeCategoryKind): HomeRailUiState = rails[category] ?: HomeRailUiState()
 
@@ -77,6 +80,33 @@ class HomeViewModel(
         albumOffset = 0
         _uiState.update { HomeUiState(videoHistory = it.videoHistory, visibleVideoHistoryCount = HOME_VIDEO_HISTORY_PAGE_SIZE) }
         viewModelScope.launch { preferredVideoStore.refreshHistory() }
+    }
+
+    fun shuffleLibrary(onTracksLoaded: (List<TrackSummary>) -> Unit) {
+        if (_uiState.value.isShufflingLibrary) return
+        _uiState.update { it.copy(isShufflingLibrary = true, shuffleError = null) }
+        viewModelScope.launch {
+            val result = repository.getRandomSongs(size = 100)
+            result.onSuccess { tracks ->
+                _uiState.update { it.copy(isShufflingLibrary = false) }
+                if (tracks.isNotEmpty()) {
+                    onTracksLoaded(tracks)
+                } else {
+                    _uiState.update { it.copy(shuffleError = "No songs found in library.") }
+                }
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isShufflingLibrary = false,
+                        shuffleError = error.message ?: "Failed to shuffle library.",
+                    )
+                }
+            }
+        }
+    }
+
+    fun clearShuffleError() {
+        _uiState.update { it.copy(shuffleError = null) }
     }
 
     fun loadMoreVideoHistory() {

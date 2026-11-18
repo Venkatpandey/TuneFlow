@@ -53,6 +53,52 @@ class NavidromeApiIntegrationTest {
     }
 
     @Test
+    fun getRandomSongs_parsesResponse() {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "subsonic-response": {
+                    "status": "ok",
+                    "version": "1.16.1",
+                    "randomSongs": {
+                      "song": [
+                        {"id": "s1", "title": "Song One", "artist": "Artist A", "duration": 180},
+                        {"id": "s2", "title": "Song Two", "artist": "Artist B", "duration": 210}
+                      ]
+                    }
+                  }
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.start()
+
+        val api = NetworkFactory.createApi(server.url("/").toString())
+        val response =
+            kotlinx.coroutines.runBlocking {
+                api.getRandomSongs(
+                    size = 50,
+                    username = "u",
+                    token = "t",
+                    salt = "s",
+                )
+            }
+
+        val songs = response.response.randomSongs?.song.orEmpty()
+        assertEquals(2, songs.size)
+        assertEquals("s1", songs.first().id)
+        assertEquals("Song One", songs.first().title)
+
+        val request = server.takeRequest()
+        assertTrue(request.path.orEmpty().contains("/rest/getRandomSongs.view"))
+        assertTrue(request.path.orEmpty().contains("size=50"))
+
+        server.shutdown()
+    }
+
+    @Test
     fun scrobble_sendsSubmissionWithOriginalStartTime() {
         val server = MockWebServer()
         server.enqueue(

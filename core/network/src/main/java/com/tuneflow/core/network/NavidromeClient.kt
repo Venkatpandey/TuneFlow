@@ -180,6 +180,24 @@ open class NavidromeClient(private val session: SessionData) {
         }
     }
 
+    open suspend fun getRandomSongs(size: Int = 100): NetworkResult<List<SongDto>> {
+        return safeCall {
+            val response =
+                api.getRandomSongs(
+                    size = size,
+                    username = session.username,
+                    token = session.token,
+                    salt = session.salt,
+                ).response
+
+            if (response.status != "ok") {
+                NetworkResult.Error(response.error?.message ?: "Failed to load random songs.")
+            } else {
+                NetworkResult.Success(response.randomSongs?.song.orEmpty())
+            }
+        }
+    }
+
     open suspend fun getOpenSubsonicExtensions(): NetworkResult<List<OpenSubsonicExtensionDto>> {
         return safeCall {
             val response =

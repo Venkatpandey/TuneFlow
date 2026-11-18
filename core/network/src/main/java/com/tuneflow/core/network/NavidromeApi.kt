@@ -72,6 +72,17 @@ data class SongDto(
     val starred: String? = null,
 )
 
+data class RandomSongsResponse(
+    val status: String,
+    val version: String,
+    val error: SubsonicError? = null,
+    val randomSongs: RandomSongsContainer? = null,
+)
+
+data class RandomSongsContainer(
+    val song: List<SongDto> = emptyList(),
+)
+
 data class PlaylistsResponse(
     val status: String,
     val version: String,
@@ -316,6 +327,17 @@ interface NavidromeApi {
         @Query("c") client: String = CLIENT_NAME,
         @Query("f") format: String = FORMAT,
     ): SubsonicEnvelope<SearchResponse>
+
+    @GET("rest/getRandomSongs.view")
+    suspend fun getRandomSongs(
+        @Query("size") size: Int = 100,
+        @Query("u") username: String,
+        @Query("t") token: String,
+        @Query("s") salt: String,
+        @Query("v") version: String = API_VERSION,
+        @Query("c") client: String = CLIENT_NAME,
+        @Query("f") format: String = FORMAT,
+    ): SubsonicEnvelope<RandomSongsResponse>
 
     @GET("rest/getOpenSubsonicExtensions.view")
     suspend fun getOpenSubsonicExtensions(
