@@ -68,7 +68,12 @@ internal fun AppSettingsDialog(
 ) {
     var selectedThemeId by rememberSaveable { mutableStateOf(currentThemeId) }
     var selectedScale by rememberSaveable { mutableStateOf(currentScreenScale) }
-    val themeFocusRequesters = remember { TuneFlowThemes.all.map { FocusRequester() } }
+    val initialFocusRequester = remember { FocusRequester() }
+    val initialIndex =
+        remember {
+            val idx = TuneFlowThemes.all.indexOfFirst { it.id.rawId.equals(currentThemeId, ignoreCase = true) }
+            if (idx >= 0) idx else 0
+        }
     var hasRequestedInitialFocus by rememberSaveable { mutableStateOf(false) }
 
     Dialog(
@@ -128,7 +133,12 @@ internal fun AppSettingsDialog(
                                 onFocus = {
                                     onPreviewTheme(theme.id.rawId)
                                 },
-                                modifier = Modifier.focusRequester(themeFocusRequesters[index]),
+                                modifier =
+                                    if (index == initialIndex) {
+                                        Modifier.focusRequester(initialFocusRequester)
+                                    } else {
+                                        Modifier
+                                    },
                             )
                         }
                     }
@@ -217,12 +227,7 @@ internal fun AppSettingsDialog(
     LaunchedEffect(Unit) {
         if (!hasRequestedInitialFocus) {
             hasRequestedInitialFocus = true
-            val initialIndex =
-                TuneFlowThemes.all.indexOfFirst {
-                    it.id.rawId.equals(currentThemeId, ignoreCase = true)
-                }
-            val targetIndex = if (initialIndex >= 0) initialIndex else 0
-            themeFocusRequesters[targetIndex].requestFocus()
+            initialFocusRequester.requestFocus()
         }
     }
 }
