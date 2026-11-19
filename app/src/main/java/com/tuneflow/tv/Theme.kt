@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -23,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -33,46 +31,27 @@ import androidx.compose.ui.unit.sp
 import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.design.TuneFlowMotionProvider
 import com.tuneflow.core.design.TuneFlowShapes
+import com.tuneflow.core.design.TuneFlowThemeDefinition
+import com.tuneflow.core.design.TuneFlowThemes
 
-private val TuneFlowDarkScheme =
-    darkColorScheme(
-        primary = Color(0xFFD8BE91),
-        onPrimary = Color(0xFF211B12),
-        primaryContainer = Color(0xFF3B3224),
-        onPrimaryContainer = Color(0xFFF0DBB8),
-        inversePrimary = Color(0xFF705B36),
-        secondary = Color(0xFFC5BFB3),
-        onSecondary = Color(0xFF20201C),
-        secondaryContainer = Color(0xFF34332D),
-        onSecondaryContainer = Color(0xFFE7E2D7),
-        tertiary = Color(0xFFAFBDAA),
-        onTertiary = Color(0xFF172015),
-        tertiaryContainer = Color(0xFF2D382A),
-        onTertiaryContainer = Color(0xFFD8E6D2),
-        background = Color(0xFF101211),
-        onBackground = Color(0xFFF2F0EA),
-        surface = Color(0xFF191C1A),
-        onSurface = Color(0xFFF2F0EA),
-        surfaceVariant = Color(0xFF303530),
-        onSurfaceVariant = Color(0xFFB7BCB5),
-        surfaceTint = Color.Transparent,
-        inverseSurface = Color(0xFFE6E8E1),
-        inverseOnSurface = Color(0xFF292D29),
-        surfaceDim = Color(0xFF101211),
-        surfaceBright = Color(0xFF373C37),
-        surfaceContainerLowest = Color(0xFF0C0E0D),
-        surfaceContainerLow = Color(0xFF151815),
-        surfaceContainer = Color(0xFF1D211D),
-        surfaceContainerHigh = Color(0xFF272C27),
-        surfaceContainerHighest = Color(0xFF323832),
-        outline = Color(0xFF858C83),
-        outlineVariant = Color(0xFF383E37),
-        error = Color(0xFFF2AAA0),
-        onError = Color(0xFF3B0907),
-        errorContainer = Color(0xFF662723),
-        onErrorContainer = Color(0xFFFFDAD4),
-        scrim = Color.Black,
-    )
+@Composable
+fun TuneFlowTheme(
+    theme: TuneFlowThemeDefinition = TuneFlowThemes.Default,
+    content: @Composable () -> Unit,
+) {
+    val motionEnabled =
+        remember {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled()
+        }
+    TuneFlowMotionProvider(enabled = motionEnabled) {
+        MaterialTheme(
+            colorScheme = theme.colorScheme,
+            typography = TuneFlowTypography,
+            shapes = TuneFlowShapes.material,
+            content = content,
+        )
+    }
+}
 
 private val TuneFlowTypography =
     Typography(
@@ -147,20 +126,4 @@ fun Modifier.shimmerEffect(): Modifier {
                 end = Offset(translateAnim, 0f),
             ),
     )
-}
-
-@Composable
-fun TuneFlowTheme(content: @Composable () -> Unit) {
-    val motionEnabled =
-        remember {
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled()
-        }
-    TuneFlowMotionProvider(enabled = motionEnabled) {
-        MaterialTheme(
-            colorScheme = TuneFlowDarkScheme,
-            typography = TuneFlowTypography,
-            shapes = TuneFlowShapes.material,
-            content = content,
-        )
-    }
 }

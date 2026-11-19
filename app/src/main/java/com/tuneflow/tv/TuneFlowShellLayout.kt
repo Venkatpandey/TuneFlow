@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -45,9 +48,11 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -134,6 +139,7 @@ internal fun TuneFlowShellLayout(
     showExitPrompt: Boolean,
     favoriteErrorMessage: String?,
     onOpenAbout: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val videoSurfacePlayer by videoViewModel.surfacePlayer.collectAsState()
     var videoViewportBounds by remember { mutableStateOf<IntRect?>(null) }
@@ -189,6 +195,7 @@ internal fun TuneFlowShellLayout(
                             currentTimeText = currentTimeText,
                             appVersionName = appVersionName,
                             onOpenAbout = onOpenAbout,
+                            onOpenSettings = onOpenSettings,
                         )
 
                         Spacer(Modifier.width(22.dp))
@@ -405,6 +412,7 @@ private fun NavRail(
     currentTimeText: String,
     appVersionName: String,
     onOpenAbout: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     Column(
         modifier =
@@ -422,6 +430,7 @@ private fun NavRail(
             currentTimeText = currentTimeText,
             appVersionName = appVersionName,
             onOpenAbout = onOpenAbout,
+            onOpenSettings = onOpenSettings,
         )
 
         NavRailItem(
@@ -465,13 +474,40 @@ private fun ProfileHeader(
     currentTimeText: String,
     appVersionName: String,
     onOpenAbout: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ProfileInfoButton(
+            username = username,
+            currentTimeText = currentTimeText,
+            appVersionName = appVersionName,
+            onOpenAbout = onOpenAbout,
+            modifier = Modifier.weight(1f),
+        )
+
+        ProfileSettingsButton(
+            onOpenSettings = onOpenSettings,
+        )
+    }
+}
+
+@Composable
+private fun ProfileInfoButton(
+    username: String,
+    currentTimeText: String,
+    appVersionName: String,
+    onOpenAbout: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
     var longPressHandled by remember { mutableStateOf(false) }
     Row(
         modifier =
-            Modifier
-                .fillMaxWidth()
+            modifier
                 .clip(TuneFlowShapes.row)
                 .background(
                     if (focused) {
@@ -537,13 +573,13 @@ private fun ProfileHeader(
                 }
                 .focusable()
                 .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier =
                 Modifier
-                    .size(44.dp)
+                    .size(34.dp)
                     .clip(TuneFlowShapes.avatar)
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(
@@ -555,14 +591,14 @@ private fun ProfileHeader(
         ) {
             Text(
                 text = username.ifBlank { "TuneFlow" }.take(1).uppercase(),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = currentTimeText,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
@@ -574,6 +610,65 @@ private fun ProfileHeader(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+@Composable
+private fun ProfileSettingsButton(
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var focused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier =
+            modifier
+                .size(38.dp)
+                .clip(TuneFlowShapes.row)
+                .background(
+                    if (focused) {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    } else {
+                        Color.Transparent
+                    },
+                )
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        if (focused) {
+                            MaterialTheme.colorScheme.onSurface
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+                        },
+                    shape = TuneFlowShapes.row,
+                )
+                .onFocusChanged { focusState -> focused = focusState.isFocused }
+                .clickable(
+                    role = Role.Button,
+                    onClick = onOpenSettings,
+                )
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "Settings. Change theme and preferences."
+                    onClick {
+                        onOpenSettings()
+                        true
+                    }
+                }
+                .focusable(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Settings,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint =
+                if (focused) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+        )
     }
 }
 
