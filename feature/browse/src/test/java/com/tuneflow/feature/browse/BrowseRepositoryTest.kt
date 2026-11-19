@@ -3,6 +3,7 @@ package com.tuneflow.feature.browse
 import com.tuneflow.core.network.AlbumDetailDto
 import com.tuneflow.core.network.AlbumDto
 import com.tuneflow.core.network.ArtistDetailDto
+import com.tuneflow.core.network.ArtistDto
 import com.tuneflow.core.network.NavidromeClient
 import com.tuneflow.core.network.NavidromeClientProvider
 import com.tuneflow.core.network.NetworkResult
@@ -345,6 +346,60 @@ class BrowseRepositoryTest {
             assertTrue(repository.search("retry").isFailure)
             assertTrue(repository.search("retry").isSuccess)
             assertEquals(2, calls.get())
+        }
+
+    @Test
+    fun getArtists_resolvesArtworkAndCachesIt() =
+        runTest {
+            val repository =
+                repositoryWith(
+                    object : NavidromeClient(session) {
+                        override suspend fun getArtists(): NetworkResult<List<ArtistDto>> {
+                            return NetworkResult.Success(
+                                listOf(
+                                    ArtistDto(
+                                        id = "art-1",
+                                        name = "Coldplay",
+                                        coverArt = "ar-coldplay",
+                                        artistImageUrl = "https://images.example.com/coldplay.jpg",
+                                    ),
+                                ),
+                            )
+                        }
+                    },
+                )
+
+            val result = repository.getArtists()
+
+            assertTrue(result.isSuccess)
+            val artists = result.getOrThrow()
+            assertEquals(1, artists.size)
+            assertEquals("https://images.example.com/coldplay.jpg", artists.first().artUrl)
+        }
+
+    @Test
+    fun getArtistDetail_resolvesArtworkAndCachesIt() =
+        runTest {
+            val repository =
+                repositoryWith(
+                    object : NavidromeClient(session) {
+                        override suspend fun getArtist(artistId: String): NetworkResult<ArtistDetailDto> {
+                            return NetworkResult.Success(
+                                ArtistDetailDto(
+                                    id = artistId,
+                                    name = "Radiohead",
+                                    coverArt = "ar-radiohead",
+                                ),
+                            )
+                        }
+                    },
+                )
+
+            val result = repository.getArtistDetail("art-2")
+
+            assertTrue(result.isSuccess)
+            val detail = result.getOrThrow()
+            assertTrue(detail.artUrl?.contains("id=ar-radiohead") == true)
         }
 
     private fun repositoryWith(client: NavidromeClient): BrowseRepository =

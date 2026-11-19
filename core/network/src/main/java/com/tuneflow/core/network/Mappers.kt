@@ -48,6 +48,8 @@ data class ArtistSummary(
     val id: String,
     val name: String,
     val albumCount: Int,
+    val coverArtId: String? = null,
+    val artistImageUrl: String? = null,
     val artUrl: String? = null,
 )
 
@@ -56,6 +58,8 @@ data class ArtistDetail(
     val name: String,
     val albumCount: Int,
     val albums: List<AlbumSummary>,
+    val coverArtId: String? = null,
+    val artistImageUrl: String? = null,
     val artUrl: String? = null,
 )
 
@@ -125,6 +129,8 @@ fun ArtistDto.toSummary(): ArtistSummary {
         id = id,
         name = name,
         albumCount = albumCount ?: 0,
+        coverArtId = coverArt,
+        artistImageUrl = artistImageUrl,
     )
 }
 
@@ -135,6 +141,8 @@ fun ArtistDetailDto.toDetail(): ArtistDetail {
         name = name,
         albumCount = albumCount ?: albums.size,
         albums = albums,
+        coverArtId = coverArt,
+        artistImageUrl = artistImageUrl,
     )
 }
 

@@ -22,6 +22,19 @@ internal fun coverArtUrl(
     }
 }
 
+internal fun resolveArtistArtUrl(
+    session: SessionData?,
+    coverArtId: String?,
+    artistImageUrl: String?,
+): String? =
+    when {
+        artistImageUrl.isNullOrBlank() -> coverArtUrl(session, coverArtId)
+        artistImageUrl.startsWith("http://") || artistImageUrl.startsWith("https://") -> artistImageUrl
+        session == null -> coverArtUrl(session, coverArtId)
+        artistImageUrl.startsWith("/") -> "${session.serverUrl.trimEnd('/')}$artistImageUrl"
+        else -> coverArtUrl(session, artistImageUrl)
+    }
+
 internal fun AlbumSummary.withArtwork(session: SessionData): AlbumSummary {
     return copy(artUrl = coverArtUrl(session, coverArtId))
 }
@@ -45,14 +58,28 @@ internal fun PlaylistDetail.withArtwork(session: SessionData): PlaylistDetail {
     return copy(tracks = tracks.map { it.withArtwork(session) })
 }
 
+internal fun ArtistSummary.withArtwork(
+    session: SessionData,
+    fallbackUrl: String? = null,
+): ArtistSummary {
+    val resolved = resolveArtistArtUrl(session, coverArtId, artistImageUrl) ?: fallbackUrl
+    return copy(artUrl = resolved)
+}
+
 internal fun ArtistSummary.withArtwork(artUrl: String?): ArtistSummary {
     return copy(artUrl = artUrl)
 }
 
-internal fun ArtistDetail.withArtwork(session: SessionData): ArtistDetail {
-    val artUrl = albums.firstNotNullOfOrNull { it.coverArtId?.let { coverArtUrl(session, it) } }
+internal fun ArtistDetail.withArtwork(
+    session: SessionData,
+    fallbackUrl: String? = null,
+): ArtistDetail {
+    val resolvedArtUrl =
+        resolveArtistArtUrl(session, coverArtId, artistImageUrl)
+            ?: albums.firstNotNullOfOrNull { it.coverArtId?.let { id -> coverArtUrl(session, id) } }
+            ?: fallbackUrl
     return copy(
-        artUrl = artUrl,
+        artUrl = resolvedArtUrl,
         albums = albums.map { it.withArtwork(session) },
     )
 }
@@ -68,10 +95,10 @@ internal fun SearchBundle.withArtwork(session: SessionData): SearchBundle {
     return copy(
         artists =
             artists.map { artist ->
-                val matchedAlbum = albums.firstOrNull { it.artist == artist.name }
-                artist.withArtwork(
-                    matchedAlbum?.coverArtId?.let { coverArtUrl(session, it) },
-                )
+                val matchedAlbum =
+                    albums.firstOrNull { it.artist.equals(artist.name, ignoreCase = true) }
+                val fallbackCover = matchedAlbum?.coverArtId?.let { coverArtUrl(session, it) }
+                artist.withArtwork(session, fallbackUrl = fallbackCover)
             },
         albums = albums.map { it.withArtwork(session) },
         tracks = tracks.map { it.withArtwork(session) },

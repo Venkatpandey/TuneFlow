@@ -131,6 +131,8 @@ data class SearchResult3Dto(
 data class ArtistDto(
     val id: String,
     val name: String,
+    @SerializedName("coverArt") val coverArt: String? = null,
+    @SerializedName("artistImageUrl") val artistImageUrl: String? = null,
     val albumCount: Int? = null,
 )
 
@@ -160,6 +162,8 @@ data class ArtistResponse(
 data class ArtistDetailDto(
     val id: String,
     val name: String,
+    @SerializedName("coverArt") val coverArt: String? = null,
+    @SerializedName("artistImageUrl") val artistImageUrl: String? = null,
     val albumCount: Int? = null,
     val album: List<AlbumDto> = emptyList(),
 )

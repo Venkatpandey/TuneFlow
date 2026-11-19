@@ -334,6 +334,95 @@ class NavidromeApiIntegrationTest {
         server.shutdown()
     }
 
+    @Test
+    fun getArtists_parsesCoverArtAndArtistImageUrl() {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "subsonic-response": {
+                    "status": "ok",
+                    "version": "1.16.1",
+                    "artists": {
+                      "index": [
+                        {
+                          "name": "C",
+                          "artist": [
+                            {
+                              "id": "c-1",
+                              "name": "Coldplay",
+                              "albumCount": 8,
+                              "coverArt": "ar-coldplay",
+                              "artistImageUrl": "https://images.example.com/coldplay.jpg"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.start()
+        val client = clientFor(server)
+
+        val result = kotlinx.coroutines.runBlocking { client.getArtists() }
+
+        assertTrue(result is NetworkResult.Success)
+        val artists = (result as NetworkResult.Success<List<ArtistDto>>).data
+        assertEquals(1, artists.size)
+        val artist = artists.first()
+        assertEquals("c-1", artist.id)
+        assertEquals("Coldplay", artist.name)
+        assertEquals("ar-coldplay", artist.coverArt)
+        assertEquals("https://images.example.com/coldplay.jpg", artist.artistImageUrl)
+
+        server.shutdown()
+    }
+
+    @Test
+    fun getArtist_parsesCoverArtAndArtistImageUrl() {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "subsonic-response": {
+                    "status": "ok",
+                    "version": "1.16.1",
+                    "artist": {
+                      "id": "c-1",
+                      "name": "Coldplay",
+                      "albumCount": 8,
+                      "coverArt": "ar-coldplay",
+                      "artistImageUrl": "https://images.example.com/coldplay.jpg",
+                      "album": [
+                        {"id": "alb-1", "name": "Parachutes", "coverArt": "al-parachutes"}
+                      ]
+                    }
+                  }
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.start()
+        val client = clientFor(server)
+
+        val result = kotlinx.coroutines.runBlocking { client.getArtist("c-1") }
+
+        assertTrue(result is NetworkResult.Success)
+        val detail = (result as NetworkResult.Success<ArtistDetailDto>).data
+        assertEquals("c-1", detail.id)
+        assertEquals("Coldplay", detail.name)
+        assertEquals("ar-coldplay", detail.coverArt)
+        assertEquals("https://images.example.com/coldplay.jpg", detail.artistImageUrl)
+        assertEquals(1, detail.album.size)
+
+        server.shutdown()
+    }
+
     private fun clientFor(server: MockWebServer): NavidromeClient =
         NavidromeClient(
             SessionData(

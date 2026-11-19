@@ -117,7 +117,15 @@ class BrowseRepository(
                 Result.success(
                     result.data
                         .map { artist ->
-                            artist.toSummary().withArtwork(artwork[artist.id])
+                            val summary =
+                                artist.toSummary().withArtwork(
+                                    session = sessionClient.session,
+                                    fallbackUrl = artwork[artist.id],
+                                )
+                            if (summary.artUrl != null) {
+                                requestCache.putArtistArtwork(sessionClient.session, summary.id, summary.artUrl)
+                            }
+                            summary
                         }
                         .sortedBy { it.name.lowercase() },
                 )
@@ -127,10 +135,15 @@ class BrowseRepository(
 
     suspend fun getArtistDetail(artistId: String): Result<ArtistDetail> {
         val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
+        val artwork = requestCache.artistArtwork(sessionClient.session)
         return requestCache.artist(sessionClient.session, artistId) {
             when (val result = sessionClient.client.getArtist(artistId)) {
                 is NetworkResult.Success -> {
-                    val detail = result.data.toDetail().withArtwork(sessionClient.session)
+                    val detail =
+                        result.data.toDetail().withArtwork(
+                            session = sessionClient.session,
+                            fallbackUrl = artwork[artistId],
+                        )
                     requestCache.putArtistArtwork(sessionClient.session, detail.id, detail.artUrl)
                     Result.success(detail)
                 }
