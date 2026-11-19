@@ -37,7 +37,18 @@ class AppSettingsDialogTest {
     }
 
     @Test
+    fun themeResolution_matrixTheme() {
+        val theme = TuneFlowThemes.fromId("matrix")
+        assertEquals(TuneFlowThemeId.Matrix, theme.id)
+        assertEquals("Matrix", theme.displayName)
+        assertEquals(Color(0xFF000000), theme.colorScheme.background)
+        assertEquals(Color(0xFF00FF66), theme.colorScheme.onBackground)
+        assertEquals(Color(0xFF00FF66), theme.colorScheme.primary)
+    }
+
+    @Test
     fun themeResolution_caseInsensitiveAndFallback() {
+        assertEquals(TuneFlowThemeId.Matrix, TuneFlowThemes.fromId("MATRIX").id)
         assertEquals(TuneFlowThemeId.BananaBob, TuneFlowThemes.fromId("BANANABOB").id)
         assertEquals(TuneFlowThemeId.PlainDark, TuneFlowThemes.fromId("PLAIN_DARK").id)
         assertEquals(TuneFlowThemeId.Default, TuneFlowThemes.fromId("unknown_xyz").id)
@@ -47,9 +58,10 @@ class AppSettingsDialogTest {
     @Test
     fun allAvailableThemesArePresentInCuratedList() {
         val allThemes = TuneFlowThemes.all
-        assertEquals(3, allThemes.size)
+        assertEquals(4, allThemes.size)
         assertNotNull(allThemes.find { it.id == TuneFlowThemeId.Default })
         assertNotNull(allThemes.find { it.id == TuneFlowThemeId.PlainDark })
         assertNotNull(allThemes.find { it.id == TuneFlowThemeId.BananaBob })
+        assertNotNull(allThemes.find { it.id == TuneFlowThemeId.Matrix })
     }
 }

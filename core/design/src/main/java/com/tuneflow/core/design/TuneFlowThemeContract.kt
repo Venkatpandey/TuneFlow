@@ -14,6 +14,7 @@ enum class TuneFlowThemeId(
     Default(rawId = "default", displayName = "Default"),
     PlainDark(rawId = "plain_dark", displayName = "Plain Dark"),
     BananaBob(rawId = "bananabob", displayName = "bananabob"),
+    Matrix(rawId = "matrix", displayName = "Matrix"),
     ;
 
     companion object {
@@ -169,6 +170,46 @@ val BananaBobScheme: ColorScheme =
         scrim = Color.Black,
     )
 
+val MatrixScheme: ColorScheme =
+    darkColorScheme(
+        primary = Color(0xFF00FF66),
+        onPrimary = Color(0xFF00220A),
+        primaryContainer = Color(0xFF003814),
+        onPrimaryContainer = Color(0xFF66FFA3),
+        inversePrimary = Color(0xFF00B344),
+        secondary = Color(0xFF33FF77),
+        onSecondary = Color(0xFF00220A),
+        secondaryContainer = Color(0xFF0D2E14),
+        onSecondaryContainer = Color(0xFF80FFAC),
+        tertiary = Color(0xFF00E55B),
+        onTertiary = Color(0xFF00220A),
+        tertiaryContainer = Color(0xFF004D1E),
+        onTertiaryContainer = Color(0xFF85FFB2),
+        background = Color(0xFF000000),
+        onBackground = Color(0xFF00FF66),
+        surface = Color(0xFF0B140D),
+        onSurface = Color(0xFF00FF66),
+        surfaceVariant = Color(0xFF122415),
+        onSurfaceVariant = Color(0xFF80EE9E),
+        surfaceTint = Color.Transparent,
+        inverseSurface = Color(0xFF00FF66),
+        inverseOnSurface = Color(0xFF00220A),
+        surfaceDim = Color(0xFF050B06),
+        surfaceBright = Color(0xFF1A331E),
+        surfaceContainerLowest = Color(0xFF000000),
+        surfaceContainerLow = Color(0xFF060F07),
+        surfaceContainer = Color(0xFF0B170D),
+        surfaceContainerHigh = Color(0xFF102012),
+        surfaceContainerHighest = Color(0xFF162B1A),
+        outline = Color(0xFF00993D),
+        outlineVariant = Color(0xFF0D3316),
+        error = Color(0xFFFF5555),
+        onError = Color(0xFF3B0000),
+        errorContainer = Color(0xFF590000),
+        onErrorContainer = Color(0xFFFFB3B3),
+        scrim = Color.Black,
+    )
+
 object TuneFlowThemes {
     val Default =
         TuneFlowThemeDefinition(
@@ -218,7 +259,23 @@ object TuneFlowThemes {
             artworkTreatment = ArtworkTreatment.Standard,
         )
 
-    val all: List<TuneFlowThemeDefinition> = listOf(Default, PlainDark, BananaBob)
+    val Matrix =
+        TuneFlowThemeDefinition(
+            id = TuneFlowThemeId.Matrix,
+            displayName = "Matrix",
+            description = "Neon green typography on deep cyber black surfaces",
+            colorScheme = MatrixScheme,
+            previewColors =
+                ThemePreviewColors(
+                    background = Color(0xFF000000),
+                    surface = Color(0xFF0B140D),
+                    highlight = Color(0xFF00FF66),
+                    text = Color(0xFF00FF66),
+                ),
+            artworkTreatment = ArtworkTreatment.HighContrastBorder,
+        )
+
+    val all: List<TuneFlowThemeDefinition> = listOf(Default, PlainDark, BananaBob, Matrix)
 
     fun fromId(id: String?): TuneFlowThemeDefinition {
         val resolvedId = TuneFlowThemeId.fromId(id)

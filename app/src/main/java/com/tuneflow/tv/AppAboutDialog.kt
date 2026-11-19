@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,15 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowShapes
 
 internal data class AppBuildInfo(
@@ -126,40 +120,12 @@ internal fun AppAboutDialog(
                         }
                     }
                 } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "About ${buildInfo.appName}",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        if (onOpenSettings != null) {
-                            TuneFlowActionSurface(
-                                onClick = onOpenSettings,
-                                shape = TuneFlowShapes.avatar,
-                                contentPadding = PaddingValues(8.dp),
-                                contentAlignment = Alignment.Center,
-                                modifier =
-                                    Modifier
-                                        .size(44.dp)
-                                        .semantics {
-                                            role = Role.Button
-                                            contentDescription = "Open Settings. Select themes and display options."
-                                        },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Settings",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(24.dp),
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = "About ${buildInfo.appName}",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                     AppBuildDetails(buildInfo)
                     if (!accountUsername.isNullOrBlank() || !accountServerUrl.isNullOrBlank()) {
                         AppAccountDetails(accountUsername, accountServerUrl)

@@ -20,7 +20,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -103,7 +107,7 @@ internal fun AppSettingsDialog(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = "Navigate with cursor up/down to preview themes. Press Save to confirm.",
+                        text = "Navigate with cursor up/down to preview. Click a theme to check it, then press Save.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -115,10 +119,13 @@ internal fun AppSettingsDialog(
                         TuneFlowThemes.all.forEachIndexed { index, theme ->
                             ThemeSelectionCard(
                                 theme = theme,
-                                isSelected = theme.id.rawId.equals(selectedThemeId, ignoreCase = true),
+                                isChecked = theme.id.rawId.equals(selectedThemeId, ignoreCase = true),
                                 isApplied = theme.id.rawId.equals(currentThemeId, ignoreCase = true),
-                                onSelect = {
+                                onClick = {
                                     selectedThemeId = theme.id.rawId
+                                    onPreviewTheme(theme.id.rawId)
+                                },
+                                onFocus = {
                                     onPreviewTheme(theme.id.rawId)
                                 },
                                 modifier = Modifier.focusRequester(themeFocusRequesters[index]),
@@ -146,6 +153,9 @@ internal fun AppSettingsDialog(
                                         selectedScale = option
                                         onScreenScaleSelected(option)
                                     },
+                                    onFocus = {
+                                        onPreviewTheme(selectedThemeId)
+                                    },
                                 )
                             }
                         }
@@ -163,10 +173,12 @@ internal fun AppSettingsDialog(
                             shape = TuneFlowShapes.button,
                             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
                             modifier =
-                                Modifier.semantics {
-                                    role = Role.Button
-                                    contentDescription = "Cancel and discard theme preview"
-                                },
+                                Modifier
+                                    .onFocusChanged { if (it.isFocused) onPreviewTheme(selectedThemeId) }
+                                    .semantics {
+                                        role = Role.Button
+                                        contentDescription = "Cancel and discard theme preview"
+                                    },
                         ) {
                             Text(
                                 text = "Cancel",
@@ -182,10 +194,12 @@ internal fun AppSettingsDialog(
                             shape = TuneFlowShapes.button,
                             contentPadding = PaddingValues(horizontal = 28.dp, vertical = 12.dp),
                             modifier =
-                                Modifier.semantics {
-                                    role = Role.Button
-                                    contentDescription = "Save and apply selected theme"
-                                },
+                                Modifier
+                                    .onFocusChanged { if (it.isFocused) onPreviewTheme(selectedThemeId) }
+                                    .semantics {
+                                        role = Role.Button
+                                        contentDescription = "Save and apply selected theme"
+                                    },
                         ) {
                             Text(
                                 text = "Save",
@@ -214,11 +228,13 @@ internal fun AppSettingsDialog(
 }
 
 @Composable
+@Suppress("CyclomaticComplexMethod")
 private fun ThemeSelectionCard(
     theme: TuneFlowThemeDefinition,
-    isSelected: Boolean,
+    isChecked: Boolean,
     isApplied: Boolean,
-    onSelect: () -> Unit,
+    onClick: () -> Unit,
+    onFocus: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -231,7 +247,7 @@ private fun ThemeSelectionCard(
                 .background(
                     when {
                         focused -> MaterialTheme.colorScheme.surfaceVariant
-                        isSelected -> MaterialTheme.colorScheme.surfaceContainerHigh
+                        isChecked -> MaterialTheme.colorScheme.surfaceContainerHigh
                         else -> MaterialTheme.colorScheme.surfaceContainerLow
                     },
                 )
@@ -240,7 +256,7 @@ private fun ThemeSelectionCard(
                     color =
                         when {
                             focused -> MaterialTheme.colorScheme.onSurface
-                            isSelected -> MaterialTheme.colorScheme.primary
+                            isChecked -> MaterialTheme.colorScheme.primary
                             else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
                         },
                     shape = TuneFlowShapes.row,
@@ -248,25 +264,28 @@ private fun ThemeSelectionCard(
                 .onFocusChanged { focusState ->
                     focused = focusState.isFocused
                     if (focusState.isFocused) {
-                        onSelect()
+                        onFocus()
                     }
                 }
                 .clickable(
-                    role = Role.RadioButton,
-                    onClick = onSelect,
+                    role = Role.Checkbox,
+                    onClick = onClick,
                 )
                 .semantics {
-                    role = Role.RadioButton
-                    selected = isSelected
+                    role = Role.Checkbox
+                    selected = isChecked
                     contentDescription =
                         "${theme.displayName} theme. ${theme.description}. " +
-                        if (isApplied) "Currently applied." else ""
+                        (if (isChecked) "Checked. " else "Unchecked. ") +
+                        (if (isApplied) "Currently applied." else "")
                 }
                 .focusable()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        ThemeCheckbox(isChecked = isChecked)
+
         ThemeColorSwatches(previewColors = theme.previewColors)
 
         Column(modifier = Modifier.weight(1f)) {
@@ -280,42 +299,90 @@ private fun ThemeSelectionCard(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                if (isApplied) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .clip(TuneFlowShapes.avatar)
-                                .background(MaterialTheme.colorScheme.primaryContainer)
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                    ) {
-                        Text(
-                            text = "Active",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                } else if (isSelected) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .clip(TuneFlowShapes.avatar)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                    ) {
-                        Text(
-                            text = "Selected",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
+                ThemeStatusBadge(isApplied = isApplied, isChecked = isChecked)
             }
             Text(
                 text = theme.description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThemeCheckbox(
+    isChecked: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier =
+            modifier
+                .size(24.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(
+                    if (isChecked) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        Color.Transparent
+                    },
+                )
+                .border(
+                    width = 2.dp,
+                    color =
+                        if (isChecked) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        },
+                    shape = RoundedCornerShape(6.dp),
+                ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (isChecked) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThemeStatusBadge(
+    isApplied: Boolean,
+    isChecked: Boolean,
+) {
+    if (isApplied) {
+        Box(
+            modifier =
+                Modifier
+                    .clip(TuneFlowShapes.avatar)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+        ) {
+            Text(
+                text = "Active",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    } else if (isChecked) {
+        Box(
+            modifier =
+                Modifier
+                    .clip(TuneFlowShapes.avatar)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+        ) {
+            Text(
+                text = "Checked",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
             )
         }
     }
@@ -359,6 +426,7 @@ private fun ScaleSelectionChip(
     option: ScreenScaleOption,
     isSelected: Boolean,
     onSelect: () -> Unit,
+    onFocus: () -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
 
@@ -383,7 +451,12 @@ private fun ScaleSelectionChip(
                         },
                     shape = TuneFlowShapes.row,
                 )
-                .onFocusChanged { focused = it.isFocused }
+                .onFocusChanged {
+                    focused = it.isFocused
+                    if (it.isFocused) {
+                        onFocus()
+                    }
+                }
                 .clickable(role = Role.RadioButton, onClick = onSelect)
                 .semantics {
                     role = Role.RadioButton

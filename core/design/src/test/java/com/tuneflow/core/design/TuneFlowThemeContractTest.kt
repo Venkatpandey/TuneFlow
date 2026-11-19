@@ -15,6 +15,8 @@ class TuneFlowThemeContractTest {
         assertEquals(TuneFlowThemeId.PlainDark, TuneFlowThemeId.fromId("PlainDark"))
         assertEquals(TuneFlowThemeId.BananaBob, TuneFlowThemeId.fromId("bananabob"))
         assertEquals(TuneFlowThemeId.BananaBob, TuneFlowThemeId.fromId("BananaBob"))
+        assertEquals(TuneFlowThemeId.Matrix, TuneFlowThemeId.fromId("matrix"))
+        assertEquals(TuneFlowThemeId.Matrix, TuneFlowThemeId.fromId("Matrix"))
     }
 
     @Test
@@ -84,10 +86,21 @@ class TuneFlowThemeContractTest {
     }
 
     @Test
+    fun matrixThemeConformsToSpecification() {
+        val theme = TuneFlowThemes.Matrix
+        assertEquals("Matrix", theme.displayName)
+        assertEquals(Color(0xFF000000), theme.colorScheme.background)
+        assertEquals(Color(0xFF00FF66), theme.colorScheme.onBackground)
+        assertEquals(Color(0xFF00FF66), theme.colorScheme.onSurface)
+        assertEquals(Color(0xFF00FF66), theme.colorScheme.primary)
+    }
+
+    @Test
     fun themesListContainsAllCuratedThemes() {
-        assertEquals(3, TuneFlowThemes.all.size)
+        assertEquals(4, TuneFlowThemes.all.size)
         assertNotNull(TuneFlowThemes.all.find { it.id == TuneFlowThemeId.Default })
         assertNotNull(TuneFlowThemes.all.find { it.id == TuneFlowThemeId.PlainDark })
         assertNotNull(TuneFlowThemes.all.find { it.id == TuneFlowThemeId.BananaBob })
+        assertNotNull(TuneFlowThemes.all.find { it.id == TuneFlowThemeId.Matrix })
     }
 }
