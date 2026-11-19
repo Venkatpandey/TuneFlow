@@ -45,6 +45,13 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -633,7 +640,12 @@ private fun HomeRailFeedback(
     onRetry: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.heightIn(min = 24.dp),
+        modifier =
+            Modifier
+                .heightIn(min = 24.dp)
+                .semantics {
+                    liveRegion = if (rail.error != null) LiveRegionMode.Assertive else LiveRegionMode.Polite
+                },
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -670,7 +682,7 @@ private fun HomeHero(
         if (currentItem?.artUrl != null) {
             TuneFlowArtwork(
                 model = currentItem.artUrl,
-                contentDescription = currentItem.title,
+                contentDescription = null,
                 width = 1280.dp,
                 height = 246.dp,
                 modifier = Modifier.fillMaxSize(),
@@ -754,7 +766,7 @@ private fun HomeHero(
                 if (currentItem != null) {
                     TuneFlowArtwork(
                         model = currentItem.artUrl,
-                        contentDescription = currentItem.title,
+                        contentDescription = null,
                         width = 168.dp,
                         height = 168.dp,
                         modifier = Modifier.fillMaxSize(),
@@ -781,7 +793,15 @@ private fun HeroActionButton(
     modifier: Modifier = Modifier,
 ) {
     TuneFlowActionSurface(
-        modifier = modifier.widthIn(min = 160.dp),
+        modifier =
+            modifier
+                .widthIn(min = 160.dp)
+                .semantics {
+                    role = Role.Button
+                    if (!enabled) {
+                        stateDescription = "Disabled"
+                    }
+                },
         accent = accent,
         enabled = enabled,
         onClick = onClick,
@@ -871,7 +891,13 @@ private fun FavoriteTrackCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(196.dp),
+        modifier =
+            Modifier
+                .width(196.dp)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "Track: ${track.title} by ${track.artist}"
+                },
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -885,7 +911,7 @@ private fun FavoriteTrackCard(
             ) {
                 TuneFlowArtwork(
                     model = track.artUrl,
-                    contentDescription = track.title,
+                    contentDescription = null,
                     width = 196.dp,
                     height = 196.dp,
                     modifier = Modifier.fillMaxSize(),
@@ -917,7 +943,13 @@ private fun HomeVideoCard(
     onClick: () -> Unit,
 ) {
     FocusCard(
-        modifier = Modifier.width(280.dp),
+        modifier =
+            Modifier
+                .width(280.dp)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "Video: ${video.title} by ${video.publisher}"
+                },
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -931,7 +963,7 @@ private fun HomeVideoCard(
             ) {
                 TuneFlowArtwork(
                     model = video.thumbnailUrl,
-                    contentDescription = video.title,
+                    contentDescription = null,
                     width = 256.dp,
                     height = 144.dp,
                     modifier = Modifier.fillMaxSize(),
@@ -964,7 +996,13 @@ private fun HomeArtistCard(
     modifier: Modifier = Modifier,
 ) {
     FocusCard(
-        modifier = modifier.width(208.dp),
+        modifier =
+            modifier
+                .width(208.dp)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "Artist: ${artist.name}, ${artist.albumCount} ${if (artist.albumCount == 1) "album" else "albums"}"
+                },
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -978,7 +1016,7 @@ private fun HomeArtistCard(
             ) {
                 TuneFlowArtwork(
                     model = artist.artUrl,
-                    contentDescription = artist.name,
+                    contentDescription = null,
                     width = 208.dp,
                     height = 172.dp,
                     modifier = Modifier.fillMaxSize(),
@@ -1020,7 +1058,13 @@ private fun HomeAlbumCard(
     modifier: Modifier = Modifier,
 ) {
     FocusCard(
-        modifier = modifier.width(196.dp),
+        modifier =
+            modifier
+                .width(196.dp)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "Album: ${album.title} by ${album.artist}"
+                },
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1034,7 +1078,7 @@ private fun HomeAlbumCard(
             ) {
                 TuneFlowArtwork(
                     model = album.artUrl,
-                    contentDescription = album.title,
+                    contentDescription = null,
                     width = 196.dp,
                     height = 196.dp,
                     modifier = Modifier.fillMaxSize(),
@@ -1067,7 +1111,13 @@ private fun HomePlaylistCard(
     modifier: Modifier = Modifier,
 ) {
     FocusCard(
-        modifier = modifier.width(236.dp),
+        modifier =
+            modifier
+                .width(236.dp)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "Playlist: ${playlist.name}, ${playlist.songCount} ${if (playlist.songCount == 1) "track" else "tracks"}"
+                },
         onClick = onClick,
     ) {
         Column(
@@ -1131,7 +1181,7 @@ private fun PlaylistArtCollage(playlist: PlaylistSummary) {
                     ) {
                         TuneFlowArtwork(
                             model = artUrl,
-                            contentDescription = playlist.name,
+                            contentDescription = null,
                             width = 58.dp,
                             height = 58.dp,
                             modifier = Modifier.fillMaxSize(),
@@ -1152,7 +1202,13 @@ private fun ActionCard(
     modifier: Modifier = Modifier,
 ) {
     FocusCard(
-        modifier = modifier.width(208.dp),
+        modifier =
+            modifier
+                .width(208.dp)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = title
+                },
         onClick = onClick,
     ) {
         Column(
@@ -1178,7 +1234,13 @@ private fun ShowAllCard(
     label: String = "Show all",
 ) {
     FocusCard(
-        modifier = modifier.width(208.dp),
+        modifier =
+            modifier
+                .width(208.dp)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = label
+                },
         onClick = onClick,
     ) {
         Column(

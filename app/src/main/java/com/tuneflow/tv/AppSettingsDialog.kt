@@ -55,6 +55,7 @@ import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.design.TuneFlowThemeDefinition
 import com.tuneflow.core.design.TuneFlowThemes
+import com.tuneflow.core.network.MotionPreference
 import com.tuneflow.core.network.ScreenScaleOption
 
 @Composable
@@ -65,9 +66,12 @@ internal fun AppSettingsDialog(
     onCancelTheme: () -> Unit,
     currentScreenScale: ScreenScaleOption = ScreenScaleOption.Compact,
     onScreenScaleSelected: ((ScreenScaleOption) -> Unit)? = null,
+    currentMotionPreference: MotionPreference = MotionPreference.System,
+    onMotionPreferenceSelected: ((MotionPreference) -> Unit)? = null,
 ) {
     var selectedThemeId by rememberSaveable { mutableStateOf(currentThemeId) }
     var selectedScale by rememberSaveable { mutableStateOf(currentScreenScale) }
+    var selectedMotion by rememberSaveable { mutableStateOf(currentMotionPreference) }
     val initialFocusRequester = remember { FocusRequester() }
     val initialIndex =
         remember {
@@ -162,6 +166,34 @@ internal fun AppSettingsDialog(
                                     onSelect = {
                                         selectedScale = option
                                         onScreenScaleSelected(option)
+                                    },
+                                    onFocus = {
+                                        onPreviewTheme(selectedThemeId)
+                                    },
+                                )
+                            }
+                        }
+                    }
+
+                    if (onMotionPreferenceSelected != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Motion",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            MotionPreference.entries.forEach { option ->
+                                MotionSelectionChip(
+                                    option = option,
+                                    isSelected = option == selectedMotion,
+                                    onSelect = {
+                                        selectedMotion = option
+                                        onMotionPreferenceSelected(option)
                                     },
                                     onFocus = {
                                         onPreviewTheme(selectedThemeId)
@@ -474,6 +506,71 @@ private fun ScaleSelectionChip(
     ) {
         Text(
             text = "${option.name} (${option.percent}%)",
+            style = MaterialTheme.typography.bodyMedium,
+            color =
+                if (isSelected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+        )
+    }
+}
+
+@Composable
+private fun MotionSelectionChip(
+    option: MotionPreference,
+    isSelected: Boolean,
+    onSelect: () -> Unit,
+    onFocus: () -> Unit = {},
+) {
+    var focused by remember { mutableStateOf(false) }
+    val label =
+        when (option) {
+            MotionPreference.System -> "System Default"
+            MotionPreference.Always -> "Reduced Motion (On)"
+            MotionPreference.Never -> "Standard Motion (Off)"
+        }
+
+    Box(
+        modifier =
+            Modifier
+                .clip(TuneFlowShapes.row)
+                .background(
+                    when {
+                        focused -> MaterialTheme.colorScheme.surfaceVariant
+                        isSelected -> MaterialTheme.colorScheme.primaryContainer
+                        else -> MaterialTheme.colorScheme.surfaceContainerLow
+                    },
+                )
+                .border(
+                    width = if (focused) 2.dp else 1.dp,
+                    color =
+                        when {
+                            focused -> MaterialTheme.colorScheme.onSurface
+                            isSelected -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
+                        },
+                    shape = TuneFlowShapes.row,
+                )
+                .onFocusChanged {
+                    focused = it.isFocused
+                    if (it.isFocused) {
+                        onFocus()
+                    }
+                }
+                .clickable(role = Role.RadioButton, onClick = onSelect)
+                .semantics {
+                    role = Role.RadioButton
+                    selected = isSelected
+                    contentDescription = "$label. ${if (isSelected) "Selected." else ""}"
+                }
+                .focusable()
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
             style = MaterialTheme.typography.bodyMedium,
             color =
                 if (isSelected) {

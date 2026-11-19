@@ -1,6 +1,7 @@
 package com.tuneflow.tv
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -14,7 +15,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.design.TuneFlowShapes
 
 @Composable
@@ -22,11 +27,25 @@ internal fun FavoriteFeedbackBanner(
     message: String?,
     modifier: Modifier = Modifier,
 ) {
+    val motion = LocalTuneFlowMotion.current
+    val enterTransition =
+        if (motion.enabled) {
+            fadeIn() + slideInVertically(initialOffsetY = { it / 2 })
+        } else {
+            fadeIn(snap())
+        }
+    val exitTransition =
+        if (motion.enabled) {
+            fadeOut() + slideOutVertically(targetOffsetY = { it / 2 })
+        } else {
+            fadeOut(snap())
+        }
+
     AnimatedVisibility(
         visible = message != null,
-        enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
-        exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 }),
-        modifier = modifier,
+        enter = enterTransition,
+        exit = exitTransition,
+        modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite },
     ) {
         Box(
             modifier =

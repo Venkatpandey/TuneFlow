@@ -45,10 +45,14 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -525,7 +529,10 @@ private fun ProfileHeader(
                 }
                 .onFocusChanged { focusState -> focused = focusState.isFocused }
                 .semantics {
-                    contentDescription = "User profile. Select or hold for app information and log out."
+                    role = Role.Button
+                    contentDescription =
+                        "User profile: ${username.ifBlank { "TuneFlow" }}. " +
+                        "App version $appVersionName. Select or hold for app information and log out."
                     onClick {
                         onOpenAbout()
                         true
@@ -614,7 +621,14 @@ private fun NavRailItem(
     val active = selected || focused
 
     TuneFlowActionSurface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics {
+                    role = Role.Tab
+                    this.selected = selected
+                    contentDescription = "$label navigation tab. ${if (selected) "Selected." else ""}"
+                },
         selected = selected,
         shape = TuneFlowShapes.row,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 16.dp),
@@ -631,6 +645,7 @@ private fun NavRailItem(
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
+@Suppress("CyclomaticComplexMethod")
 internal fun NowPlayingRailWidget(
     playbackQueue: PlaybackQueue,
     playbackPositionMs: Long,
@@ -685,6 +700,16 @@ internal fun NowPlayingRailWidget(
                     shape = TuneFlowShapes.card,
                 )
                 .then(if (interactive) Modifier.clickable(onClick = onClick) else Modifier)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription =
+                        if (currentItem != null) {
+                            "Now Playing: ${currentItem.title} by ${currentItem.artist}. Select to open player."
+                        } else {
+                            "Now Playing: Nothing playing."
+                        }
+                    stateDescription = "${railFormatTime(positionMs)} of ${railFormatTime(durationMs)}"
+                }
                 .padding(10.dp),
     ) {
         Column(
@@ -886,7 +911,7 @@ private fun RailArtworkViewport(
         if (!videoVisible) {
             TuneFlowArtwork(
                 model = currentItem?.artUrl,
-                contentDescription = currentItem?.title,
+                contentDescription = null,
                 width = 128.dp,
                 height = 92.dp,
                 modifier = Modifier.fillMaxSize(),

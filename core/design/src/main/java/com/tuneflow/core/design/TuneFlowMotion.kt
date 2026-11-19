@@ -10,6 +10,17 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
 
+enum class ReducedMotionMode {
+    System,
+    Always,
+    Never,
+    ;
+
+    companion object {
+        fun fromId(id: String?): ReducedMotionMode = entries.firstOrNull { it.name.equals(id, ignoreCase = true) } ?: System
+    }
+}
+
 data class TuneFlowMotion(
     val enabled: Boolean = true,
     val focusGainDurationMs: Int = 150,
@@ -22,17 +33,45 @@ data class TuneFlowMotion(
     val cardFocusScale: Float = 1f,
     val buttonFocusScale: Float = 1.05f,
     val fieldFocusScale: Float = 1.01f,
-)
+) {
+    companion object {
+        fun reduced(): TuneFlowMotion =
+            TuneFlowMotion(
+                enabled = false,
+                focusGainDurationMs = 0,
+                focusLossDurationMs = 0,
+                screenForwardDurationMs = 0,
+                screenBackDurationMs = 0,
+                nowPlayingOpenDurationMs = 0,
+                nowPlayingCloseDurationMs = 0,
+                dialogDurationMs = 0,
+                cardFocusScale = 1f,
+                buttonFocusScale = 1f,
+                fieldFocusScale = 1f,
+            )
+    }
+}
 
 val LocalTuneFlowMotion = staticCompositionLocalOf { TuneFlowMotion() }
+
+@Composable
+fun TuneFlowMotionProvider(
+    motion: TuneFlowMotion,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalTuneFlowMotion provides motion,
+        content = content,
+    )
+}
 
 @Composable
 fun TuneFlowMotionProvider(
     enabled: Boolean,
     content: @Composable () -> Unit,
 ) {
-    CompositionLocalProvider(
-        LocalTuneFlowMotion provides TuneFlowMotion(enabled = enabled),
+    TuneFlowMotionProvider(
+        motion = if (enabled) TuneFlowMotion() else TuneFlowMotion.reduced(),
         content = content,
     )
 }

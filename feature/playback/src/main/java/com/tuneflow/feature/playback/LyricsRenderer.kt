@@ -29,8 +29,13 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.design.TuneFlowShapes
 import kotlinx.coroutines.launch
 import android.view.KeyEvent as AndroidKeyEvent
@@ -46,11 +51,17 @@ fun LyricsRenderer(
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val motion = LocalTuneFlowMotion.current
     val activeIndex = resolveActiveLyricLine(lyrics, positionMs)
 
-    LaunchedEffect(activeIndex, autoFollow, lyrics) {
+    LaunchedEffect(activeIndex, autoFollow, lyrics, motion.enabled) {
         if (autoFollow && activeIndex != null) {
-            listState.animateScrollToItem((activeIndex - 2).coerceAtLeast(0))
+            val target = (activeIndex - 2).coerceAtLeast(0)
+            if (motion.enabled) {
+                listState.animateScrollToItem(target)
+            } else {
+                listState.scrollToItem(target)
+            }
         }
     }
 
@@ -75,7 +86,13 @@ fun LyricsRenderer(
                         val target =
                             (listState.firstVisibleItemIndex + direction * visibleCount)
                                 .coerceIn(0, lyrics.lines.lastIndex)
-                        scope.launch { listState.animateScrollToItem(target) }
+                        scope.launch {
+                            if (motion.enabled) {
+                                listState.animateScrollToItem(target)
+                            } else {
+                                listState.scrollToItem(target)
+                            }
+                        }
                         true
                     }
                     else -> false
@@ -143,6 +160,10 @@ internal fun LyricsPanel(
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
                     shape = TuneFlowShapes.panel,
                 )
+                .semantics {
+                    liveRegion = LiveRegionMode.Polite
+                    contentDescription = if (lyrics.synchronized) "Synchronized lyrics" else "Unsynchronized lyrics"
+                }
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (event.nativeKeyEvent.keyCode) {

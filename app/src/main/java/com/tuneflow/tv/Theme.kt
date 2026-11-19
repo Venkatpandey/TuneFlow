@@ -2,13 +2,6 @@ package com.tuneflow.tv
 
 import android.animation.ValueAnimator
 import android.os.Build
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,17 +11,13 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tuneflow.core.design.LocalTuneFlowMotion
 import com.tuneflow.core.design.TuneFlowMotionProvider
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.design.TuneFlowThemeDefinition
@@ -37,12 +26,9 @@ import com.tuneflow.core.design.TuneFlowThemes
 @Composable
 fun TuneFlowTheme(
     theme: TuneFlowThemeDefinition = TuneFlowThemes.Default,
+    motionEnabled: Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled(),
     content: @Composable () -> Unit,
 ) {
-    val motionEnabled =
-        remember {
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled()
-        }
     TuneFlowMotionProvider(enabled = motionEnabled) {
         MaterialTheme(
             colorScheme = theme.colorScheme,
@@ -96,34 +82,4 @@ fun TuneFlowScaledContent(
     CompositionLocalProvider(LocalDensity provides scaledDensity) {
         content()
     }
-}
-
-@Composable
-fun Modifier.shimmerEffect(): Modifier {
-    if (!LocalTuneFlowMotion.current.enabled) return background(MaterialTheme.colorScheme.surfaceVariant)
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val translateAnim by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec =
-            infiniteRepeatable(
-                animation = tween(durationMillis = 1200, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-        label = "shimmerTranslate",
-    )
-
-    return this.background(
-        brush =
-            Brush.linearGradient(
-                colors =
-                    listOf(
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        MaterialTheme.colorScheme.surface,
-                    ),
-                start = Offset(translateAnim - 500f, 0f),
-                end = Offset(translateAnim, 0f),
-            ),
-    )
 }

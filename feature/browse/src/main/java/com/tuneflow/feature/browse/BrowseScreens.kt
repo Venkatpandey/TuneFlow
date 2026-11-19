@@ -4,12 +4,8 @@ package com.tuneflow.feature.browse
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -65,8 +61,6 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
@@ -78,8 +72,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -99,6 +95,7 @@ import com.tuneflow.core.design.TuneFlowArtwork
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.design.TuneFlowTrackRow
 import com.tuneflow.core.design.animateTuneFlowFocusScale
+import com.tuneflow.core.design.shimmerEffect
 import com.tuneflow.core.design.trackRowFocusDestination
 import com.tuneflow.core.network.AlbumSummary
 import com.tuneflow.core.network.ArtistSummary
@@ -267,7 +264,7 @@ fun AlbumDetailScreen(
                 ) {
                     TuneFlowArtwork(
                         model = album.artUrl,
-                        contentDescription = album.title,
+                        contentDescription = null,
                         width = 260.dp,
                         height = 248.dp,
                         modifier =
@@ -300,11 +297,15 @@ fun AlbumDetailScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         BrowseActionButton(
                             onClick = { onPlayAlbum(album.tracks, 0) },
+                            contentDescription = "Play album",
                             modifier = Modifier.focusRequester(playAlbumFocusRequester),
                         ) {
                             BrowsePlayIcon()
                         }
-                        BrowseActionButton(onClick = { onShuffleAlbum(album.tracks) }) {
+                        BrowseActionButton(
+                            onClick = { onShuffleAlbum(album.tracks) },
+                            contentDescription = "Shuffle album",
+                        ) {
                             BrowseShuffleIcon()
                         }
                     }
@@ -400,7 +401,7 @@ fun ArtistDetailScreen(
                 ) {
                     TuneFlowArtwork(
                         model = artist.artUrl,
-                        contentDescription = artist.name,
+                        contentDescription = null,
                         width = 1280.dp,
                         height = 208.dp,
                         modifier = Modifier.fillMaxSize(),
@@ -424,7 +425,7 @@ fun ArtistDetailScreen(
                         ) {
                             TuneFlowArtwork(
                                 model = artist.artUrl,
-                                contentDescription = artist.name,
+                                contentDescription = null,
                                 width = 168.dp,
                                 height = 168.dp,
                                 modifier = Modifier.fillMaxSize(),
@@ -589,8 +590,10 @@ fun PlaylistsScreen(
         }
     }
 
+    val motion = LocalTuneFlowMotion.current
     val listWidth by animateDpAsState(
         targetValue = if (showDetail) 272.dp else 312.dp,
+        animationSpec = if (motion.enabled) tween(250) else snap(),
         label = "playlist-list-width",
     )
 
@@ -657,7 +660,10 @@ fun PlaylistsScreen(
                                     },
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(8.dp),
+                                modifier =
+                                    Modifier
+                                        .padding(8.dp)
+                                        .semantics { liveRegion = LiveRegionMode.Polite },
                             )
                         }
                     }
@@ -698,12 +704,23 @@ fun PlaylistsScreen(
 
         AnimatedVisibility(
             visible = showDetail,
-            enter = fadeIn() + slideInHorizontally(initialOffsetX = { it / 4 }),
-            exit = fadeOut() + slideOutHorizontally(targetOffsetX = { it / 4 }),
+            enter =
+                if (motion.enabled) {
+                    fadeIn() + slideInHorizontally(initialOffsetX = { it / 4 })
+                } else {
+                    fadeIn(animationSpec = snap())
+                },
+            exit =
+                if (motion.enabled) {
+                    fadeOut() + slideOutHorizontally(targetOffsetX = { it / 4 })
+                } else {
+                    fadeOut(animationSpec = snap())
+                },
         ) {
             Column(
                 modifier =
                     Modifier
+                        .semantics { liveRegion = LiveRegionMode.Polite }
                         .weight(1f)
                         .fillMaxSize()
                         .clip(TuneFlowShapes.panel)
@@ -734,11 +751,15 @@ fun PlaylistsScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     BrowseActionButton(
                         onClick = { onPlayTracks(selected.id, selected.name, selected.tracks, 0) },
+                        contentDescription = "Play playlist",
                         modifier = Modifier.focusRequester(playPlaylistFocusRequester),
                     ) {
                         BrowsePlayIcon()
                     }
-                    BrowseActionButton(onClick = { onShuffleTracks(selected.id, selected.name, selected.tracks) }) {
+                    BrowseActionButton(
+                        onClick = { onShuffleTracks(selected.id, selected.name, selected.tracks) },
+                        contentDescription = "Shuffle playlist",
+                    ) {
                         BrowseShuffleIcon()
                     }
                 }
@@ -893,6 +914,7 @@ fun SearchScreen(
                 text = state.error.orEmpty(),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
             )
         }
 
@@ -1435,6 +1457,7 @@ private fun EmptyCategoryResults(message: String) {
     Box(
         modifier =
             Modifier
+                .semantics { liveRegion = LiveRegionMode.Polite }
                 .fillMaxWidth()
                 .clip(TuneFlowShapes.panel)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.66f))
@@ -1489,7 +1512,13 @@ private fun PremiumArtistRow(
     modifier: Modifier = Modifier,
 ) {
     FocusScaleCard(
-        modifier = modifier.fillMaxWidth(),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "Artist: ${artist.name}, ${artist.albumCount} albums"
+                },
         shape = TuneFlowShapes.row,
         onClick = onClick,
     ) {
@@ -1507,7 +1536,7 @@ private fun PremiumArtistRow(
             ) {
                 TuneFlowArtwork(
                     model = artist.artUrl,
-                    contentDescription = artist.name,
+                    contentDescription = null,
                     width = 92.dp,
                     height = 68.dp,
                     modifier = Modifier.fillMaxSize(),
@@ -1543,7 +1572,13 @@ private fun PremiumAlbumRow(
     modifier: Modifier = Modifier,
 ) {
     FocusScaleCard(
-        modifier = modifier.fillMaxWidth(),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "Album: ${album.title} by ${album.artist}"
+                },
         shape = TuneFlowShapes.row,
         onClick = onClick,
     ) {
@@ -1561,7 +1596,7 @@ private fun PremiumAlbumRow(
             ) {
                 TuneFlowArtwork(
                     model = album.artUrl,
-                    contentDescription = album.title,
+                    contentDescription = null,
                     width = 68.dp,
                     height = 68.dp,
                     modifier = Modifier.fillMaxSize(),
@@ -1617,6 +1652,10 @@ private fun PremiumPlaylistRow(
                     .weight(1f)
                     .focusRequester(rowBodyFocusRequester)
                     .then(modifier)
+                    .semantics(mergeDescendants = true) {
+                        role = Role.Button
+                        contentDescription = "Playlist: ${playlist.name}, ${playlist.songCount} tracks, ${formatTotalDuration(playlist.durationSec)}"
+                    }
                     .onPreviewKeyEvent { event ->
                         if (
                             isFavorite != null &&
@@ -1956,7 +1995,13 @@ private fun SearchArtistCard(
     modifier: Modifier = Modifier,
 ) {
     FocusScaleCard(
-        modifier = modifier.width(172.dp),
+        modifier =
+            modifier
+                .width(172.dp)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "Artist: ${artist.name}"
+                },
         onClick = onClick,
     ) {
         Column(
@@ -1973,7 +2018,7 @@ private fun SearchArtistCard(
             ) {
                 TuneFlowArtwork(
                     model = artist.artUrl,
-                    contentDescription = artist.name,
+                    contentDescription = null,
                     width = 148.dp,
                     height = 148.dp,
                     modifier = Modifier.fillMaxSize(),
@@ -1999,7 +2044,13 @@ private fun PremiumAlbumCard(
     modifier: Modifier = Modifier,
 ) {
     FocusScaleCard(
-        modifier = modifier.width(196.dp),
+        modifier =
+            modifier
+                .width(196.dp)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "Album: ${album.title} by ${album.artist}"
+                },
         onClick = onClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2013,7 +2064,7 @@ private fun PremiumAlbumCard(
             ) {
                 TuneFlowArtwork(
                     model = album.artUrl,
-                    contentDescription = album.title,
+                    contentDescription = null,
                     width = 196.dp,
                     height = 196.dp,
                     modifier = Modifier.fillMaxSize(),
@@ -2067,6 +2118,10 @@ private fun PremiumListRow(
                     .weight(1f)
                     .focusRequester(rowBodyFocusRequester)
                     .then(rowFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                    .semantics(mergeDescendants = true) {
+                        role = Role.Button
+                        contentDescription = "Track: $title by $subtitle${if (trailing != null) ", $trailing" else ""}"
+                    }
                     .onPreviewKeyEvent { event ->
                         if (
                             event.type == KeyEventType.KeyDown &&
@@ -2233,7 +2288,13 @@ private fun PremiumChip(
     modifier: Modifier = Modifier,
 ) {
     FocusScaleCard(
-        modifier = modifier.width(172.dp),
+        modifier =
+            modifier
+                .width(172.dp)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = label
+                },
         shape = TuneFlowShapes.badge,
         onClick = onClick,
     ) {
@@ -2281,7 +2342,7 @@ private fun PlaylistArtworkGrid(
                     ) {
                         TuneFlowArtwork(
                             model = artUrl,
-                            contentDescription = label,
+                            contentDescription = null,
                             width = 58.dp,
                             height = 58.dp,
                             modifier = Modifier.fillMaxSize(),
@@ -2308,10 +2369,17 @@ private fun SectionTitle(title: String) {
 private fun BrowseActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    contentDescription: String? = null,
     content: @Composable () -> Unit,
 ) {
     TuneFlowActionSurface(
-        modifier = modifier,
+        modifier =
+            modifier.semantics {
+                role = Role.Button
+                if (contentDescription != null) {
+                    this.contentDescription = contentDescription
+                }
+            },
         accent = true,
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
         onClick = onClick,
@@ -2490,7 +2558,10 @@ private fun ChipSkeleton() {
 @Composable
 private fun AlbumDetailSkeleton(modifier: Modifier = Modifier) {
     Row(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .semantics { liveRegion = LiveRegionMode.Polite },
         horizontalArrangement = Arrangement.spacedBy(22.dp),
     ) {
         DetailArtworkSkeleton(
@@ -2530,7 +2601,10 @@ private fun AlbumDetailSkeleton(modifier: Modifier = Modifier) {
 @Composable
 private fun ArtistDetailSkeleton(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Box(
@@ -2555,6 +2629,7 @@ private fun ArtistDetailSkeleton(modifier: Modifier = Modifier) {
 @Composable
 private fun PlaylistListSkeleton() {
     LazyColumn(
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
@@ -2567,6 +2642,7 @@ private fun PlaylistListSkeleton() {
 @Composable
 private fun SearchResultsSkeleton() {
     LazyColumn(
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(24.dp),
         contentPadding = PaddingValues(bottom = 48.dp),
     ) {
@@ -2594,42 +2670,15 @@ private fun SearchResultsSkeleton() {
 }
 
 @Composable
-private fun Modifier.shimmerEffect(): Modifier {
-    if (!LocalTuneFlowMotion.current.enabled) return background(MaterialTheme.colorScheme.surfaceVariant)
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val translateAnim by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec =
-            infiniteRepeatable(
-                animation = tween(durationMillis = 1200, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart,
-            ),
-        label = "shimmerTranslate",
-    )
-
-    return this.background(
-        brush =
-            Brush.linearGradient(
-                colors =
-                    listOf(
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        MaterialTheme.colorScheme.surface,
-                    ),
-                start = Offset(translateAnim - 500f, 0f),
-                end = Offset(translateAnim, 0f),
-            ),
-    )
-}
-
-@Composable
 private fun ErrorState(
     modifier: Modifier = Modifier,
     message: String,
 ) {
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .semantics { liveRegion = LiveRegionMode.Assertive },
         contentAlignment = Alignment.Center,
     ) {
         Text(

@@ -3,6 +3,7 @@ package com.tuneflow.feature.playback
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -51,6 +52,12 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
@@ -114,9 +121,18 @@ fun NowPlayingScreen(
     var requestVideoFocus by rememberSaveable { mutableStateOf(false) }
     var requestInitialTransportFocus by remember { mutableStateOf(true) }
     var focusedQueueIndex by rememberSaveable { mutableIntStateOf(-1) }
+    val motion = LocalTuneFlowMotion.current
     val panelVisible = activePanel != NowPlayingPanel.None
-    val artSize by animateDpAsState(targetValue = if (panelVisible) 152.dp else 180.dp, label = "now-playing-art-size")
-    val artFrameHeight by animateDpAsState(targetValue = if (panelVisible) 176.dp else 200.dp, label = "now-playing-art-frame-height")
+    val artSize by animateDpAsState(
+        targetValue = if (panelVisible) 152.dp else 180.dp,
+        animationSpec = if (motion.enabled) tween(250, easing = FastOutSlowInEasing) else snap(),
+        label = "now-playing-art-size",
+    )
+    val artFrameHeight by animateDpAsState(
+        targetValue = if (panelVisible) 176.dp else 200.dp,
+        animationSpec = if (motion.enabled) tween(250, easing = FastOutSlowInEasing) else snap(),
+        label = "now-playing-art-frame-height",
+    )
 
     DisposableEffect(Unit) {
         viewModel.setActive(true)
@@ -276,8 +292,18 @@ fun NowPlayingScreen(
 
             AnimatedVisibility(
                 visible = panelVisible,
-                enter = fadeIn() + slideInHorizontally(initialOffsetX = { it / 4 }),
-                exit = fadeOut() + slideOutHorizontally(targetOffsetX = { it / 4 }),
+                enter =
+                    if (motion.enabled) {
+                        fadeIn() + slideInHorizontally(initialOffsetX = { it / 4 })
+                    } else {
+                        fadeIn(animationSpec = snap())
+                    },
+                exit =
+                    if (motion.enabled) {
+                        fadeOut() + slideOutHorizontally(targetOffsetX = { it / 4 })
+                    } else {
+                        fadeOut(animationSpec = snap())
+                    },
             ) {
                 when (activePanel) {
                     NowPlayingPanel.TrackList ->
@@ -507,7 +533,11 @@ private fun QueuePanel(
 
         var itemInfo = queueListState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentFocusedIndex }
         if (itemInfo == null) {
-            queueListState.animateScrollToItem(currentFocusedIndex)
+            if (motion.enabled) {
+                queueListState.animateScrollToItem(currentFocusedIndex)
+            } else {
+                queueListState.scrollToItem(currentFocusedIndex)
+            }
             withFrameNanos { }
             itemInfo = queueListState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == currentFocusedIndex }
         }
@@ -542,6 +572,7 @@ private fun QueuePanel(
     Column(
         modifier =
             Modifier
+                .semantics { liveRegion = LiveRegionMode.Polite }
                 .width(312.dp)
                 .fillMaxHeight()
                 .clip(TuneFlowShapes.panel)
@@ -633,6 +664,10 @@ private fun QueueRow(
                     .weight(1f)
                     .focusRequester(rowFocusRequester)
                     .then(externalRowFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                    .semantics(mergeDescendants = true) {
+                        role = Role.Button
+                        contentDescription = "Track: $title by $subtitle.${if (isCurrent) " Currently playing." else ""}"
+                    }
                     .onPreviewKeyEvent { event ->
                         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                         when (event.nativeKeyEvent.keyCode) {

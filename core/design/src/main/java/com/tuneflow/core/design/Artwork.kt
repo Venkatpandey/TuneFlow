@@ -34,13 +34,14 @@ fun rememberArtworkRequest(
     requestSizePx: Int? = null,
 ): ImageRequest {
     val context = LocalContext.current
+    val motion = LocalTuneFlowMotion.current
     val widthPx = remember(width) { width.roundToPxSize() }
     val heightPx = remember(height) { height.roundToPxSize() }
 
-    return remember(data, context, widthPx, heightPx, requestSizePx) {
+    return remember(data, context, widthPx, heightPx, requestSizePx, motion.enabled) {
         ImageRequest.Builder(context)
             .data(data)
-            .crossfade(true)
+            .crossfade(motion.enabled)
             .size(
                 Size(
                     width = requestSizePx ?: widthPx,
