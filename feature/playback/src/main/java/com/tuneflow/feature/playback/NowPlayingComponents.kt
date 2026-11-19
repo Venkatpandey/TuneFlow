@@ -50,6 +50,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
@@ -375,7 +376,14 @@ internal fun StreamModeButton(
 
     TuneFlowActionSurface(
         onClick = onClick,
-        modifier = Modifier.size(44.dp).focusRequester(focusRequester),
+        modifier =
+            Modifier
+                .size(44.dp)
+                .focusRequester(focusRequester)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "Audio stream format: $label. Select to switch format."
+                },
         contentPadding = PaddingValues(0.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -576,11 +584,12 @@ private fun PlaybackModeIconButton(
 
     VideoControlIconButton(
         iconResId = iconRes,
-        contentDescription =
+        contentDescription = "Playback mode",
+        stateDescription =
             when (playbackMode) {
-                PlaybackMode.Default -> "Playback mode default"
-                PlaybackMode.Shuffle -> "Playback mode shuffle"
-                PlaybackMode.Loop -> "Playback mode loop"
+                PlaybackMode.Default -> "Normal"
+                PlaybackMode.Shuffle -> "Shuffle"
+                PlaybackMode.Loop -> "Repeat"
             },
         accent = active,
         onClick = onClick,
@@ -597,7 +606,8 @@ private fun QueueToggleIconButton(
 ) {
     VideoControlIconButton(
         iconResId = if (active) R.drawable.tracklist_enabled else R.drawable.tracklist_disabled,
-        contentDescription = if (active) "Hide track list" else "Show track list",
+        contentDescription = "Track list",
+        stateDescription = if (active) "Expanded" else "Collapsed",
         accent = active,
         onClick = onClick,
         modifier = Modifier.size(44.dp),
@@ -615,7 +625,8 @@ private fun LyricsToggleButton(
 ) {
     VideoControlIconButton(
         iconResId = R.drawable.ic_lyrics,
-        contentDescription = if (active) "Hide lyrics" else "Show lyrics",
+        contentDescription = "Lyrics",
+        stateDescription = if (active) "Expanded" else "Collapsed",
         accent = active,
         onClick = onClick,
         modifier = Modifier.size(44.dp),
@@ -636,7 +647,13 @@ internal fun PlaybackProgress(
             0f
         }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier =
+            Modifier.semantics {
+                stateDescription = "${formatTime(positionMs)} of ${formatTime(durationMs)}"
+            },
+    ) {
         LinearProgressIndicator(
             progress = { progress.coerceIn(0f, 1f) },
             modifier =
@@ -683,12 +700,13 @@ internal fun TransportControls(
     ) {
         VideoControlIconButton(
             iconResId = if (videoActive) VideoR.drawable.smarttube_ic_rewind else VideoR.drawable.smarttube_ic_skip_previous,
-            contentDescription = if (videoActive) "Rewind 10 seconds" else "Previous",
+            contentDescription = if (videoActive) "Rewind 10 seconds" else "Previous track",
             onClick = onPrevious,
         )
         VideoControlIconButton(
             iconResId = if (isPlaying) VideoR.drawable.smarttube_ic_pause else VideoR.drawable.smarttube_ic_play,
             contentDescription = if (isPlaying) "Pause" else "Play",
+            stateDescription = if (isPlaying) "Playing" else "Paused",
             onClick = onTogglePlayPause,
             accent = true,
             modifier = Modifier.size(width = 64.dp, height = 50.dp),
@@ -697,7 +715,7 @@ internal fun TransportControls(
         )
         VideoControlIconButton(
             iconResId = if (videoActive) VideoR.drawable.smarttube_ic_fast_forward else VideoR.drawable.smarttube_ic_skip_next,
-            contentDescription = if (videoActive) "Fast-forward 10 seconds" else "Next",
+            contentDescription = if (videoActive) "Fast-forward 10 seconds" else "Next track",
             onClick = onNext,
         )
         if (videoActive) {

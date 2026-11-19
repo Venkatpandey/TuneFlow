@@ -59,6 +59,13 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
@@ -621,6 +628,7 @@ fun VideoCandidateLoadingPanel(modifier: Modifier = Modifier) {
                 .width(360.dp)
                 .fillMaxHeight()
                 .progressSemantics()
+                .semantics { liveRegion = LiveRegionMode.Polite }
                 .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f))
                 .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.28f), MaterialTheme.shapes.large)
@@ -717,6 +725,7 @@ fun VideoCandidatePicker(
             text = "${candidates.size} matches. Select one to play full screen.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
@@ -806,6 +815,7 @@ fun VideoErrorCard(
                 .fillMaxWidth()
                 .clip(MaterialTheme.shapes.medium)
                 .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.84f))
+                .semantics { liveRegion = LiveRegionMode.Assertive }
                 .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -849,7 +859,12 @@ private fun VideoCandidateRow(
                     if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
                     MaterialTheme.shapes.medium,
                 )
-                .clickable(onClick = onClick)
+                .clickable(role = Role.Button, onClick = onClick)
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription =
+                        "Video: ${candidate.title} by ${candidate.publisher}, duration ${formatVideoDuration(candidate.durationMs)}"
+                }
                 .padding(8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -925,6 +940,7 @@ fun VideoControlIconButton(
     modifier: Modifier = Modifier,
     accent: Boolean = false,
     enabled: Boolean = true,
+    stateDescription: String? = null,
     requestFocusId: Long = 0L,
     requestFocus: Boolean = false,
     onRequestedFocusApplied: () -> Unit = {},
@@ -945,11 +961,18 @@ fun VideoControlIconButton(
         modifier =
             modifier
                 .size(width = 56.dp, height = 46.dp)
+                .semantics {
+                    role = Role.Button
+                    this.contentDescription = contentDescription
+                    if (stateDescription != null) {
+                        this.stateDescription = stateDescription
+                    }
+                }
                 .then(if (requestsOwnFocus) Modifier.focusRequester(requester) else Modifier),
     ) {
         Icon(
             painter = painterResource(iconResId),
-            contentDescription = contentDescription,
+            contentDescription = null,
             modifier = Modifier.size(30.dp),
             tint = if (accent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
         )

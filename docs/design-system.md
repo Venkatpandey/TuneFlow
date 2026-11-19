@@ -594,12 +594,22 @@ Screens are divided into focus regions. D-pad navigation stays within a region u
 - Do **not** animate more than 3 elements simultaneously.
 - Do **not** animate during active D-pad navigation (only animate on focus settle).
 
-### 7.5 Runtime Motion Policy
+### 7.5 Runtime Motion & Reduced-Motion Policy
 
-- Shared TV cards, actions, fields, and track rows use the motion tokens from `core/design`.
-- Forward navigation moves left, Back moves right, and Now Playing opens/closes vertically to preserve hierarchy.
-- When Android's animator duration scale is disabled, focus, artwork, metadata, and screen transitions snap to their final state.
-- Track rows remain fixed at 72dp and never scale.
+- **Unified Policy Configuration:**
+  - Evaluates system animator duration scale (`Settings.Global.ANIMATOR_DURATION_SCALE`) combined with the in-app preference store (`MotionPreference`: `System`, `Always`, `Never`).
+  - Available via `LocalTuneFlowMotion.current`, providing `enabled: Boolean`, focus durations, screen navigation durations, and focus scale multipliers.
+- **Reduced Motion Tokens (`TuneFlowMotion.reduced()`):**
+  - Focus scale multiplier collapses from `1.04f` / `1.08f` to `1.0f` (no scaling).
+  - Transition and feedback durations collapse to `0ms`.
+  - All animated visibility (`AnimatedVisibility`) transitions replace slide and fade transitions with `snap()`.
+- **Instant State Replacements:**
+  - Screen transitions, dialogs, banners (`ExitPromptBanner`, `FavoriteFeedbackBanner`), and side panels (Queue, Lyrics, Video candidates) snap into place immediately without slide offsets.
+  - Skeletons: `Modifier.shimmerEffect()` checks `LocalTuneFlowMotion.current.enabled`. Under reduced motion, it returns a static `surfaceVariant` background without initiating any `rememberInfiniteTransition` or canvas brush translations.
+  - Image crossfading: Coil `ImageRequest.Builder.crossfade(motion.enabled)` disables image crossfade when reduced motion is active.
+- **Functional Position & Scroll Tracking:**
+  - Auto-scrolling in the Now Playing queue, playlist detail tracks, and synchronized lyrics continues to function: animated scrolls (`animateScrollToItem`, `animateScrollBy`) are swapped for instant snaps (`scrollToItem`, `scrollBy`).
+  - Active item visibility is strictly preserved at 10-foot viewing distance without disorienting continuous motion.
 
 ---
 
@@ -874,36 +884,72 @@ blur-like treatment without a real-time GPU blur. Artwork and metadata crossfade
 | Disabled text | No requirement | ~2.5:1 |
 | Focus border vs. background | 3:1 | 4.5:1 |
 
-### 11.3 Focus Visibility Requirements
+### 11.3 Focus Visibility Requirements (10-Foot UI)
 
-- Focus indicator must be visible against **all** possible backgrounds (dark cards, light album art).
-- Use both border AND scale change — never rely on a single indicator.
-- Focus border minimum width: 2dp.
-- Focus glow minimum blur: 8dp.
-- Focused element must be fully visible on screen (auto-scroll to bring focused item into view).
+- Focus indicators must remain prominent at a 10-foot viewing distance on TV screens without relying on motion (scale) or color alone.
+- Under reduced motion (where scale change is disabled and remains 1.0f), focus is conveyed by:
+  - High-contrast border (2dp minimum width, using `onSurface` at 0.92f alpha or `primary` champagne accent on interactive surfaces).
+  - Background surface elevation / luminosity change (`surfaceVariant` with boosted alpha).
+  - High luminance differential that passes a minimum 3:1 contrast ratio against adjacent surfaces and surrounding backdrops.
+- Focused items must always be fully visible in the viewport (auto-scrolling or snapping to center as necessary).
 
-### 11.4 Content Descriptions
+### 11.4 Semantics, Roles, and Labels
 
-All interactive elements must have `contentDescription` set:
+- **Actionable Controls:** Every interactive surface must expose an explicit semantic role (`Role.Button`, `Role.Tab`) and human-readable `contentDescription`:
+  ```kotlin
+  TuneFlowActionSurface(
+      onClick = onClick,
+      modifier = modifier.semantics {
+          role = Role.Button
+          this.contentDescription = "Play album"
+      }
+  )
+  ```
+- **State Descriptions:** Dynamic controls must supply descriptive `stateDescription` strings to assistive technology:
+  - Play / Pause: `"Playing"` / `"Paused"`
+  - Queue / Lyrics panels: `"Expanded"` / `"Collapsed"`
+  - Playback Mode: `"Normal"`, `"Shuffle"`, `"Repeat One"`, `"Repeat All"`
+  - Favorite Toggles: `"Favorite"` / `"Not favorite"`, with `"Updating favorite status"` when pending.
+  - Disabled actions: `"Disabled"`.
+- **Compound & Composite Cards:**
+  - Group cards and list rows with `Modifier.semantics(mergeDescendants = true)` so TalkBack reads a single coherent sentence (e.g., `"Album: Midnight Melodies by TuneFlow Ensemble"`).
+  - Inner artwork and decorative background icons must set `contentDescription = null` to prevent duplicate or confusing announcements in screen readers.
 
-```kotlin
-// ✅ Correct
-IconButton(
-    onClick = { /* ... */ },
-    modifier = Modifier.semantics { contentDescription = "Play ${track.title}" }
-)
+### 11.5 Live Regions (`liveRegion`)
 
-// ❌ Wrong
-IconButton(onClick = { /* ... */ }) {
-    Icon(Icons.Filled.PlayArrow, contentDescription = null)
-}
-```
+Live regions inform screen reader users of asynchronous state changes without interrupting active focus traversal:
 
-### 11.5 TalkBack / Accessibility Service
+| State | Region Mode | Element | Announcement Example |
+|---|---|---|---|
+| **1. Loading** | `Polite` | Skeletons & progress indicators | "Loading albums", "Buffering stream" |
+| **2. Empty** | `Polite` | Filter/category empty containers | "No playlists match your filter." |
+| **3. Error** | `Assertive` | Error cards, connection banners | "Playback failed: Network timeout." |
+| **4. Favorite** | `Polite` | Favorite toast/feedback banner | "Added to Favorites", "Removed from Favorites" |
+| **5. Update** | `Polite` | App update & about dialogs | "Checking for updates...", "Downloading update (45%)" |
+| **6. Lyrics** | `Polite` | Lyrics container | "Lyrics panel open", active synchronized line |
+| **7. Queue** | `Polite` | Track list side panel | "Track list open, 24 tracks" |
+| **8. Video** | `Polite` | Candidate picker overlay | "Found 3 matching videos" |
 
-- All screens must be navigable with TalkBack enabled.
-- Group related elements with `Modifier.semantics(mergeDescendants = true)`.
-- Announce playback state changes with `LiveRegion`.
+### 11.6 Manual Verification Protocol (TalkBack & Fire TV VoiceView)
+
+Run this smoke check checklist when verifying accessibility on physical TV devices or emulators:
+
+1. **Screen Reader Activation:** Enable TalkBack (Android TV: Settings → System → Accessibility → TalkBack) or VoiceView (Fire TV: Settings → Accessibility → VoiceView).
+2. **Navigation Rail & Home Exploration:**
+   - Traverse the navigation rail using D-pad: verify each tab announces its title and "Tab" role.
+   - Navigate into Home shelves: verify cards announce compound label (title, artist/creator) and "Button" role without reading nested images.
+3. **Motion Settings Verification:**
+   - Open App Settings Dialog → Motion section.
+   - Cycle between **System Default**, **Reduced Motion (On)**, and **Standard Motion (Off)**.
+   - Under **Reduced Motion (On)**:
+     - Verify focus border and background change snap instantly without scale enlargement.
+     - Skeletons show a static `surfaceVariant` placeholder without animated shimmer.
+     - Opening Now Playing, Queue, or Lyrics snaps instantly into view without slide animations.
+     - D-pad movement through Queue or Lyrics snaps list position (`scrollToItem`) with focused/active line visible.
+     - Toggling favorite shows banner without slide animation; TalkBack announces feedback politely.
+4. **Error & Empty State Smoke Test:**
+   - Perform a search query with 0 results: verify TalkBack announces empty text politely.
+   - Trigger network disconnection or simulated playback error: verify TalkBack announces error assertively.
 
 ---
 

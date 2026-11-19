@@ -32,6 +32,10 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -82,6 +86,7 @@ internal fun AppUpdateDialog(
                     text = state.message(),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
                 (state as? AppUpdateUiState.Available)?.release?.releaseNotes?.let { releaseNotes ->
                     AppReleaseNotes(releaseNotes)
@@ -170,14 +175,21 @@ private fun UpdateDialogControls(
 
 @Composable
 private fun DownloadProgress(progress: Float) {
+    val percent = (progress * 100).roundToInt()
     LinearProgressIndicator(
         progress = { progress },
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics {
+                    contentDescription = "Download progress $percent percent"
+                },
     )
     Text(
-        text = "${(progress * 100).roundToInt()}%",
+        text = "$percent%",
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
     )
 }
 

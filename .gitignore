@@ -1,5 +1,6 @@
 .gradle/
 .gradle-home/
+.kotlin/
 /local.properties
 /.idea/
 .DS_Store
