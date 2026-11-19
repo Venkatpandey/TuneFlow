@@ -854,7 +854,7 @@ blur-like treatment without a real-time GPU blur. Artwork and metadata crossfade
 
 ### 10.5 Premium Ambient Playback
 
-- Debug and beta builds include the premium ambient presentation for local testing; stable release builds keep it gated.
+- Premium ambient presentation is enabled by default across all builds, including stable release builds.
 - Ambient playback reuses the low-resolution Now Playing background and enters through the existing 60-second playback-idle controller.
 - The foreground group shifts among four low-amplitude positions once per minute to reduce burn-in risk.
 - Reduced-motion mode snaps between burn-in positions and removes continuous transition motion.
