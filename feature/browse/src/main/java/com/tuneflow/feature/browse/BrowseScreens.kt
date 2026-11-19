@@ -406,22 +406,46 @@ fun ArtistDetailScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
                         alpha = 0.34f,
-                        placeholderText = artist.name,
                     )
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
-                        Text(
-                            text = artist.name,
-                            style = MaterialTheme.typography.displaySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = "${artist.albumCount} albums",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Box(
+                            modifier =
+                                Modifier
+                                    .size(168.dp)
+                                    .clip(TuneFlowShapes.avatar)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.66f)),
+                        ) {
+                            TuneFlowArtwork(
+                                model = artist.artUrl,
+                                contentDescription = artist.name,
+                                width = 168.dp,
+                                height = 168.dp,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                placeholderText = artist.name,
+                            )
+                        }
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = artist.name,
+                                style = MaterialTheme.typography.displaySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                text = "${artist.albumCount} albums",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
 
@@ -913,8 +937,8 @@ fun SearchScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         items(state.result.artists, key = { it.id }) { artist ->
-                            PremiumChip(
-                                label = artist.name,
+                            SearchArtistCard(
+                                artist = artist,
                                 onClick = { onOpenArtist(artist.id) },
                                 modifier =
                                     if (
@@ -1924,6 +1948,49 @@ private fun searchFieldColors() =
         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f),
     )
+
+@Composable
+private fun SearchArtistCard(
+    artist: ArtistSummary,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FocusScaleCard(
+        modifier = modifier.width(172.dp),
+        onClick = onClick,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(148.dp)
+                        .clip(TuneFlowShapes.avatar)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f)),
+            ) {
+                TuneFlowArtwork(
+                    model = artist.artUrl,
+                    contentDescription = artist.name,
+                    width = 148.dp,
+                    height = 148.dp,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    placeholderText = artist.name,
+                )
+            }
+            Text(
+                text = artist.name,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
 
 @Composable
 private fun PremiumAlbumCard(
