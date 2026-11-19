@@ -48,7 +48,7 @@ android {
 
         buildConfigField("String", "PREFERRED_VIDEO_SERVICE_URL", "\"$preferredVideoServiceUrl\"")
         buildConfigField("boolean", "APP_UPDATE_ENABLED", "true")
-        buildConfigField("boolean", "PREMIUM_FEATURES_ENABLED", "false")
+        buildConfigField("boolean", "PREMIUM_FEATURES_ENABLED", "true")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -87,7 +87,6 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
-            buildConfigField("boolean", "PREMIUM_FEATURES_ENABLED", "true")
         }
         release {
             isMinifyEnabled = false
@@ -105,7 +104,6 @@ android {
             matchingFallbacks += listOf("release")
             resValue("string", "app_name", "TuneFlow Beta")
             buildConfigField("boolean", "APP_UPDATE_ENABLED", "false")
-            buildConfigField("boolean", "PREMIUM_FEATURES_ENABLED", "true")
         }
     }
 
