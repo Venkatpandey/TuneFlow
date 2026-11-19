@@ -79,6 +79,54 @@ class BrowseRepositoryTest {
         }
 
     @Test
+    fun getRecentlyAddedAlbums_mapsData() =
+        runTest {
+            val repository =
+                BrowseRepository(
+                    sessionProvider = SessionProvider { session },
+                    clientProvider =
+                        NavidromeClientProvider {
+                            object : NavidromeClient(it) {
+                                override suspend fun getRecentlyAddedAlbums(
+                                    size: Int,
+                                    offset: Int,
+                                ): NetworkResult<List<AlbumDto>> {
+                                    return NetworkResult.Success(listOf(AlbumDto(id = "a-new", name = "Newest Album", artist = "Artist")))
+                                }
+                            }
+                        },
+                )
+
+            val result = repository.getRecentlyAddedAlbums(size = 10, offset = 0)
+            assertTrue(result.isSuccess)
+            assertEquals("Newest Album", result.getOrNull()?.first()?.title)
+        }
+
+    @Test
+    fun getRecentlyPlayedAlbums_mapsData() =
+        runTest {
+            val repository =
+                BrowseRepository(
+                    sessionProvider = SessionProvider { session },
+                    clientProvider =
+                        NavidromeClientProvider {
+                            object : NavidromeClient(it) {
+                                override suspend fun getRecentlyPlayedAlbums(
+                                    size: Int,
+                                    offset: Int,
+                                ): NetworkResult<List<AlbumDto>> {
+                                    return NetworkResult.Success(listOf(AlbumDto(id = "a-rec", name = "Played Album", artist = "Artist")))
+                                }
+                            }
+                        },
+                )
+
+            val result = repository.getRecentlyPlayedAlbums(size = 10, offset = 0)
+            assertTrue(result.isSuccess)
+            assertEquals("Played Album", result.getOrNull()?.first()?.title)
+        }
+
+    @Test
     fun getPlaylistDetail_mapsTracks() =
         runTest {
             val repository =

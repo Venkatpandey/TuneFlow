@@ -31,6 +31,8 @@ data class HomeRailUiState(
 )
 
 data class HomeUiState(
+    val recentlyPlayedAlbums: List<AlbumSummary> = emptyList(),
+    val recentlyAddedAlbums: List<AlbumSummary> = emptyList(),
     val recentAlbums: List<AlbumSummary> = emptyList(),
     val playlists: List<PlaylistSummary> = emptyList(),
     val favorites: FavoritesBundle = FavoritesBundle(emptyList(), emptyList()),
@@ -61,6 +63,8 @@ class HomeViewModel(
     private var playlists = emptyList<PlaylistSummary>()
     private var favorites = FavoritesBundle(emptyList(), emptyList())
     private var albumOffset = 0
+    private var recentlyPlayedOffset = 0
+    private var recentlyAddedOffset = 0
 
     init {
         viewModelScope.launch {
@@ -78,6 +82,8 @@ class HomeViewModel(
         playlists = emptyList()
         favorites = FavoritesBundle(emptyList(), emptyList())
         albumOffset = 0
+        recentlyPlayedOffset = 0
+        recentlyAddedOffset = 0
         _uiState.update { HomeUiState(videoHistory = it.videoHistory, visibleVideoHistoryCount = HOME_VIDEO_HISTORY_PAGE_SIZE) }
         viewModelScope.launch { preferredVideoStore.refreshHistory() }
     }
@@ -138,6 +144,8 @@ class HomeViewModel(
             viewModelScope.launch {
                 val result =
                     when (category) {
+                        HomeCategoryKind.RecentlyPlayed -> loadRecentlyPlayedAlbums()
+                        HomeCategoryKind.RecentlyAdded -> loadRecentlyAddedAlbums()
                         HomeCategoryKind.Albums -> loadAlbums()
                         HomeCategoryKind.Artists -> loadArtists(append)
                         HomeCategoryKind.Favorites -> loadFavorites(append)
@@ -154,12 +162,48 @@ class HomeViewModel(
             }
     }
 
+    private suspend fun loadRecentlyPlayedAlbums(): Result<Boolean> {
+        val result = repository.getRecentlyPlayedAlbums(HOME_RAIL_PAGE_SIZE, recentlyPlayedOffset)
+        currentCoroutineContext().ensureActive()
+        return result.map { page ->
+            recentlyPlayedOffset += page.size
+            _uiState.update {
+                it.copy(
+                    recentlyPlayedAlbums = (it.recentlyPlayedAlbums + page).distinctBy(AlbumSummary::id),
+                )
+            }
+            page.size == HOME_RAIL_PAGE_SIZE
+        }
+    }
+
+    private suspend fun loadRecentlyAddedAlbums(): Result<Boolean> {
+        val result = repository.getRecentlyAddedAlbums(HOME_RAIL_PAGE_SIZE, recentlyAddedOffset)
+        currentCoroutineContext().ensureActive()
+        return result.map { page ->
+            recentlyAddedOffset += page.size
+            _uiState.update {
+                val updated = (it.recentlyAddedAlbums + page).distinctBy(AlbumSummary::id)
+                it.copy(
+                    recentlyAddedAlbums = updated,
+                    recentAlbums = updated,
+                )
+            }
+            page.size == HOME_RAIL_PAGE_SIZE
+        }
+    }
+
     private suspend fun loadAlbums(): Result<Boolean> {
         val result = repository.getAlbums(HOME_RAIL_PAGE_SIZE, albumOffset)
         currentCoroutineContext().ensureActive()
         return result.map { page ->
             albumOffset += page.size
-            _uiState.update { it.copy(recentAlbums = (it.recentAlbums + page).distinctBy(AlbumSummary::id)) }
+            _uiState.update {
+                val updated = (it.recentAlbums + page).distinctBy(AlbumSummary::id)
+                it.copy(
+                    recentAlbums = updated,
+                    recentlyAddedAlbums = if (it.recentlyAddedAlbums.isEmpty()) updated else it.recentlyAddedAlbums,
+                )
+            }
             page.size == HOME_RAIL_PAGE_SIZE
         }
     }

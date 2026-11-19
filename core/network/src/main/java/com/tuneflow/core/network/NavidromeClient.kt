@@ -28,12 +28,14 @@ open class NavidromeClient(private val session: SessionData) {
     }
 
     open suspend fun getAlbums(
+        type: String,
         size: Int,
         offset: Int,
     ): NetworkResult<List<AlbumDto>> {
         return safeCall {
             val response =
                 api.getAlbumList(
+                    type = type,
                     size = size,
                     offset = offset,
                     username = session.username,
@@ -48,6 +50,21 @@ open class NavidromeClient(private val session: SessionData) {
             }
         }
     }
+
+    open suspend fun getAlbums(
+        size: Int,
+        offset: Int,
+    ): NetworkResult<List<AlbumDto>> = getAlbums(type = "newest", size = size, offset = offset)
+
+    open suspend fun getRecentlyAddedAlbums(
+        size: Int,
+        offset: Int,
+    ): NetworkResult<List<AlbumDto>> = getAlbums(type = "newest", size = size, offset = offset)
+
+    open suspend fun getRecentlyPlayedAlbums(
+        size: Int,
+        offset: Int,
+    ): NetworkResult<List<AlbumDto>> = getAlbums(type = "recent", size = size, offset = offset)
 
     open suspend fun getAlbum(albumId: String): NetworkResult<AlbumDetailDto> {
         return safeCall {

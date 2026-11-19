@@ -272,6 +272,68 @@ class NavidromeApiIntegrationTest {
         assertEquals(NetworkErrorKind.Network, (result as NetworkResult.Error).kind)
     }
 
+    @Test
+    fun getRecentlyAddedAlbums_sendsNewestType() {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "subsonic-response": {
+                    "status": "ok",
+                    "version": "1.16.1",
+                    "albumList": {
+                      "album": [
+                        {"id": "a-new", "name": "New Album", "artist": "Artist"}
+                      ]
+                    }
+                  }
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.start()
+        val client = clientFor(server)
+
+        val result = kotlinx.coroutines.runBlocking { client.getRecentlyAddedAlbums(size = 10, offset = 0) }
+
+        assertTrue(result is NetworkResult.Success)
+        val request = server.takeRequest()
+        assertTrue(request.path.orEmpty().contains("type=newest"))
+        server.shutdown()
+    }
+
+    @Test
+    fun getRecentlyPlayedAlbums_sendsRecentType() {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "subsonic-response": {
+                    "status": "ok",
+                    "version": "1.16.1",
+                    "albumList": {
+                      "album": [
+                        {"id": "a-recent", "name": "Recent Album", "artist": "Artist"}
+                      ]
+                    }
+                  }
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.start()
+        val client = clientFor(server)
+
+        val result = kotlinx.coroutines.runBlocking { client.getRecentlyPlayedAlbums(size = 10, offset = 0) }
+
+        assertTrue(result is NetworkResult.Success)
+        val request = server.takeRequest()
+        assertTrue(request.path.orEmpty().contains("type=recent"))
+        server.shutdown()
+    }
+
     private fun clientFor(server: MockWebServer): NavidromeClient =
         NavidromeClient(
             SessionData(

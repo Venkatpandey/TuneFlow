@@ -14,6 +14,8 @@ import kotlinx.coroutines.launch
 
 enum class HomeCategoryKind {
     Favorites,
+    RecentlyPlayed,
+    RecentlyAdded,
     Artists,
     Albums,
     Playlists,
@@ -33,6 +35,8 @@ data class HomeCategoryUiState(
         get() =
             when (category) {
                 HomeCategoryKind.Favorites -> "Favorites"
+                HomeCategoryKind.RecentlyPlayed -> "Recently Played"
+                HomeCategoryKind.RecentlyAdded -> "Recently Added"
                 HomeCategoryKind.Artists -> "Artists"
                 HomeCategoryKind.Albums -> "Albums"
                 HomeCategoryKind.Playlists -> "Playlists"
@@ -99,6 +103,8 @@ class HomeCategoryViewModel(
         viewModelScope.launch {
             when (category) {
                 HomeCategoryKind.Favorites -> loadFavorites(category)
+                HomeCategoryKind.RecentlyPlayed -> loadRecentlyPlayed(category)
+                HomeCategoryKind.RecentlyAdded -> loadRecentlyAdded(category)
                 HomeCategoryKind.Artists -> loadArtists(category)
                 HomeCategoryKind.Albums -> loadAlbums(category)
                 HomeCategoryKind.Playlists -> loadPlaylists(category)
@@ -130,33 +136,28 @@ class HomeCategoryViewModel(
         }
     }
 
-    private suspend fun loadArtists(category: HomeCategoryKind) {
-        val result = repository.getArtists()
-        _uiState.update {
-            if (result.isSuccess) {
-                it.copy(
-                    category = category,
-                    isLoading = false,
-                    artists = result.getOrNull().orEmpty(),
-                    error = null,
-                )
-            } else {
-                it.copy(
-                    category = category,
-                    isLoading = false,
-                    error = result.exceptionOrNull()?.message,
-                )
-            }
-        }
+    private suspend fun loadRecentlyPlayed(category: HomeCategoryKind) {
+        loadAlbumCategory(category, repository::getRecentlyPlayedAlbums)
+    }
+
+    private suspend fun loadRecentlyAdded(category: HomeCategoryKind) {
+        loadAlbumCategory(category, repository::getRecentlyAddedAlbums)
     }
 
     private suspend fun loadAlbums(category: HomeCategoryKind) {
+        loadAlbumCategory(category, repository::getAlbums)
+    }
+
+    private suspend fun loadAlbumCategory(
+        category: HomeCategoryKind,
+        fetcher: suspend (size: Int, offset: Int) -> Result<List<AlbumSummary>>,
+    ) {
         val albums = mutableListOf<AlbumSummary>()
         var offset = 0
         val pageSize = 100
 
         while (true) {
-            val result = repository.getAlbums(size = pageSize, offset = offset)
+            val result = fetcher(pageSize, offset)
             if (result.isFailure) {
                 _uiState.update {
                     it.copy(
@@ -181,6 +182,26 @@ class HomeCategoryViewModel(
                 albums = albums,
                 error = null,
             )
+        }
+    }
+
+    private suspend fun loadArtists(category: HomeCategoryKind) {
+        val result = repository.getArtists()
+        _uiState.update {
+            if (result.isSuccess) {
+                it.copy(
+                    category = category,
+                    isLoading = false,
+                    artists = result.getOrNull().orEmpty(),
+                    error = null,
+                )
+            } else {
+                it.copy(
+                    category = category,
+                    isLoading = false,
+                    error = result.exceptionOrNull()?.message,
+                )
+            }
         }
     }
 
