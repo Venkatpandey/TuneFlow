@@ -6,14 +6,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -29,10 +34,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowShapes
 
 internal data class AppBuildInfo(
@@ -53,6 +63,7 @@ internal fun AppAboutDialog(
     accountUsername: String? = null,
     accountServerUrl: String? = null,
     onLogout: () -> Unit = {},
+    onOpenSettings: (() -> Unit)? = null,
 ) {
     val checking = updateCheckState == AppUpdateCheckUiState.Checking
     val primaryFocusRequester = remember { FocusRequester() }
@@ -115,12 +126,40 @@ internal fun AppAboutDialog(
                         }
                     }
                 } else {
-                    Text(
-                        text = "About ${buildInfo.appName}",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "About ${buildInfo.appName}",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (onOpenSettings != null) {
+                            TuneFlowActionSurface(
+                                onClick = onOpenSettings,
+                                shape = TuneFlowShapes.avatar,
+                                contentPadding = PaddingValues(8.dp),
+                                contentAlignment = Alignment.Center,
+                                modifier =
+                                    Modifier
+                                        .size(44.dp)
+                                        .semantics {
+                                            role = Role.Button
+                                            contentDescription = "Open Settings. Select themes and display options."
+                                        },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                            }
+                        }
+                    }
                     AppBuildDetails(buildInfo)
                     if (!accountUsername.isNullOrBlank() || !accountServerUrl.isNullOrBlank()) {
                         AppAccountDetails(accountUsername, accountServerUrl)
@@ -142,6 +181,20 @@ internal fun AppAboutDialog(
                             shape = TuneFlowShapes.row,
                         ) {
                             Text("Log Out")
+                        }
+                        if (onOpenSettings != null) {
+                            OutlinedButton(
+                                onClick = onOpenSettings,
+                                shape = TuneFlowShapes.row,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Settings")
+                            }
                         }
                         Spacer(Modifier.weight(1f))
                         OutlinedButton(

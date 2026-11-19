@@ -214,7 +214,6 @@ class MainActivity : ComponentActivity() {
                         onVideoMediaKeyHandlerChanged = { videoMediaKeyHandler = it },
                         appVersionName = BuildConfig.VERSION_NAME,
                         onOpenAbout = { showAboutDialog = true },
-                        onOpenSettings = { showSettingsDialog = true },
                         onExitApp = ::closeAppToSystem,
                     )
                 }
@@ -232,6 +231,10 @@ class MainActivity : ComponentActivity() {
                             playerManager.stopAndClear()
                             authViewModel.logout()
                         },
+                        onOpenSettings = {
+                            showAboutDialog = false
+                            showSettingsDialog = true
+                        },
                         onDismiss = { showAboutDialog = false },
                     )
                 }
@@ -240,14 +243,14 @@ class MainActivity : ComponentActivity() {
                     AppSettingsDialog(
                         currentThemeId = currentThemeId,
                         onPreviewTheme = { previewThemeId = it },
-                        onApplyTheme = { themeId ->
+                        onSaveTheme = { themeId ->
                             lifecycleScope.launch {
                                 themePreferencesStore.setThemeId(themeId)
                             }
                             previewThemeId = null
                             showSettingsDialog = false
                         },
-                        onDismiss = {
+                        onCancelTheme = {
                             previewThemeId = null
                             showSettingsDialog = false
                         },
@@ -721,7 +724,6 @@ private fun TuneFlowShell(
     onVideoMediaKeyHandlerChanged: (((Int) -> Boolean)?) -> Unit,
     appVersionName: String,
     onOpenAbout: () -> Unit,
-    onOpenSettings: () -> Unit,
     onExitApp: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -1012,7 +1014,6 @@ private fun TuneFlowShell(
         favoriteErrorMessage = favoriteError?.message,
         appVersionName = appVersionName,
         onOpenAbout = onOpenAbout,
-        onOpenSettings = onOpenSettings,
     )
 }
 

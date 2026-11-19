@@ -9,6 +9,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,16 +18,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.tuneflow.core.design.ThemePreviewColors
+import com.tuneflow.core.design.TuneFlowActionSurface
 import com.tuneflow.core.design.TuneFlowShapes
 import com.tuneflow.core.design.TuneFlowThemeDefinition
 import com.tuneflow.core.design.TuneFlowThemes
@@ -54,20 +57,18 @@ import com.tuneflow.core.network.ScreenScaleOption
 internal fun AppSettingsDialog(
     currentThemeId: String,
     onPreviewTheme: (String) -> Unit,
-    onApplyTheme: (String) -> Unit,
-    onDismiss: () -> Unit,
+    onSaveTheme: (String) -> Unit,
+    onCancelTheme: () -> Unit,
     currentScreenScale: ScreenScaleOption = ScreenScaleOption.Compact,
     onScreenScaleSelected: ((ScreenScaleOption) -> Unit)? = null,
 ) {
-    var selectedThemeId by remember { mutableStateOf(currentThemeId) }
-    var selectedScale by remember { mutableStateOf(currentScreenScale) }
-    val initialFocusRequester = remember { FocusRequester() }
+    var selectedThemeId by rememberSaveable { mutableStateOf(currentThemeId) }
+    var selectedScale by rememberSaveable { mutableStateOf(currentScreenScale) }
+    val themeFocusRequesters = remember { TuneFlowThemes.all.map { FocusRequester() } }
+    var hasRequestedInitialFocus by rememberSaveable { mutableStateOf(false) }
 
     Dialog(
-        onDismissRequest = {
-            onPreviewTheme(currentThemeId)
-            onDismiss()
-        },
+        onDismissRequest = onCancelTheme,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Box(
@@ -77,107 +78,122 @@ internal fun AppSettingsDialog(
                     .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.78f)),
             contentAlignment = Alignment.Center,
         ) {
-            Column(
-                modifier =
-                    Modifier
-                        .width(760.dp)
-                        .clip(TuneFlowShapes.panel)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(28.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = "Settings",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-
-                Text(
-                    text = "Themes",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = "Personalize colors while keeping high contrast and obvious TV focus.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
+            TuneFlowScaledContent(scaleFactor = ScreenScaleOption.Compact.factor) {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier =
+                        Modifier
+                            .width(760.dp)
+                            .clip(TuneFlowShapes.panel)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .verticalScroll(rememberScrollState())
+                            .padding(28.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    TuneFlowThemes.all.forEachIndexed { index, theme ->
-                        val isInitial = theme.id.rawId.equals(currentThemeId, ignoreCase = true)
-                        ThemeSelectionCard(
-                            theme = theme,
-                            isSelected = theme.id.rawId.equals(selectedThemeId, ignoreCase = true),
-                            isApplied = theme.id.rawId.equals(currentThemeId, ignoreCase = true),
-                            onSelect = {
-                                selectedThemeId = theme.id.rawId
-                                onPreviewTheme(theme.id.rawId)
-                            },
-                            modifier =
-                                if (isInitial || index == 0) {
-                                    Modifier.focusRequester(initialFocusRequester)
-                                } else {
-                                    Modifier
-                                },
-                        )
-                    }
-                }
-
-                if (onScreenScaleSelected != null) {
-                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "Display Scale",
-                        style = MaterialTheme.typography.titleSmall,
+                        text = "Settings",
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+
+                    Text(
+                        text = "Themes",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "Navigate with cursor up/down to preview themes. Press Save to confirm.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        ScreenScaleOption.entries.forEach { option ->
-                            ScaleSelectionChip(
-                                option = option,
-                                isSelected = option == selectedScale,
+                        TuneFlowThemes.all.forEachIndexed { index, theme ->
+                            ThemeSelectionCard(
+                                theme = theme,
+                                isSelected = theme.id.rawId.equals(selectedThemeId, ignoreCase = true),
+                                isApplied = theme.id.rawId.equals(currentThemeId, ignoreCase = true),
                                 onSelect = {
-                                    selectedScale = option
-                                    onScreenScaleSelected(option)
+                                    selectedThemeId = theme.id.rawId
+                                    onPreviewTheme(theme.id.rawId)
                                 },
+                                modifier = Modifier.focusRequester(themeFocusRequesters[index]),
                             )
                         }
                     }
-                }
 
-                Spacer(Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            onPreviewTheme(currentThemeId)
-                            onDismiss()
-                        },
-                        shape = TuneFlowShapes.row,
-                    ) {
-                        Text("Cancel")
+                    if (onScreenScaleSelected != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Display Scale",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            ScreenScaleOption.entries.forEach { option ->
+                                ScaleSelectionChip(
+                                    option = option,
+                                    isSelected = option == selectedScale,
+                                    onSelect = {
+                                        selectedScale = option
+                                        onScreenScaleSelected(option)
+                                    },
+                                )
+                            }
+                        }
                     }
-                    Button(
-                        onClick = {
-                            onApplyTheme(selectedThemeId)
-                            onDismiss()
-                        },
-                        shape = TuneFlowShapes.row,
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Apply")
+                        TuneFlowActionSurface(
+                            onClick = onCancelTheme,
+                            shape = TuneFlowShapes.button,
+                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                            modifier =
+                                Modifier.semantics {
+                                    role = Role.Button
+                                    contentDescription = "Cancel and discard theme preview"
+                                },
+                        ) {
+                            Text(
+                                text = "Cancel",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+
+                        TuneFlowActionSurface(
+                            onClick = { onSaveTheme(selectedThemeId) },
+                            accent = true,
+                            shape = TuneFlowShapes.button,
+                            contentPadding = PaddingValues(horizontal = 28.dp, vertical = 12.dp),
+                            modifier =
+                                Modifier.semantics {
+                                    role = Role.Button
+                                    contentDescription = "Save and apply selected theme"
+                                },
+                        ) {
+                            Text(
+                                text = "Save",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        }
                     }
                 }
             }
@@ -185,7 +201,15 @@ internal fun AppSettingsDialog(
     }
 
     LaunchedEffect(Unit) {
-        initialFocusRequester.requestFocus()
+        if (!hasRequestedInitialFocus) {
+            hasRequestedInitialFocus = true
+            val initialIndex =
+                TuneFlowThemes.all.indexOfFirst {
+                    it.id.rawId.equals(currentThemeId, ignoreCase = true)
+                }
+            val targetIndex = if (initialIndex >= 0) initialIndex else 0
+            themeFocusRequesters[targetIndex].requestFocus()
+        }
     }
 }
 
@@ -265,9 +289,24 @@ private fun ThemeSelectionCard(
                                 .padding(horizontal = 8.dp, vertical = 2.dp),
                     ) {
                         Text(
-                            text = "Applied",
+                            text = "Active",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                } else if (isSelected) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .clip(TuneFlowShapes.avatar)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = "Selected",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Medium,
                         )
                     }
@@ -346,6 +385,11 @@ private fun ScaleSelectionChip(
                 )
                 .onFocusChanged { focused = it.isFocused }
                 .clickable(role = Role.RadioButton, onClick = onSelect)
+                .semantics {
+                    role = Role.RadioButton
+                    selected = isSelected
+                    contentDescription = "Display scale ${option.name} ${option.percent}%. ${if (isSelected) "Selected." else ""}"
+                }
                 .focusable()
                 .padding(horizontal = 14.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
