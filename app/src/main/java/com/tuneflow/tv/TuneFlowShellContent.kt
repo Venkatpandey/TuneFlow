@@ -139,6 +139,9 @@ internal fun ShellContent(
                     onOpenVideoHistory = onOpenVideoHistory,
                     onPlayVideo = onPlayVideo,
                     onPlayTracks = onPlayTracks,
+                    onShuffleLibrary = {
+                        homeViewModel.shuffleLibrary(onTracksLoaded = onShuffleTracks)
+                    },
                     preferredVideoServiceUrl = preferredVideoServiceUrl,
                     onPreferredVideoServiceUrlChanged = onPreferredVideoServiceUrlChanged,
                 )

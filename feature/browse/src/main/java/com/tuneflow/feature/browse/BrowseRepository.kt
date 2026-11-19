@@ -20,10 +20,12 @@ import com.tuneflow.core.network.SessionProvider
 import com.tuneflow.core.network.SessionStore
 import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.network.TrackStreamOptions
+import com.tuneflow.core.network.TrackSummary
 import com.tuneflow.core.network.toBundle
 import com.tuneflow.core.network.toDetail
 import com.tuneflow.core.network.toFavoritesBundle
 import com.tuneflow.core.network.toSummary
+import com.tuneflow.core.network.toTrack
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -179,6 +181,18 @@ class BrowseRepository(
             }
         search.getOrNull()?.let { favoriteStore.seedMissing(sessionClient.session, it.tracks) }
         return search
+    }
+
+    suspend fun getRandomSongs(size: Int = 100): Result<List<TrackSummary>> {
+        val sessionClient = requireSessionClient().getOrElse { return Result.failure(it) }
+        return when (val result = sessionClient.client.getRandomSongs(size)) {
+            is NetworkResult.Success -> {
+                val tracks = result.data.map { it.toTrack().withArtwork(sessionClient.session) }
+                favoriteStore.seedMissing(sessionClient.session, tracks)
+                Result.success(tracks)
+            }
+            is NetworkResult.Error -> Result.failure(IllegalStateException(result.message))
+        }
     }
 
     suspend fun synchronizeSession(session: SessionData?) {
