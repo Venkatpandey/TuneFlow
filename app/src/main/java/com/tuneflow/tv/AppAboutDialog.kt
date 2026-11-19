@@ -11,9 +11,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -53,6 +57,7 @@ internal fun AppAboutDialog(
     accountUsername: String? = null,
     accountServerUrl: String? = null,
     onLogout: () -> Unit = {},
+    onOpenSettings: (() -> Unit)? = null,
 ) {
     val checking = updateCheckState == AppUpdateCheckUiState.Checking
     val primaryFocusRequester = remember { FocusRequester() }
@@ -142,6 +147,20 @@ internal fun AppAboutDialog(
                             shape = TuneFlowShapes.row,
                         ) {
                             Text("Log Out")
+                        }
+                        if (onOpenSettings != null) {
+                            OutlinedButton(
+                                onClick = onOpenSettings,
+                                shape = TuneFlowShapes.row,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Settings")
+                            }
                         }
                         Spacer(Modifier.weight(1f))
                         OutlinedButton(

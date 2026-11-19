@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tuneflow.core.design.TuneFlowThemes
 import com.tuneflow.core.network.AppUpdateRepositoryFactory
 import com.tuneflow.core.network.DataStoreSessionProvider
 import com.tuneflow.core.network.PlaybackPreferencesStore
@@ -46,6 +47,7 @@ import com.tuneflow.core.network.PlaylistUsageStore
 import com.tuneflow.core.network.ScreenScaleOption
 import com.tuneflow.core.network.SearchHistoryStore
 import com.tuneflow.core.network.SessionStore
+import com.tuneflow.core.network.ThemePreferencesStore
 import com.tuneflow.core.network.TrackFavoriteStore
 import com.tuneflow.core.network.TrackStreamOptions
 import com.tuneflow.core.player.FLAC_AUDIO_MIME_TYPE
@@ -88,6 +90,7 @@ class MainActivity : ComponentActivity() {
     @Volatile
     private var screensaverActive = false
 
+    @Suppress("CyclomaticComplexMethod", "LongMethod")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -96,6 +99,7 @@ class MainActivity : ComponentActivity() {
         val playlistFavoriteStore = PlaylistFavoriteStore(applicationContext, sessionStore)
         val playlistUsageStore = PlaylistUsageStore(applicationContext, sessionStore)
         val playbackPreferencesStore = PlaybackPreferencesStore(applicationContext)
+        val themePreferencesStore = ThemePreferencesStore(applicationContext, sessionStore)
         val preferredVideoServiceConfigStore =
             PreferredVideoServiceConfigStore(applicationContext, BuildConfig.PREFERRED_VIDEO_SERVICE_URL)
         val preferredVideoStore = RemotePreferredVideoStore(preferredVideoServiceConfigStore.serviceUrl)
@@ -132,7 +136,17 @@ class MainActivity : ComponentActivity() {
             }
 
         setContent {
-            TuneFlowTheme {
+            val currentThemeId by themePreferencesStore.currentThemeIdFlow.collectAsStateWithLifecycle(
+                initialValue = ThemePreferencesStore.DEFAULT_THEME_ID,
+            )
+            var previewThemeId by rememberSaveable { mutableStateOf<String?>(null) }
+            val activeTheme =
+                remember(previewThemeId, currentThemeId) {
+                    TuneFlowThemes.fromId(previewThemeId ?: currentThemeId)
+                }
+            var showSettingsDialog by rememberSaveable { mutableStateOf(false) }
+
+            TuneFlowTheme(theme = activeTheme) {
                 val updateState by appUpdateCoordinator.state.collectAsStateWithLifecycle()
                 val updateCheckState by appUpdateCoordinator.checkState.collectAsStateWithLifecycle()
                 var showAboutDialog by rememberSaveable { mutableStateOf(false) }
@@ -217,13 +231,42 @@ class MainActivity : ComponentActivity() {
                             playerManager.stopAndClear()
                             authViewModel.logout()
                         },
+                        onOpenSettings = {
+                            showAboutDialog = false
+                            showSettingsDialog = true
+                        },
                         onDismiss = { showAboutDialog = false },
+                    )
+                }
+
+                if (showSettingsDialog) {
+                    AppSettingsDialog(
+                        currentThemeId = currentThemeId,
+                        onPreviewTheme = { previewThemeId = it },
+                        onSaveTheme = { themeId ->
+                            lifecycleScope.launch {
+                                themePreferencesStore.setThemeId(themeId)
+                            }
+                            previewThemeId = null
+                            showSettingsDialog = false
+                        },
+                        onCancelTheme = {
+                            previewThemeId = null
+                            showSettingsDialog = false
+                        },
+                        currentScreenScale = screenScaleOption,
+                        onScreenScaleSelected = { scale ->
+                            lifecycleScope.launch {
+                                playbackPreferencesStore.setScreenScale(scale)
+                            }
+                        },
                     )
                 }
 
                 LaunchedEffect(updateState) {
                     if (updateState is AppUpdateUiState.Available) {
                         showAboutDialog = false
+                        showSettingsDialog = false
                     }
                     val ready = updateState as? AppUpdateUiState.ReadyToInstall ?: return@LaunchedEffect
                     val errorMessage = launchPackageInstaller(ready.apkFile)

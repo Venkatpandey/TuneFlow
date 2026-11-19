@@ -536,7 +536,7 @@ private fun ProfileHeader(
                     }
                 }
                 .focusable()
-                .padding(4.dp),
+                .padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -559,11 +559,11 @@ private fun ProfileHeader(
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
-        Column(modifier = Modifier.weight(1f)) {
+        Column {
             Text(
                 text = currentTimeText,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
             Text(
