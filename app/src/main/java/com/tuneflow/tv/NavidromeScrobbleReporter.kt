@@ -21,7 +21,14 @@ internal class NavidromeScrobbleReporter(
 
     override fun currentAccountKey(): String? = currentSession()?.let { session -> runCatching { session.accountKey() }.getOrNull() }
 
-    override suspend fun scrobble(submission: ScrobbleSubmission) {
+    override suspend fun nowPlaying(submission: ScrobbleSubmission) = report(submission, isSubmission = false)
+
+    override suspend fun scrobble(submission: ScrobbleSubmission) = report(submission, isSubmission = true)
+
+    private suspend fun report(
+        submission: ScrobbleSubmission,
+        isSubmission: Boolean,
+    ) {
         val session = currentSession()
         if (session != null && runCatching { session.accountKey() }.getOrNull() == submission.accountKey) {
             val result =
@@ -30,6 +37,7 @@ internal class NavidromeScrobbleReporter(
                         clientProvider.create(session).scrobble(
                             trackId = submission.trackId,
                             startedAtEpochMs = submission.startedAtEpochMs,
+                            submission = isSubmission,
                         )
                     }
                 } catch (error: IllegalArgumentException) {

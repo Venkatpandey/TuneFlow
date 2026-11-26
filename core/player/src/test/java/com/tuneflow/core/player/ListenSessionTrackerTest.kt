@@ -11,6 +11,24 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ListenSessionTrackerTest {
     @Test
+    fun `reports now playing once when a listen session starts`() =
+        runTest {
+            val reporter = RecordingScrobbleReporter()
+            val tracker = tracker(reporter)
+
+            tracker.onPlaying("track-id", 180_000L)
+            runCurrent()
+            tracker.onPaused("track-id")
+            tracker.onPlaying("track-id", 180_000L)
+            runCurrent()
+
+            assertEquals(
+                listOf(ScrobbleSubmission("server\u0000user", "track-id", 1_234_567L)),
+                reporter.nowPlaying,
+            )
+        }
+
+    @Test
     fun `submits once after quarter of a normal track`() =
         runTest {
             val reporter = RecordingScrobbleReporter()
@@ -143,6 +161,8 @@ class ListenSessionTrackerTest {
                 object : ScrobbleReporter {
                     override fun currentAccountKey(): String = "server\u0000user"
 
+                    override suspend fun nowPlaying(submission: ScrobbleSubmission) = Unit
+
                     override suspend fun scrobble(submission: ScrobbleSubmission) {
                         attempts += 1
                         error("offline")
@@ -179,9 +199,14 @@ class ListenSessionTrackerTest {
 
 private class RecordingScrobbleReporter : ScrobbleReporter {
     var accountKey: String? = "server\u0000user"
+    val nowPlaying = mutableListOf<ScrobbleSubmission>()
     val submissions = mutableListOf<ScrobbleSubmission>()
 
     override fun currentAccountKey(): String? = accountKey
+
+    override suspend fun nowPlaying(submission: ScrobbleSubmission) {
+        nowPlaying += submission
+    }
 
     override suspend fun scrobble(submission: ScrobbleSubmission) {
         submissions += submission

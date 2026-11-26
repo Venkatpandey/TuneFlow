@@ -17,11 +17,15 @@ data class ScrobbleSubmission(
 interface ScrobbleReporter {
     fun currentAccountKey(): String?
 
+    suspend fun nowPlaying(submission: ScrobbleSubmission)
+
     suspend fun scrobble(submission: ScrobbleSubmission)
 }
 
 object NoOpScrobbleReporter : ScrobbleReporter {
     override fun currentAccountKey(): String? = null
+
+    override suspend fun nowPlaying(submission: ScrobbleSubmission) = Unit
 
     override suspend fun scrobble(submission: ScrobbleSubmission) = Unit
 }
@@ -41,6 +45,7 @@ class ListenSessionTracker(
         var durationMs: Long,
         var listenedMs: Long = 0L,
         var playingSinceMs: Long? = null,
+        var nowPlayingReported: Boolean = false,
         var submitted: Boolean = false,
     )
 
@@ -68,6 +73,7 @@ class ListenSessionTracker(
                 ?: startSession(accountKey, trackId, durationMs)
         val previousThreshold = active.thresholdMs()
         if (durationMs > 0L) active.durationMs = durationMs
+        reportNowPlaying(active)
         if (active.submitted) return
         if (active.playingSinceMs == null) active.playingSinceMs = monotonicClockMs()
         if (previousThreshold != active.thresholdMs() || thresholdJob == null) {
@@ -140,6 +146,34 @@ class ListenSessionTracker(
                 stopClock(current)
                 if (current.listenedMs >= current.thresholdMs()) qualify(current)
             }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun reportNowPlaying(active: Session) {
+        if (active.nowPlayingReported) return
+        if (reporter.currentAccountKey() != active.accountKey) {
+            reset()
+            return
+        }
+        active.nowPlayingReported = true
+        val sequence = active.sequence
+        val submission =
+            ScrobbleSubmission(
+                accountKey = active.accountKey,
+                trackId = active.trackId,
+                startedAtEpochMs = active.startedAtEpochMs,
+            )
+        scope.launch {
+            val current = session?.takeIf { it.sequence == sequence } ?: return@launch
+            if (reporter.currentAccountKey() != current.accountKey) return@launch
+            try {
+                reporter.nowPlaying(submission)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                onReportFailure(error)
+            }
+        }
     }
 
     @Suppress("TooGenericExceptionCaught")

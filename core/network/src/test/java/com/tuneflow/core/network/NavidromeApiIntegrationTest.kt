@@ -138,6 +138,41 @@ class NavidromeApiIntegrationTest {
     }
 
     @Test
+    fun scrobble_sendsNowPlayingWithoutSubmission() {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "subsonic-response": {
+                    "status": "ok",
+                    "version": "1.16.1"
+                  }
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.start()
+
+        val client =
+            NavidromeClient(
+                SessionData(
+                    serverUrl = server.url("/").toString(),
+                    username = "user",
+                    token = "token",
+                    salt = "salt",
+                ),
+            )
+        val result = kotlinx.coroutines.runBlocking { client.scrobble("track-id", 1_725_000_123_456L, submission = false) }
+
+        assertTrue(result is NetworkResult.Success)
+        val requestUrl = requireNotNull(server.takeRequest().requestUrl)
+        assertEquals("false", requestUrl.queryParameter("submission"))
+
+        server.shutdown()
+    }
+
+    @Test
     fun scrobble_returnsServerErrorWithoutThrowing() {
         val server = MockWebServer()
         server.enqueue(

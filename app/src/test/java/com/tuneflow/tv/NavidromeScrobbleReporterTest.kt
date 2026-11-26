@@ -12,6 +12,29 @@ import org.junit.Test
 
 class NavidromeScrobbleReporterTest {
     @Test
+    fun `matching account reports now playing without a submission`() =
+        runTest {
+            val session = session("user")
+            val client = RecordingNavidromeClient(session)
+            val reporter =
+                NavidromeScrobbleReporter(
+                    currentSession = { session },
+                    clientProvider = NavidromeClientProvider { client },
+                    diagnostic = {},
+                )
+
+            reporter.nowPlaying(
+                ScrobbleSubmission(
+                    accountKey = requireNotNull(reporter.currentAccountKey()),
+                    trackId = "track-id",
+                    startedAtEpochMs = 1_234_567L,
+                ),
+            )
+
+            assertEquals(listOf(Triple("track-id", 1_234_567L, false)), client.submissions)
+        }
+
+    @Test
     fun `matching account submits original track and timestamp`() =
         runTest {
             val session = session("user")
@@ -26,7 +49,7 @@ class NavidromeScrobbleReporterTest {
 
             reporter.scrobble(ScrobbleSubmission(accountKey, "track-id", 1_234_567L))
 
-            assertEquals(listOf("track-id" to 1_234_567L), client.submissions)
+            assertEquals(listOf(Triple("track-id", 1_234_567L, true)), client.submissions)
         }
 
     @Test
@@ -86,13 +109,14 @@ private class RecordingNavidromeClient(
     session: SessionData,
     private val result: NetworkResult<Unit> = NetworkResult.Success(Unit),
 ) : NavidromeClient(session) {
-    val submissions = mutableListOf<Pair<String, Long>>()
+    val submissions = mutableListOf<Triple<String, Long, Boolean>>()
 
     override suspend fun scrobble(
         trackId: String,
         startedAtEpochMs: Long,
+        submission: Boolean,
     ): NetworkResult<Unit> {
-        submissions += trackId to startedAtEpochMs
+        submissions += Triple(trackId, startedAtEpochMs, submission)
         return result
     }
 }

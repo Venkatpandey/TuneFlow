@@ -284,12 +284,14 @@ open class NavidromeClient(private val session: SessionData) {
     open suspend fun scrobble(
         trackId: String,
         startedAtEpochMs: Long,
+        submission: Boolean = true,
     ): NetworkResult<Unit> {
         return safeCall {
             val response =
                 api.scrobble(
                     trackId = trackId,
                     startedAtEpochMs = startedAtEpochMs,
+                    submission = submission,
                     username = session.username,
                     token = session.token,
                     salt = session.salt,

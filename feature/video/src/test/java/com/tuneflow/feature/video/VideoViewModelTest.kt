@@ -1150,6 +1150,8 @@ private class RecordingVideoScrobbleReporter : ScrobbleReporter {
 
     override fun currentAccountKey(): String = "server\u0000user"
 
+    override suspend fun nowPlaying(submission: ScrobbleSubmission) = Unit
+
     override suspend fun scrobble(submission: ScrobbleSubmission) {
         submissions += submission
     }
